@@ -140,7 +140,7 @@ pub struct Target {
 
     /// The equivalent of `data_layout`, but parsed into a structural
     /// format.
-    target_data_layout: Option<TargetDataLayout>,
+    target_data_layout: TargetDataLayout,
 
     /// What endianess the target is.
     pub endian: Endian,
@@ -263,12 +263,12 @@ impl Target {
     /// @@Ugh: this is a shit API, we need to figure out how to unify a the
     /// target and target data layout items.
     pub fn data_layout(&self) -> &TargetDataLayout {
-        self.target_data_layout.as_ref().unwrap()
+        &self.target_data_layout
     }
 
-    /// Set the [TargetDataLayout] for the [Target].
+    /// Set the [TargetDataLayout] for the [Target].Ì
     pub fn set_data_layout(&mut self, dl: TargetDataLayout) {
-        self.target_data_layout = Some(dl);
+        self.target_data_layout = dl;
     }
 
     /// Produce a [TargetDataLayout] from the given [Target] layout
@@ -354,7 +354,7 @@ impl Default for Target {
             // value will be overridden for the platform specific data layout
             // string.
             data_layout: "e-m:e-i64:64-f80:128-n8:16:32:64-S128".into(),
-            target_data_layout: Some(TargetDataLayout::default()),
+            target_data_layout: TargetDataLayout::default(),
             pointer_bit_width,
 
             // Entry point options
