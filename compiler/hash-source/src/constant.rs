@@ -23,8 +23,7 @@ use hash_target::{
     alignment::Alignment,
     data_layout::{Endian, HasDataLayout},
 };
-use hash_utils::{derive_more::Constructor, fnv::FnvBuildHasher};
-use num_bigint::BigInt;
+use hash_utils::{derive_more::Constructor, fnv::FnvBuildHasher, num_bigint::BigInt};
 
 /// A scalar value. [Scalar]s are used to represent all integer, characters, and
 /// floating point values, as well as integers. The largest scalar value is
@@ -142,6 +141,18 @@ impl Scalar {
     /// Convert the [Scalar] into a [f64].
     pub fn to_f64(&self) -> f64 {
         f64::try_from(*self).unwrap()
+    }
+
+    /// Converts the scalar to produce an unsigned integer of the given size.
+    /// Fails if the scalar is a pointer.
+    #[inline]
+    pub fn to_uint(self, size: Size) -> Result<u128, Size> {
+        self.to_bits(size)
+    }
+
+    pub fn to_target_usize(self, cx: &impl HasDataLayout) -> u64 {
+        let b = self.to_uint(cx.data_layout().pointer_size).unwrap();
+        u64::try_from(b).unwrap()
     }
 }
 
@@ -453,16 +464,16 @@ impl AllocId {
     /// as a standard utf8 string.
     ///
     ///##NOTE: If the bytes are not valid utf8 then this  method will panic.
-    pub fn coerce_into_str(&self) -> String {
-        todo!()
+    pub fn value_as_str(&self) -> String {
+        todo!() // @@Cowbunga
     }
 
-    pub fn string(_value: String) -> Self {
-        todo!()
+    pub fn str(_value: String) -> Self {
+        todo!() // @@Cowbunga
     }
 
     pub fn big_int(_value: BigInt) -> Self {
-        todo!()
+        todo!() // @@Cowbunga
     }
 }
 
@@ -482,7 +493,7 @@ impl LocalStringTable {
     /// Add an entry to the local string table.
     #[inline]
     pub fn add(&mut self, value: String) -> AllocId {
-        let key = *self.table.entry(value.clone()).or_insert_with(|| AllocId::string(value));
+        let key = *self.table.entry(value.clone()).or_insert_with(|| AllocId::str(value));
         self.max_key = std::cmp::max(self.max_key, Some(key));
         key
     }
@@ -508,7 +519,7 @@ impl ConstStores {
         // for (key, value) in local.table {
         //     writer[value.to_usize()] = Some(Box::leak(key.into_boxed_str()));
         // }
-        todo!()
+        todo!() // @@Cowbunga
     }
 }
 

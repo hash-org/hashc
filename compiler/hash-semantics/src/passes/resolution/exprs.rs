@@ -7,7 +7,9 @@
 use std::collections::HashSet;
 
 use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef};
+use hash_ast_utils::lit::LitHelpers;
 use hash_attrs::{attr::attr_store, builtin::attrs};
+use hash_const_eval::op::{BinOp, LogicalBinOp, UnOp};
 use hash_reporting::macros::panic_on_span;
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
@@ -15,16 +17,15 @@ use hash_storage::store::{
 };
 use hash_tir::{
     intrinsics::{
-        definitions::{equal_ty, BinOp, CondBinOp, Intrinsic, ShortCircuitingBoolOp, UnOp},
+        definitions::{equal_ty, Intrinsic},
         utils::{bool_term, create_term_from_const},
     },
     tir::{
         blocks::{BlockStatement, BlockTerm, Decl},
         commands::AssignTerm,
-        AccessTerm, AnnotTerm, Arg, ArgsId, ArrayTerm, CallTerm, CharLit, DataTy, DerefTerm,
-        FloatLit, IndexTerm, IntLit, Lit, LoopControlTerm, LoopTerm, MatchCase, MatchTerm, Node,
-        NodeId, NodeOrigin, ParamIndex, RefKind, RefTerm, ReturnTerm, StrLit, Term, TermId,
-        TupleTerm, Ty, TyOfTerm, UnsafeTerm, VarTerm,
+        AccessTerm, AnnotTerm, Arg, ArgsId, ArrayTerm, CallTerm, DataTy, DerefTerm, IndexTerm, Lit,
+        LoopControlTerm, LoopTerm, MatchCase, MatchTerm, Node, NodeId, NodeOrigin, ParamIndex,
+        RefKind, RefTerm, ReturnTerm, Term, TermId, TupleTerm, Ty, TyOfTerm, UnsafeTerm, VarTerm,
     },
 };
 use hash_utils::itertools::Itertools;
@@ -523,24 +524,22 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
     fn make_term_from_ast_lit(&self, node: AstNodeRef<ast::Lit>) -> SemanticResult<TermId> {
         // Macro to make a literal primitive term
         macro_rules! lit_prim {
-            ($name:ident,$lit_name:ident, $contents:expr) => {
+            ($name:ident, $contents:expr) => {
                 Term::from(
-                    Term::Lit(Node::create_at(
-                        Lit::$name($lit_name::from($contents)),
-                        NodeOrigin::Given(node.id()),
-                    )),
+                    Term::Lit(Node::create_at(Lit::$name($contents), NodeOrigin::Given(node.id()))),
                     NodeOrigin::Given(node.id()),
                 )
             };
         }
 
         match node.body() {
-            ast::Lit::Str(str_lit) => Ok(lit_prim!(Str, StrLit, *str_lit)),
-            ast::Lit::Char(char_lit) => Ok(lit_prim!(Char, CharLit, *char_lit)),
-            ast::Lit::Int(int_lit) => Ok(lit_prim!(Int, IntLit, *int_lit)),
-            ast::Lit::Byte(byte_lit) => Ok(lit_prim!(Int, IntLit, *byte_lit)),
-            ast::Lit::Float(float_lit) => Ok(lit_prim!(Float, FloatLit, *float_lit)),
+            // @@Future: perhaps this can just be a const too...
             ast::Lit::Bool(bool_lit) => Ok(bool_term(bool_lit.data, NodeOrigin::Given(node.id()))),
+            ast::Lit::Int(int_lit) => Ok(lit_prim!(Int, *int_lit)),
+            ast::Lit::Float(float_lit) => Ok(lit_prim!(Float, *float_lit)),
+            // ##Note: Converting to a `Const` here is infallible since we don't handle floats/ints
+            // until later when we actually bake them.
+            lit => Ok(lit_prim!(Const, lit.to_const(None, self.target().ptr_size()).unwrap())),
         }
     }
 
@@ -963,20 +962,18 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
 
         // Pick the right intrinsic function and binary operator number
         let (intrinsic, bin_op_num): (Intrinsic, u8) = match op {
-            ast::BinOp::EqEq => (Intrinsic::CondBinOp, CondBinOp::EqEq.into()),
-            ast::BinOp::NotEq => (Intrinsic::CondBinOp, CondBinOp::NotEq.into()),
+            ast::BinOp::EqEq => (Intrinsic::CondBinOp, BinOp::Eq.into()),
+            ast::BinOp::NotEq => (Intrinsic::CondBinOp, BinOp::Neq.into()),
             ast::BinOp::BitOr => (Intrinsic::BinOp, BinOp::BitOr.into()),
-            ast::BinOp::Or => (Intrinsic::ShortCircuitingBoolOp, ShortCircuitingBoolOp::Or.into()),
+            ast::BinOp::Or => (Intrinsic::ShortCircuitingBoolOp, LogicalBinOp::Or.into()),
+            ast::BinOp::And => (Intrinsic::ShortCircuitingBoolOp, LogicalBinOp::And.into()),
             ast::BinOp::BitAnd => (Intrinsic::BinOp, BinOp::BitAnd.into()),
-            ast::BinOp::And => {
-                (Intrinsic::ShortCircuitingBoolOp, ShortCircuitingBoolOp::And.into())
-            }
             ast::BinOp::BitXor => (Intrinsic::BinOp, BinOp::BitXor.into()),
             ast::BinOp::Exp => (Intrinsic::BinOp, BinOp::Exp.into()),
-            ast::BinOp::Gt => (Intrinsic::CondBinOp, CondBinOp::Gt.into()),
-            ast::BinOp::GtEq => (Intrinsic::CondBinOp, CondBinOp::GtEq.into()),
-            ast::BinOp::Lt => (Intrinsic::CondBinOp, CondBinOp::Lt.into()),
-            ast::BinOp::LtEq => (Intrinsic::CondBinOp, CondBinOp::LtEq.into()),
+            ast::BinOp::Gt => (Intrinsic::CondBinOp, BinOp::Gt.into()),
+            ast::BinOp::GtEq => (Intrinsic::CondBinOp, BinOp::GtEq.into()),
+            ast::BinOp::Lt => (Intrinsic::CondBinOp, BinOp::Lt.into()),
+            ast::BinOp::LtEq => (Intrinsic::CondBinOp, BinOp::LtEq.into()),
             ast::BinOp::Shr => (Intrinsic::BinOp, BinOp::Shr.into()),
             ast::BinOp::Shl => (Intrinsic::BinOp, BinOp::Shl.into()),
             ast::BinOp::Add => (Intrinsic::BinOp, BinOp::Add.into()),

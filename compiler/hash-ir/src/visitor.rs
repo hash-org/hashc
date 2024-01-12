@@ -19,7 +19,7 @@ use crate::{
     ir::{
         AggregateKind, AssertKind, BasicBlock, BasicBlockData, BinOp, Body, BodyInfo, BodyInfoMut,
         ConstOp, IrRef, Local, Operand, Place, PlaceProjection, RValue, Statement, SwitchTargets,
-        Terminator, UnaryOp,
+        Terminator, UnOp,
     },
     ty::{Mutability, RefKind, ReprTyId, VariantIdx},
 };
@@ -164,7 +164,7 @@ pub trait IrVisitorMut<'ir>: Sized {
 
     fn visit_const_op_rvalue(&mut self, _: ConstOp, _: ReprTyId, _: &IrVisitorCtx<'_>) {}
 
-    fn visit_unary_op_rvalue(&mut self, op: UnaryOp, value: &Operand, ctx: &IrVisitorCtx<'_>) {
+    fn visit_unary_op_rvalue(&mut self, op: UnOp, value: &Operand, ctx: &IrVisitorCtx<'_>) {
         walk_mut::walk_unary_op_rvalue(self, op, value, ctx);
     }
 
@@ -468,7 +468,7 @@ pub mod walk_mut {
 
     pub fn walk_unary_op_rvalue<'ir, V: IrVisitorMut<'ir>>(
         visitor: &mut V,
-        _: UnaryOp,
+        _: UnOp,
         value: &Operand,
         ctx: &IrVisitorCtx<'_>,
     ) {
@@ -633,7 +633,7 @@ pub trait ModifyingIrVisitor<'ir>: Sized {
 
     fn visit_unary_op_rvalue(
         &self,
-        op: &mut UnaryOp,
+        op: &mut UnOp,
         value: &mut Operand,
         ctx: &mut IrVisitorCtxMut<'_>,
     ) {
@@ -949,7 +949,7 @@ pub mod walk_modifying {
 
     pub fn walk_unary_op_rvalue<'ir, V: ModifyingIrVisitor<'ir>>(
         visitor: &V,
-        _: &mut UnaryOp,
+        _: &mut UnOp,
         value: &mut Operand,
         ctx: &mut IrVisitorCtxMut<'_>,
     ) {

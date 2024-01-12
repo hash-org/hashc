@@ -11,6 +11,7 @@ use diagnostics::{
 };
 use env::{HasSemanticDiagnostics, SemanticEnv};
 use hash_ast::node_map::{HasNodeMap, NodeMap};
+use hash_layout::{compute::LayoutComputer, HasLayout};
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerResult, CompilerStage},
     settings::{CompilerSettings, CompilerStageKind, HasCompilerSettings},
@@ -137,6 +138,12 @@ impl HasCompilerSettings for SemanticEnvImpl<'_> {
 impl HasTarget for SemanticEnvImpl<'_> {
     fn target(&self) -> &Target {
         self.ctx.settings.target()
+    }
+}
+
+impl HasLayout for SemanticEnvImpl<'_> {
+    fn layout_computer(&self) -> LayoutComputer {
+        todo!()
     }
 }
 

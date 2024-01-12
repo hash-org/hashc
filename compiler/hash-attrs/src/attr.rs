@@ -3,16 +3,15 @@
 use std::{fmt, sync::OnceLock};
 
 use hash_ast::{ast, ast::AstNodeId};
-use hash_ast_utils::lit::{parse_float_const_from_lit, parse_int_const_from_lit, LitParseResult};
+use hash_ast_utils::lit::{LitHelpers, LitParseResult};
 use hash_layout::constant::Const;
 use hash_source::{identifier::Identifier, location::Span};
 use hash_storage::store::{DefaultPartialStore, PartialStore};
 use hash_target::{primitives::IntTy, size::Size};
-use hash_tir::{
-    intrinsics::utils::{try_use_ty_as_float_ty, try_use_ty_as_int_ty},
-    tir::{ParamIndex, TyId},
+use hash_tir::tir::{ParamIndex, TyId};
+use hash_utils::{
+    derive_more::From, fxhash::FxHashMap, lazy_static::lazy_static, num_bigint::BigInt,
 };
-use hash_utils::{derive_more::From, fxhash::FxHashMap, lazy_static::lazy_static};
 
 use crate::{
     diagnostics::{AttrError, AttrResult},
@@ -41,7 +40,7 @@ impl ReprAttr {
     /// Parse a [ReprAttr] from an [Attr].
     pub fn parse(attr: &Attr) -> AttrResult<Self> {
         let arg = attr.get_arg(0).unwrap();
-        let inner = arg.value.as_alloc().coerce_into_str();
+        let inner = arg.value.as_alloc().value_as_str();
 
         match inner.as_str() {
             "c" => Ok(ReprAttr::C),
@@ -154,26 +153,19 @@ impl AttrValue {
         ptr_size: Size,
     ) -> LitParseResult<Option<Self>> {
         let constant = match expr {
-            ast::Expr::Lit(ast::LitExpr { data }) => match data.body() {
-                ast::Lit::Str(ast::StrLit { data }) => Const::str(*data),
-                ast::Lit::Char(ast::CharLit { data }) => (*data).into(),
-                ast::Lit::Int(int_lit) => {
-                    // Try to convert the `expected_ty` into a `IntTy`
-                    let annotation = expected_ty.and_then(try_use_ty_as_int_ty);
-                    let value = parse_int_const_from_lit(int_lit, annotation, ptr_size, false)?;
-                    value
-                }
-                ast::Lit::Float(float_lit) => {
-                    let annotation = expected_ty.and_then(try_use_ty_as_float_ty);
-                    let value = parse_float_const_from_lit(float_lit, annotation)?;
-                    value
-                }
-                _ => return Ok(None),
-            },
+            ast::Expr::Lit(ast::LitExpr { data }) => {
+                let ty = expected_ty.map(|_| todo!()); // @@Cowbunga
+                data.to_const(ty, ptr_size)?
+            }
             _ => return Ok(None),
         };
 
         Ok(Some(Self { origin, value: constant }))
+    }
+
+    /// Try to convert the [AttrValue] into a [BigInt].
+    pub fn as_big_int(&self) -> BigInt {
+        todo!() // @@CowBunga
     }
 }
 

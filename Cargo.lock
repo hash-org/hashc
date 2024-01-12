@@ -484,7 +484,6 @@ dependencies = [
  "hash-token",
  "hash-tree-def",
  "hash-utils",
- "num-bigint",
  "once_cell",
  "replace_with",
 ]
@@ -530,7 +529,6 @@ dependencies = [
  "hash-source",
  "hash-token",
  "hash-utils",
- "num-bigint",
 ]
 
 [[package]]
@@ -616,8 +614,6 @@ dependencies = [
  "hash-storage",
  "hash-target",
  "hash-utils",
- "num-bigint",
- "num-traits",
  "num_enum",
  "paste",
 ]
@@ -672,6 +668,7 @@ dependencies = [
  "fixedbitset",
  "hash-ast",
  "hash-attrs",
+ "hash-const-eval",
  "hash-layout",
  "hash-reporting",
  "hash-source",
@@ -719,8 +716,6 @@ dependencies = [
  "hash-target",
  "hash-token",
  "hash-utils",
- "num-bigint",
- "num-traits",
 ]
 
 [[package]]
@@ -771,7 +766,6 @@ dependencies = [
  "hash-target",
  "hash-token",
  "hash-utils",
- "num-bigint",
  "profiling",
 ]
 
@@ -806,9 +800,11 @@ name = "hash-semantics"
 version = "0.1.0"
 dependencies = [
  "hash-ast",
+ "hash-ast-utils",
  "hash-attrs",
  "hash-const-eval",
  "hash-exhaustiveness",
+ "hash-layout",
  "hash-pipeline",
  "hash-reporting",
  "hash-source",
@@ -818,7 +814,6 @@ dependencies = [
  "hash-tree-def",
  "hash-typecheck",
  "hash-utils",
- "num-bigint",
  "once_cell",
 ]
 
@@ -831,7 +826,6 @@ dependencies = [
  "hash-storage",
  "hash-target",
  "hash-utils",
- "num-bigint",
  "once_cell",
  "paste",
 ]
@@ -918,7 +912,6 @@ dependencies = [
  "hash-storage",
  "hash-target",
  "hash-utils",
- "num-bigint",
  "num_enum",
  "paste",
  "textwrap",
@@ -955,6 +948,7 @@ dependencies = [
  "hash-ast",
  "hash-ast-utils",
  "hash-attrs",
+ "hash-const-eval",
  "hash-exhaustiveness",
  "hash-layout",
  "hash-pipeline",
@@ -966,7 +960,6 @@ dependencies = [
  "hash-tree-def",
  "hash-utils",
  "itertools",
- "num-bigint",
  "once_cell",
 ]
 
@@ -1001,6 +994,7 @@ dependencies = [
  "itertools",
  "lazy_static",
  "log",
+ "num-bigint",
  "num-traits",
  "parking_lot",
  "rayon",

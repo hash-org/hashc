@@ -2,10 +2,13 @@
 //! [Term]s.
 
 use hash_ast::ast::AstNodeId;
-use hash_const_eval::eval::ConstFolder;
+use hash_const_eval::{
+    eval::ConstFolder,
+    op::{BinOp, UnOp},
+};
 use hash_ir::{
     cast::CastKind,
-    ir::{AssertKind, BasicBlock, BinOp, Const, ConstKind, Operand, RValue, Scalar, UnaryOp},
+    ir::{AssertKind, BasicBlock, Const, ConstKind, Operand, RValue, Scalar},
     ty::{Mutability, ReprTy, ReprTyId, COMMON_REPR_TYS},
 };
 use hash_source::constant::IntTy;
@@ -60,7 +63,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                         // check for this case here, and emit an assertion check for this (assuming
                         // checked operations are enabled).
                         if self.ctx.settings.lowering_settings().checked_operations
-                            && matches!(op, UnaryOp::Neg)
+                            && matches!(op, UnOp::Neg)
                             && ty.borrow().is_signed()
                         {
                             let min_value = self.min_value_of_ty(ty);

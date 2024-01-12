@@ -1,4 +1,5 @@
 use hash_ast::node_map::HasNodeMap;
+use hash_layout::HasLayout;
 use hash_pipeline::settings::HasCompilerSettings;
 use hash_reporting::diagnostic::{Diagnostics, HasDiagnostics};
 use hash_source::entry_point::EntryPointState;

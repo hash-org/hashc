@@ -168,8 +168,7 @@ impl Lit {
     /// term.
     pub fn bake_int<E: HasTarget>(&mut self, env: &E, int_ty: IntTy) -> LitParseResult<()> {
         if let Lit::Int(lit) = self {
-            let value =
-                parse_int_const_from_lit(&lit, Some(int_ty), env.target().ptr_size(), true)?;
+            let value = parse_int_const_from_lit(lit, Some(int_ty), env.target().ptr_size(), true)?;
 
             // @@AddBigIntsToPrelude: we just need to create a new alloc for the bigint.
             *self = Lit::Const(value);
@@ -184,7 +183,7 @@ impl Lit {
     /// baked.
     pub fn bake_float(&mut self, float_ty: FloatTy) -> LitParseResult<()> {
         if let Lit::Float(lit) = self {
-            let value = parse_float_const_from_lit(&lit, Some(float_ty))?;
+            let value = parse_float_const_from_lit(lit, Some(float_ty))?;
             *self = Lit::Const(value);
         }
 

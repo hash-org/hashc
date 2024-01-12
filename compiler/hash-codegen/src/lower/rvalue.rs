@@ -260,8 +260,8 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                 let value = operand.immediate_value();
 
                 let value = match operator {
-                    ir::UnaryOp::BitNot | ir::UnaryOp::Not => builder.not(value),
-                    ir::UnaryOp::Neg => {
+                    ir::UnOp::BitNot | ir::UnOp::Not => builder.not(value),
+                    ir::UnOp::Neg => {
                         // check if the underlying value is a floating point...
                         if self.ty_of_rvalue(rvalue).borrow().is_float() {
                             builder.fneg(value)

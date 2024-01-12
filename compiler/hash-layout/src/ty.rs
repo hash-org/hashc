@@ -428,7 +428,7 @@ impl ReprTy {
         match self {
             ReprTy::Adt(id) => {
                 if id.borrow().flags.is_enum() {
-                    id.borrow().discriminant_ty().to_ir_ty()
+                    id.borrow().discriminant_ty().to_repr_ty()
                 } else {
                     COMMON_REPR_TYS.u8
                 }
@@ -471,6 +471,21 @@ impl From<ReprTy> for IntTy {
 }
 
 impl From<ReprTyId> for IntTy {
+    fn from(ty: ReprTyId) -> Self {
+        ty.value().into()
+    }
+}
+
+impl From<ReprTy> for FloatTy {
+    fn from(ty: ReprTy) -> Self {
+        match ty {
+            ReprTy::Float(ty) => ty,
+            _ => panic!("expected float type, but got {ty:?}"),
+        }
+    }
+}
+
+impl From<ReprTyId> for FloatTy {
     fn from(ty: ReprTyId) -> Self {
         ty.value().into()
     }
@@ -701,12 +716,12 @@ pub struct PlaceTy {
 /// value into a [ReprTy].
 pub trait ToReprTy {
     /// Convert the current type into an [ReprTy].
-    fn to_ir_ty(&self) -> ReprTyId;
+    fn to_repr_ty(&self) -> ReprTyId;
 }
 
 // Convert from `IntTy` into an `ReprTy`.
 impl ToReprTy for IntTy {
-    fn to_ir_ty(&self) -> ReprTyId {
+    fn to_repr_ty(&self) -> ReprTyId {
         match self {
             IntTy::Int(ty) => match ty {
                 SIntTy::I8 => COMMON_REPR_TYS.i8,
@@ -733,7 +748,7 @@ impl ToReprTy for IntTy {
 }
 
 impl ToReprTy for FloatTy {
-    fn to_ir_ty(&self) -> ReprTyId {
+    fn to_repr_ty(&self) -> ReprTyId {
         match self {
             FloatTy::F32 => COMMON_REPR_TYS.f32,
             FloatTy::F64 => COMMON_REPR_TYS.f64,
@@ -743,11 +758,11 @@ impl ToReprTy for FloatTy {
 
 // Convert from an ABI scalar kind into an `ReprTy`.
 impl ToReprTy for ScalarKind {
-    fn to_ir_ty(&self) -> ReprTyId {
+    fn to_repr_ty(&self) -> ReprTyId {
         match *self {
             ScalarKind::Int { kind, signed } => {
                 let int_ty = IntTy::from_integer(kind, signed);
-                int_ty.to_ir_ty()
+                int_ty.to_repr_ty()
             }
             ScalarKind::Float { kind: FloatTy::F32 } => COMMON_REPR_TYS.f32,
             ScalarKind::Float { kind: FloatTy::F64 } => COMMON_REPR_TYS.f64,

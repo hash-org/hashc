@@ -37,6 +37,7 @@ pub use indexmap;
 pub use itertools;
 pub use lazy_static;
 pub use log;
+pub use num_bigint;
 pub use num_traits;
 pub use parking_lot;
 pub use rayon;

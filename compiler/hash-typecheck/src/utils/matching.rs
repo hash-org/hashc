@@ -183,31 +183,14 @@ impl<E: TcEnv> Tc<'_, E> {
                 let hi = hi.map(|LitPat(lit)| *lit.value());
 
                 Ok(match (*lit_term.value(), lo, hi) {
-                    (Lit::Int(value), Some(Lit::Int(lo)), Some(Lit::Int(hi))) => self
-                        .match_literal_to_range(
-                            value.value(),
-                            Some(lo.value()),
-                            Some(hi.value()),
-                            end,
-                        ),
-                    (Lit::Char(value), Some(Lit::Char(lo)), Some(Lit::Char(hi))) => self
-                        .match_literal_to_range(
-                            value.value(),
-                            Some(lo.value()),
-                            Some(hi.value()),
-                            end,
-                        ),
-                    (Lit::Int(value), Some(Lit::Int(lo)), None) => {
-                        self.match_literal_to_range(value.value(), Some(lo.value()), None, end)
+                    (Lit::Const(value), Some(Lit::Const(lo)), Some(Lit::Const(hi))) => {
+                        self.match_literal_to_range(value, Some(lo), Some(hi), end)
                     }
-                    (Lit::Int(value), None, Some(Lit::Int(hi))) => {
-                        self.match_literal_to_range(value.value(), None, Some(hi.value()), end)
+                    (Lit::Const(value), Some(Lit::Const(lo)), None) => {
+                        self.match_literal_to_range(value, Some(lo), None, end)
                     }
-                    (Lit::Char(value), Some(Lit::Char(lo)), None) => {
-                        self.match_literal_to_range(value.value(), Some(lo.value()), None, end)
-                    }
-                    (Lit::Char(value), None, Some(Lit::Char(hi))) => {
-                        self.match_literal_to_range(value.value(), None, Some(hi.value()), end)
+                    (Lit::Const(value), None, Some(Lit::Const(hi))) => {
+                        self.match_literal_to_range(value, None, Some(hi), end)
                     }
                     _ => MatchResult::Stuck,
                 })
@@ -217,15 +200,7 @@ impl<E: TcEnv> Tc<'_, E> {
             // Literals
             (Term::Lit(lit_term), Pat::Lit(lit_pat)) => {
                 match (*lit_term.value(), *(*lit_pat).value()) {
-                    (Lit::Int(a), Lit::Int(b)) => {
-                        Ok(self.match_literal_to_literal(a.value(), b.value()))
-                    }
-                    (Lit::Str(a), Lit::Str(b)) => {
-                        Ok(self.match_literal_to_literal(a.value(), b.value()))
-                    }
-                    (Lit::Char(a), Lit::Char(b)) => {
-                        Ok(self.match_literal_to_literal(a.value(), b.value()))
-                    }
+                    (Lit::Const(a), Lit::Const(b)) => Ok(self.match_literal_to_literal(a, b)),
                     _ => Ok(MatchResult::Stuck),
                 }
             }

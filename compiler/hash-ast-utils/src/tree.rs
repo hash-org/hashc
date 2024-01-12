@@ -276,7 +276,7 @@ impl AstVisitor for AstTreePrinter {
         &self,
         node: ast::AstNodeRef<ast::Import>,
     ) -> Result<Self::ImportRet, Self::Error> {
-        Ok(TreeNode::leaf(labelled("import", node.path.coerce_into_str(), "\"")))
+        Ok(TreeNode::leaf(labelled("import", node.path.value_as_str(), "\"")))
     }
 
     type ImportExprRet = TreeNode;

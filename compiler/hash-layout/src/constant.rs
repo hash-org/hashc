@@ -142,14 +142,12 @@ impl Const {
     }
 
     /// Create a new [Const] from a integer with the given type.
-    pub fn from_scalar_like(value: u128, ty: ReprTyId, ptr_size: Size) -> Self {
-        let ty: ReprTyId = ty.into();
-
+    pub fn from_scalar_like<C: HasDataLayout>(value: u128, ty: ReprTyId, ctx: &C) -> Self {
         let kind = if ty == COMMON_REPR_TYS.bool {
             // @@FixMe: we're converting from one to another... seems dumb!
             ConstKind::Scalar(Scalar::from_bool(value != 0))
         } else {
-            let size = Into::<IntTy>::into(ty.value()).size(ptr_size);
+            let size = Into::<IntTy>::into(ty.value()).size(ctx.data_layout().pointer_size);
             ConstKind::Scalar(Scalar::from_uint(value, size))
         };
 
@@ -171,6 +169,15 @@ impl Const {
         let kind = ConstKind::Scalar(Scalar::from_usize(value, ctx));
         Self::new(COMMON_REPR_TYS.usize, kind)
     }
+
+    /// Attempt to coerce a [Const] into a `usize`.
+    pub fn try_to_target_usize<C: HasDataLayout>(&self, ctx: &C) -> Option<usize> {
+        if self.ty == COMMON_REPR_TYS.usize {
+            self.as_scalar().to_target_usize(ctx).try_into().ok()
+        } else {
+            None
+        }
+    }
 }
 
 macro_rules! const_from_ty_impl {
@@ -185,7 +192,7 @@ macro_rules! const_from_ty_impl {
     };
 }
 
-const_from_ty_impl!(f32, f64, char);
+const_from_ty_impl!(f32, f64, char, u8, u16, u32, u64, u128);
 
 macro_rules! try_from {
     ($($ty:ty),*) => {

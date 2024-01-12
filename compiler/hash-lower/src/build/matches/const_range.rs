@@ -5,8 +5,7 @@ use std::cmp::Ordering;
 
 use hash_ast::ast;
 use hash_ir::{
-    constant::ConstKind,
-    ir::{self, Const},
+    ir::{self, Const, ConstKind},
     ty::{ReprTy, ReprTyId},
 };
 use hash_ir_utils::const_utils::ConstUtils;

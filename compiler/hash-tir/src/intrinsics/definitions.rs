@@ -146,7 +146,7 @@ make_intrinsics! {
 
     user_error := (message: str_gen_ty()) -> never_gen_ty() => |env| {
         if let Term::Lit(lit) = *message.value() && let Lit::Const(value) = *lit.value() {
-            Err(value.as_alloc().coerce_into_str())
+            Err(value.as_alloc().value_as_str())
         } else {
             Err("`user_error` expects a string literal as argument".to_string())
         }
@@ -172,7 +172,7 @@ make_intrinsics! {
 
         // Use the constant evaluator to perform the operation.
         let eval = ConstFolder::new(env.layout_computer());
-        Ok(None)
+        Ok(None) // @@Cowbunga
 
         // // Valid operations on big-ints
         // macro_rules! operate_bool {
@@ -300,7 +300,7 @@ make_intrinsics! {
 
         // Use the constant evaluator to perform the operation.
         let eval = ConstFolder::new(env.layout_computer());
-        Ok(None)
+        Ok(None) // @@Cowbunga
 
         // // Valid operations on booleans
         // macro_rules! operate_bool {
@@ -336,7 +336,7 @@ make_intrinsics! {
         // Use the constant evaluator to perform the operation.
         let eval = ConstFolder::new(env.layout_computer());
 
-        Ok(None)
+        Ok(None) // @@Cowbunga
 
 
         // Valid operations on floats
@@ -431,7 +431,7 @@ make_intrinsics! {
         // Use the constant evaluator to perform the operation.
         let eval = ConstFolder::new(env.layout_computer());
 
-        Ok(None)
+        Ok(None) // @@Cowbunga
 
         // // Valid operations on booleans
         // macro_rules! operate_bool {

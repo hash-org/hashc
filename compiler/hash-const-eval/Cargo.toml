@@ -9,8 +9,6 @@ doctest = false
 
 [dependencies]
 num_enum = "0.5"
-num-bigint = "0.4"
-num-traits = "0.2.15"
 paste = "1.0.14"
 
 hash-storage = { path = "../hash-storage" }

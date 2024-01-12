@@ -28,7 +28,7 @@ use hash_tir::{
     intrinsics::{
         definitions::{bool_def, Intrinsic as TirIntrinsic},
         make::IsIntrinsic,
-        utils::{try_use_term_as_int_const, try_use_term_as_integer_lit},
+        utils::{try_use_term_as_const, try_use_term_as_machine_integer},
     },
     tir::{
         ArrayCtorInfo, CtorDefsId, DataDef, DataDefCtors, DataTy, FnDef, FnDefId, FnTy,
@@ -356,10 +356,11 @@ impl<'ir> BuilderCtx<'ir> {
                 //
                 // @@Hack @@TIRConsts
                 let discriminant = if let Some(discriminant_term) = ctor.discriminant
-                    && let Some(ref value) = try_use_term_as_int_const(self, discriminant_term)
+                    && let Some(ref value) = try_use_term_as_const(self, discriminant_term)
                 {
+                    let scalar = value.as_scalar();
                     Discriminant {
-                        value: value.value.as_u128(),
+                        value: scalar.to_bits(scalar.size()).unwrap(),
                         ty,
                         kind: DiscriminantKind::Explicit,
                     }
@@ -470,7 +471,8 @@ impl<'ir> BuilderCtx<'ir> {
                         self.context().enter_scope(ty.data_def.into(), || {
                             self.context().add_arg_bindings(data_def.params, ty.args);
 
-                            let ty = match length.and_then(|l| try_use_term_as_integer_lit(self, l))
+                            let ty = match length
+                                .and_then(|l| try_use_term_as_machine_integer(self, l))
                             {
                                 Some(length) => {
                                     ReprTy::Array { ty: self.ty_id_from_tir_ty(element_ty), length }

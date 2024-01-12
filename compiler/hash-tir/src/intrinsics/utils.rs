@@ -259,7 +259,7 @@ pub fn create_term_from_usize_lit<C: HasDataLayout>(
     lit: usize,
     origin: NodeOrigin,
 ) -> TermId {
-    let lit = Const::usize(lit.try_into().unwrap(), ctx).into();
+    let lit = Const::usize(lit.try_into().unwrap(), ctx);
     Node::create_at(Term::Lit(Node::create_at(Lit::Const(lit), origin)), origin)
 }
 
@@ -302,6 +302,16 @@ pub fn try_use_term_as_integer_lit<T: HasContext + HasTarget, L: for<'a> TryFrom
     term: TermId,
 ) -> Option<L> {
     try_use_term_as_const(env, term).and_then(|val| (&val).try_into().ok())
+}
+
+/// Special case for machine sized integers, we have to first normalise
+/// the type based on the compilation [Target] and then we can convert
+/// the [Term] into that value.
+pub fn try_use_term_as_machine_integer<T: HasContext + HasTarget>(
+    env: &T,
+    term: TermId,
+) -> Option<usize> {
+    try_use_term_as_const(env, term).and_then(|val| val.try_to_target_usize(env))
 }
 
 /// Get the given term as a float literal if possible.

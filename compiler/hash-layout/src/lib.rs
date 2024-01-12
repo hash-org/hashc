@@ -263,7 +263,7 @@ impl TyInfo {
                 Variants::Single { index } => {
                     id.map(|adt| adt.variants[index].fields[field_index].ty)
                 }
-                Variants::Multiple { tag, .. } => tag.kind().to_ir_ty(),
+                Variants::Multiple { tag, .. } => tag.kind().to_repr_ty(),
             },
         });
 

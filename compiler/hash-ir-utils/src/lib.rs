@@ -441,8 +441,8 @@ impl fmt::Display for IrWriter<'_, &Terminator> {
 
                         // We want to create an a constant from this value
                         // with the type, and then print it.
-                        let ptr_size = self.lc.data_layout().pointer_size;
-                        let value = Const::from_scalar_like(value, target_ty, ptr_size);
+                        let value =
+                            Const::from_scalar_like(value, target_ty, self.lc.data_layout());
 
                         let mut buf = TempWriter::default();
                         pretty_print_const(&mut buf, &value, self.lc).unwrap();

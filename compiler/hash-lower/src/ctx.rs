@@ -10,10 +10,7 @@ use hash_layout::{
 };
 use hash_pipeline::{interface::CompilerOutputStream, settings::CompilerSettings};
 use hash_storage::store::statics::SequenceStoreValue;
-use hash_target::{
-    data_layout::{HasDataLayout, TargetDataLayout},
-    HasTarget, Target,
-};
+use hash_target::{HasTarget, Target};
 use hash_tir::{
     atom_info::{AtomInfoStore, HasAtomInfo},
     context::{Context, HasContext},
@@ -45,12 +42,6 @@ pub(crate) struct BuilderCtx<'ir> {
 
     /// The context
     pub context: Context,
-}
-
-impl HasDataLayout for BuilderCtx<'_> {
-    fn data_layout(&self) -> &TargetDataLayout {
-        &self.layouts.data_layout
-    }
 }
 
 impl HasContext for BuilderCtx<'_> {

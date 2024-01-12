@@ -237,7 +237,7 @@ impl<E: ExhaustivenessEnv> fmt::Debug for ExhaustivenessFmtCtx<'_, Deconstructed
                 let bias = self.checker.signed_bias(repr_ty);
                 write!(f, "{:?}", IntRangeWithBias::new(*range, bias))
             }
-            DeconstructedCtor::Str(value) => write!(f, "{}", value.coerce_into_str()),
+            DeconstructedCtor::Str(value) => write!(f, "{}", value.value_as_str()),
             DeconstructedCtor::Array(list) => {
                 let mut sub_patterns = pat.fields.iter_patterns();
 

@@ -1,3 +1,4 @@
+use hash_layout::HasLayout;
 use hash_pipeline::settings::{CompilerSettings, HasCompilerSettings};
 use hash_reporting::diagnostic::HasDiagnostics;
 use hash_source::{entry_point::EntryPointState, SourceId};
@@ -49,6 +50,12 @@ impl<E: SemanticEnv> HasDiagnostics for TcEnvImpl<'_, E> {
 impl<E: SemanticEnv> HasTarget for TcEnvImpl<'_, E> {
     fn target(&self) -> &Target {
         self.env.target()
+    }
+}
+
+impl<E: SemanticEnv> HasLayout for TcEnvImpl<'_, E> {
+    fn layout_computer(&self) -> hash_layout::compute::LayoutComputer {
+        self.env.layout_computer()
     }
 }
 

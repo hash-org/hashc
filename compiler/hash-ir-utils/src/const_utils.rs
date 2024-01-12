@@ -103,7 +103,7 @@ impl ConstUtils<'_> {
 
         // We have to look more precisely at the layout to determine
         // the actual 'variant' index.
-        let tag_layout = self.lc.layout_of_ty(tag.kind().int_ty().to_ir_ty()).ok()?;
+        let tag_layout = self.lc.layout_of_ty(tag.kind().int_ty().to_repr_ty()).ok()?;
         let tag_size = tag_layout.size();
 
         // We need to read the value at the given field offset.

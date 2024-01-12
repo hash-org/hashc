@@ -6,7 +6,7 @@ use hash_layout::{
 use hash_source::{constant::Scalar, FloatTy};
 use hash_storage::store::statics::StoreId;
 use hash_target::data_layout::HasDataLayout;
-use hash_utils::derive_more::Constructor;
+use hash_utils::{derive_more::Constructor, num_traits};
 
 use crate::op::BinOp;
 
@@ -31,7 +31,7 @@ impl<'ctx> ConstFolder<'ctx> {
 
         match l_ty.value() {
             ty if ty.is_integral() => {
-                let size = self.lc.size_of_ty(l_ty.into()).ok()?;
+                let size = self.lc.size_of_ty(l_ty).ok()?;
                 let l_bits = left.to_bits(size).ok()?;
                 let r_bits = right.to_bits(size).ok()?;
                 self.binary_int_op(op, l_ty, l_bits, r_ty, r_bits)
@@ -105,7 +105,7 @@ impl<'ctx> ConstFolder<'ctx> {
         // We have to handle `shl` and `shr` differently since they have different
         // operand types.
         if matches!(bin_op, Shl | Shr) {
-            todo!()
+            todo!() // @@Cowbunga
         }
 
         debug_assert_eq!(lhs_ty, rhs_ty);
@@ -177,7 +177,7 @@ impl<'ctx> ConstFolder<'ctx> {
             }
         }
 
-        let ptr_size = self.lc.data_layout().pointer_size;
+        let dl = self.lc.data_layout();
 
         match bin_op {
             Eq => Some(Const::bool(lhs == rhs)),
@@ -186,9 +186,9 @@ impl<'ctx> ConstFolder<'ctx> {
             GtEq => Some(Const::bool(lhs >= rhs)),
             Lt => Some(Const::bool(lhs < rhs)),
             LtEq => Some(Const::bool(lhs <= rhs)),
-            BitOr => Some(Const::from_scalar_like(lhs | rhs, lhs_ty, ptr_size)),
-            BitAnd => Some(Const::from_scalar_like(lhs & rhs, lhs_ty, ptr_size)),
-            BitXor => Some(Const::from_scalar_like(lhs ^ rhs, lhs_ty, ptr_size)),
+            BitOr => Some(Const::from_scalar_like(lhs | rhs, lhs_ty, dl)),
+            BitAnd => Some(Const::from_scalar_like(lhs & rhs, lhs_ty, dl)),
+            BitXor => Some(Const::from_scalar_like(lhs ^ rhs, lhs_ty, dl)),
             Add | Sub | Mul | Div | Mod => {
                 let op: fn(u128, u128) -> (u128, bool) = match bin_op {
                     Add => u128::overflowing_add,

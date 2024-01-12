@@ -18,17 +18,17 @@
 
 use std::num;
 
-use hash_ast::ast::{AstNodeId, FloatLit, IntLit};
+use hash_ast::ast::{self, AstNodeId, FloatLit, IntLit};
 use hash_layout::{
     constant::{Const, ConstKind},
-    ty::ToReprTy,
+    ty::{ReprTyId, ToReprTy},
 };
 use hash_reporting::{hash_error_codes::error_codes::HashErrorCode, reporter::Reporter};
 use hash_source::constant::{
     AllocId, BigIntTy, FloatTy, IntTy, NormalisedIntTy, SIntTy, Scalar, Size, UIntTy,
 };
 pub use hash_token::{FloatLitKind, IntLitKind};
-use num_bigint::BigInt;
+use hash_utils::num_bigint::BigInt;
 
 /// An error that occurred when parsing a literal.
 #[derive(Debug, Clone)]
@@ -198,7 +198,7 @@ pub fn parse_int_const_from_lit(
         IntTy::Big(_) => {
             if allow_big {
                 let alloc = AllocId::big_int(BigInt::parse_bytes(hunk.as_bytes(), base).unwrap());
-                let constant = Const::alloc(alloc, ty.normalised.to_ir_ty());
+                let constant = Const::alloc(alloc, ty.normalised.to_repr_ty());
                 return Ok(constant);
             } else {
                 return Err(LitParseError::new(
@@ -210,7 +210,7 @@ pub fn parse_int_const_from_lit(
         }
     };
 
-    Ok(Const::scalar(lit, ty.normalised.to_ir_ty()))
+    Ok(Const::scalar(lit, ty.normalised.to_repr_ty()))
 }
 
 /// Parse a float literal from the given [Hunk]. The integer must be
@@ -237,5 +237,29 @@ pub fn parse_float_const_from_lit(
         FloatTy::F32 => ConstKind::Scalar(parse!(f32).into()),
         FloatTy::F64 => ConstKind::Scalar(parse!(f64).into()),
     };
-    Ok(Const::new(ty.to_ir_ty(), lit))
+    Ok(Const::new(ty.to_repr_ty(), lit))
+}
+
+pub trait LitHelpers {
+    /// Convert a [ast::Lit] into a [Const].
+    fn to_const(&self, expected_ty: Option<ReprTyId>, ptr_size: Size) -> LitParseResult<Const>;
+}
+
+impl LitHelpers for ast::Lit {
+    fn to_const(&self, expected_ty: Option<ReprTyId>, ptr_size: Size) -> LitParseResult<Const> {
+        Ok(match self {
+            ast::Lit::Str(ast::StrLit { data }) => Const::str(*data),
+            ast::Lit::Char(ast::CharLit { data }) => (*data).into(),
+            ast::Lit::Int(int_lit) => {
+                let annotation = expected_ty.map(IntTy::from);
+                parse_int_const_from_lit(int_lit, annotation, ptr_size, false)?
+            }
+            ast::Lit::Float(float_lit) => {
+                let annotation = expected_ty.map(FloatTy::from);
+                parse_float_const_from_lit(float_lit, annotation)?
+            }
+            ast::Lit::Bool(value) => Const::bool(value.data),
+            ast::Lit::Byte(value) => value.data.into(),
+        })
+    }
 }

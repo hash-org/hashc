@@ -31,7 +31,7 @@ impl<E: TcEnv> Tc<'_, E> {
     /// we can then adjust the underlying constant to match the true type.
     fn bake_lit_repr(&self, lit: LitId, inferred_ty: TyId) -> TcResult<()> {
         match *lit.value() {
-            Lit::Float(float_lit) => {
+            Lit::Float(_) => {
                 if let Some(float_ty) = try_use_ty_as_float_ty(inferred_ty) {
                     lit.modify(|float| match &mut float.data {
                         Lit::Float(_) => float.bake_float(float_ty),
@@ -41,7 +41,7 @@ impl<E: TcEnv> Tc<'_, E> {
                 // @@Incomplete: it is possible that exotic literal
                 // types are defined, what happens then?
             }
-            Lit::Int(int_lit) => {
+            Lit::Int(_) => {
                 if let Some(int_ty) = try_use_ty_as_int_ty(inferred_ty) {
                     lit.modify(|int| match &mut int.data {
                         Lit::Int(_) => int.bake_int(self.target(), int_ty),
@@ -50,7 +50,7 @@ impl<E: TcEnv> Tc<'_, E> {
                 }
                 // @@Incomplete: as above
             }
-            _ => {}
+            _ => {} // Already baked.
         }
         Ok(())
     }
@@ -72,7 +72,7 @@ impl<E: TcEnv> OperationsOnNode<LitId> for Tc<'_, E> {
         self.normalise_and_check_ty(annotation_ty)?;
         let inferred_ty = Ty::data_ty(
             match *lit.value() {
-                lit @ Lit::Int(int_lit) => {
+                Lit::Int(int_lit) => {
                     match int_lit.kind {
                         IntLitKind::Suffixed(ty) => match ty {
                             IntTy::Int(s_int_ty) => match s_int_ty {
@@ -154,9 +154,9 @@ impl<E: TcEnv> OperationsOnNode<LitId> for Tc<'_, E> {
                         .unwrap_or_else(f64_def)
                     }
                 },
-                Lit::Const(constant) => {
-                    let ty = constant.ty();
-                    todo!() // convert the REPR_TY into a TIR type.
+                Lit::Const(_constant) => {
+                    // let _ty = constant.ty();
+                    todo!() // @@Cowbunga: convert the REPR_TY into a TIR type.
                 }
             },
             lit.origin(),

@@ -370,8 +370,7 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
                     let bias = self.signed_bias(repr_ty);
                     let lo = lo ^ bias;
 
-                    let ptr_size = self.target().ptr_size();
-                    let val = Const::from_scalar_like(lo, repr_ty, ptr_size);
+                    let val = Const::from_scalar_like(lo, repr_ty, self.target());
                     Pat::Lit(LitPat(Node::create_gen(Lit::Const(val))))
                 }
                 LitTy::Char => {
@@ -400,9 +399,8 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
 
         let (lo, hi) = match ty_id.value() {
             ty if ty.is_integral() => {
-                let ptr_size = self.env.target().ptr_size();
-                let lo_val = Const::from_scalar_like(lo, ty_id, ptr_size);
-                let hi_val = Const::from_scalar_like(hi, ty_id, ptr_size);
+                let lo_val = Const::from_scalar_like(lo, ty_id, self.env.target());
+                let hi_val = Const::from_scalar_like(hi, ty_id, self.env.target());
                 let lo = LitPat(Node::create_gen(Lit::Const(lo_val)));
                 let hi = LitPat(Node::create_gen(Lit::Const(hi_val)));
 

@@ -7,7 +7,7 @@ use hash_storage::store::{
 use hash_tir::{
     intrinsics::{
         definitions::{array_ty, list_def, list_ty, usize_ty},
-        utils::{create_term_from_usize_lit, try_use_term_as_integer_lit},
+        utils::{create_term_from_usize_lit, try_use_term_as_machine_integer},
     },
     tir::{
         ArgsId, ArrayPat, ArrayTerm, DataDefCtors, IndexTerm, Node, NodeId, NodeOrigin, NodesId,
@@ -56,8 +56,7 @@ impl<E: TcEnv> Tc<'_, E> {
     ///
     /// Assumes that the index is normalised.
     pub fn get_index_in_array(&self, elements: TermListId, index: TermId) -> Option<TermId> {
-        try_use_term_as_integer_lit::<_, usize>(self, index)
-            .map(|idx| elements.elements().at(idx).unwrap())
+        try_use_term_as_machine_integer(self, index).map(|idx| elements.elements().at(idx).unwrap())
     }
 
     /// Get the term at the given index in the given repeated array. If the
@@ -71,8 +70,8 @@ impl<E: TcEnv> Tc<'_, E> {
         repeat: TermId,
         index: TermId,
     ) -> Option<TermId> {
-        let subject = try_use_term_as_integer_lit::<_, usize>(self, subject)?;
-        let index = try_use_term_as_integer_lit::<_, usize>(self, index)?;
+        let subject = try_use_term_as_machine_integer(self, subject)?;
+        let index = try_use_term_as_machine_integer(self, index)?;
 
         if index >= subject {
             None
@@ -140,7 +139,7 @@ impl<E: TcEnv> Tc<'_, E> {
             ArrayTerm::Normal(elements) => Ok(Some(elements.len())),
             ArrayTerm::Repeated(_, repeat) => {
                 let term = self.normalise_node_fully(repeat)?;
-                let Some(length) = try_use_term_as_integer_lit::<_, usize>(self, term) else {
+                let Some(length) = try_use_term_as_machine_integer(self, term) else {
                     return stuck_normalising();
                 };
                 Ok(Some(length))
