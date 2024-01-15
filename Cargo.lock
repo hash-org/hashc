@@ -674,7 +674,6 @@ dependencies = [
  "hash-source",
  "hash-storage",
  "hash-target",
- "hash-tir",
  "hash-utils",
 ]
 
@@ -750,6 +749,7 @@ dependencies = [
  "hash-target",
  "hash-tir",
  "hash-tree-def",
+ "hash-typecheck",
  "hash-utils",
  "num-traits",
 ]
@@ -804,6 +804,7 @@ dependencies = [
  "hash-attrs",
  "hash-const-eval",
  "hash-exhaustiveness",
+ "hash-ir",
  "hash-layout",
  "hash-pipeline",
  "hash-reporting",
@@ -950,6 +951,7 @@ dependencies = [
  "hash-attrs",
  "hash-const-eval",
  "hash-exhaustiveness",
+ "hash-ir",
  "hash-layout",
  "hash-pipeline",
  "hash-reporting",

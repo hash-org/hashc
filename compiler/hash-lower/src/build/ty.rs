@@ -58,7 +58,14 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// duplicate work.
     pub(crate) fn ty_id_from_tir_term(&self, term: TermId) -> ReprTyId {
         let ty = self.ctx.get_inferred_ty(term);
-        self.ctx.ty_id_from_tir_ty(ty)
+        self.ctx.repr_ty_from_tir_ty(ty)
+    }
+
+    /// Get the [ReprTyId] from a given [TyId]. This function will internally
+    /// cache results of lowering a [TyId] into an [ReprTyId] to avoid
+    /// duplicate work.
+    pub(super) fn ty_id_from_tir_ty(&self, ty: TyId) -> ReprTyId {
+        self.ctx.repr_ty_from_tir_ty(ty)
     }
 
     /// Get the [ReprTyId] for a give [PatId].
@@ -69,7 +76,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
     /// Create an ADT from a defined [DataTy].
     pub(crate) fn ty_id_from_tir_data(&self, data_ty: DataTy) -> ReprTyId {
-        self.ctx.ty_from_tir_data(data_ty)
+        self.ctx.repr_ty_from_tir_data_ty(data_ty)
     }
 
     /// Create an function type from the given [TirIntrinsic].
@@ -78,19 +85,12 @@ impl<'tcx> BodyBuilder<'tcx> {
         intrinsic: TirIntrinsic,
         originating_node: AstNodeId,
     ) -> ReprTyId {
-        self.ctx.ty_id_from_tir_intrinsic(intrinsic, originating_node)
+        self.ctx.repr_ty_from_tir_intrinsic(intrinsic, originating_node)
     }
 
     /// Create an function type from the given [FnDefId].
     pub(super) fn ty_id_from_tir_fn_def(&mut self, fn_def: FnDefId) -> ReprTyId {
-        self.ctx.ty_id_from_tir_fn_def(fn_def)
-    }
-
-    /// Get the [ReprTyId] from a given [TyId]. This function will internally
-    /// cache results of lowering a [TyId] into an [ReprTyId] to avoid
-    /// duplicate work.
-    pub(super) fn ty_id_from_tir_ty(&self, ty: TyId) -> ReprTyId {
-        self.ctx.ty_id_from_tir_ty(ty)
+        self.ctx.repr_ty_from_tir_fn_def(fn_def)
     }
 
     /// Function which is used to classify a [FnCallTerm] into a

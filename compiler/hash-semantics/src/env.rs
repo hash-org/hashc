@@ -1,4 +1,5 @@
 use hash_ast::node_map::HasNodeMap;
+use hash_ir::HasIrCtx;
 use hash_layout::HasLayout;
 use hash_pipeline::settings::HasCompilerSettings;
 use hash_reporting::diagnostic::{Diagnostics, HasDiagnostics};
@@ -18,7 +19,13 @@ pub trait HasSemanticDiagnostics: HasDiagnostics<Diagnostics = Self::SemanticDia
 }
 
 pub trait SemanticEnv:
-    HasNodeMap + HasMetrics + HasSemanticDiagnostics + HasCompilerSettings + HasTarget + HasLayout
+    HasNodeMap
+    + HasMetrics
+    + HasSemanticDiagnostics
+    + HasCompilerSettings
+    + HasTarget
+    + HasLayout
+    + HasIrCtx
 {
     fn storage(&self) -> &SemanticStorage;
     fn storage_mut(&mut self) -> &mut SemanticStorage;

@@ -23,6 +23,7 @@ hash-semantics = { path = "../hash-semantics" }
 hash-source = { path = "../hash-source" }
 hash-storage = { path = "../hash-storage" }
 hash-target = { path = "../hash-target" }
+hash-typecheck = { path = "../hash-typecheck" }
 hash-tir = { path = "../hash-tir" }
 hash-tree-def = { path = "../hash-tree-def" }
 hash-utils = { path = "../hash-utils" }

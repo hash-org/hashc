@@ -24,16 +24,11 @@ use std::{
 };
 
 use hash_source::entry_point::EntryPointState;
-use hash_storage::{store::SequenceStoreKey, stores};
-use hash_tir::{
-    intrinsics::definitions::Intrinsic as TirIntrinsic,
-    tir::{DataDefId, DataTy, FnDefId, TyId},
-};
-use hash_utils::fxhash::FxHashMap;
+use hash_storage::stores;
 use intrinsics::Intrinsics;
 use ir::Body;
 use lang_items::LangItems;
-use ty::{AdtStore, InstanceId, InstanceStore, ReprTyId, ReprTyListStore, ReprTyStore};
+use ty::{AdtStore, InstanceId, InstanceStore, ReprTyListStore, ReprTyStore};
 
 /// Storage that is used by the lowering stage. This stores all of the
 /// generated [Body]s and all of the accompanying data for the bodies.
@@ -69,78 +64,11 @@ impl IrStorage {
     }
 }
 
-/// A [SemanticCacheEntry] is used to store the [ReprTyId] that is created from
-/// a [TyId] or a [DataDefId]. It is then used by program logic
-/// to avoid re-computing the same type again by using this key to lookup
-/// the [ReprTyId] in the [IrCtx].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TyCacheEntry {
-    /// The key is a type ID.
-    Ty(TyId),
-
-    /// The key is a data definition which includes the data def and the
-    /// type arguments to the data definition.
-    Data(DataTy),
-
-    /// This is used as a key to lookup the type of a data definition that has
-    /// no specified arguments. This means that the `args` component of [DataTy]
-    /// must be of length zero. This meant as an optimisation to avoid
-    /// re-creating data types that have no arguments whilst having
-    /// different IDs for the arguments.
-    ///
-    /// This is safe to do since if no arguments are supplied to the data
-    /// definition, this means that they are either all known and resolved
-    /// (as in defaults) or that the data type has no type arguments at all.
-    MonoData(DataDefId),
-
-    /// A function definition that was lowered into a function type instance.
-    FnDef(FnDefId),
-
-    /// An intrinsic that was lowered into a function type instance.
-    Intrinsic(TirIntrinsic),
-}
-
-impl From<TyId> for TyCacheEntry {
-    fn from(ty: TyId) -> Self {
-        Self::Ty(ty)
-    }
-}
-
-impl From<DataTy> for TyCacheEntry {
-    fn from(data: DataTy) -> Self {
-        if data.args.len() == 0 {
-            Self::MonoData(data.data_def)
-        } else {
-            Self::Data(data)
-        }
-    }
-}
-
-impl From<FnDefId> for TyCacheEntry {
-    fn from(fn_def: FnDefId) -> Self {
-        Self::FnDef(fn_def)
-    }
-}
-
-impl From<TirIntrinsic> for TyCacheEntry {
-    fn from(intrinsic: TirIntrinsic) -> Self {
-        Self::Intrinsic(intrinsic)
-    }
-}
-
-/// The type cache is used to store all of the [ReprTyId]s that are created
-/// from [TyId]s or [DataTy]s. This is used to avoid re-computing the
-/// same type again.
-pub type TyCache = RefCell<FxHashMap<TyCacheEntry, ReprTyId>>;
-
 /// The [IrCtx] is used to store all interned information that
 /// IR [Body]s might use or reference. This includes IR types, place
 /// projections, etc.
 #[derive(Default)]
 pub struct IrCtx {
-    /// Cache for the [ReprTyId]s that are created from [TyId]s.
-    ty_cache: TyCache,
-
     /// A map of all "language" intrinsics that might need to be
     /// generated during the lowering process.
     lang_items: RefCell<LangItems>,
@@ -172,11 +100,7 @@ impl IrCtx {
         let lang_items = LangItems::new();
         let intrinsics = Intrinsics::new();
 
-        Self {
-            lang_items: RefCell::new(lang_items),
-            intrinsics: RefCell::new(intrinsics),
-            ty_cache: RefCell::new(FxHashMap::default()),
-        }
+        Self { lang_items: RefCell::new(lang_items), intrinsics: RefCell::new(intrinsics) }
     }
 
     /// Get a reference to the [Intrinsics] map.
@@ -198,9 +122,9 @@ impl IrCtx {
     pub fn lang_items_mut(&self) -> RefMut<LangItems> {
         self.lang_items.borrow_mut()
     }
+}
 
-    /// Get a reference to the semantic types conversion cache.
-    pub fn ty_cache(&self) -> &TyCache {
-        &self.ty_cache
-    }
+/// Interface to access information about the representations and layout.
+pub trait HasIrCtx {
+    fn ir_ctx(&self) -> &IrCtx;
 }

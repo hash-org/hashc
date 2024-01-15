@@ -1,4 +1,5 @@
 use hash_exhaustiveness::diagnostics::{ExhaustivenessError, ExhaustivenessWarning};
+use hash_ir::HasIrCtx;
 use hash_layout::HasLayout;
 use hash_pipeline::settings::HasCompilerSettings;
 use hash_reporting::diagnostic::{Diagnostics, HasDiagnostics};
@@ -27,7 +28,14 @@ pub trait HasTcDiagnostics: HasDiagnostics<Diagnostics = Self::TcDiagnostics> {
 /// This trait declares all the required information that the typechecking stage
 /// needs from the rest of the compiler in order to operate.
 pub trait TcEnv:
-    HasTcDiagnostics + HasTarget + HasLayout + HasAtomInfo + HasCompilerSettings + HasMetrics + Sized
+    HasTcDiagnostics
+    + HasTarget
+    + HasIrCtx
+    + HasLayout
+    + HasAtomInfo
+    + HasCompilerSettings
+    + HasMetrics
+    + Sized
 {
     /// Get the entry point of the current compilation, if any.
     fn entry_point(&self) -> &EntryPointState<FnDefId>;

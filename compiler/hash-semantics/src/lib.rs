@@ -11,7 +11,8 @@ use diagnostics::{
 };
 use env::{HasSemanticDiagnostics, SemanticEnv};
 use hash_ast::node_map::{HasNodeMap, NodeMap};
-use hash_layout::{compute::LayoutComputer, HasLayout};
+use hash_ir::{HasIrCtx, IrCtx};
+use hash_layout::{compute::LayoutComputer, HasLayout, LayoutStorage};
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerResult, CompilerStage},
     settings::{CompilerSettings, CompilerStageKind, HasCompilerSettings},
@@ -51,6 +52,13 @@ pub struct SemanticAnalysisCtx<'env> {
     /// It contains stores, environments, context, etc. for semantic
     /// analysis and typechecking.
     pub semantic_storage: &'env mut SemanticStorage,
+
+    /// Reference to the [LayoutStorage] that is used to store
+    /// the layouts of types.
+    pub lcx: &'env LayoutStorage,
+
+    /// A reference to the IR context.
+    pub ir_ctx: &'env IrCtx,
 
     /// The user-given settings to semantic analysis.
     pub settings: &'env CompilerSettings,
@@ -143,7 +151,13 @@ impl HasTarget for SemanticEnvImpl<'_> {
 
 impl HasLayout for SemanticEnvImpl<'_> {
     fn layout_computer(&self) -> LayoutComputer {
-        todo!()
+        LayoutComputer::new(self.ctx.lcx)
+    }
+}
+
+impl HasIrCtx for SemanticEnvImpl<'_> {
+    fn ir_ctx(&self) -> &IrCtx {
+        self.ctx.ir_ctx
     }
 }
 

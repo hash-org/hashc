@@ -319,6 +319,8 @@ impl SemanticAnalysisCtxQuery for Compiler {
         SemanticAnalysisCtx {
             workspace: &mut self.workspace,
             semantic_storage: &mut self.semantic_storage,
+            lcx: &self.lcx,
+            ir_ctx: &self.icx.ctx,
             settings: &self.settings,
         }
     }

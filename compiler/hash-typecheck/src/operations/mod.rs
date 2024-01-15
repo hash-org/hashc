@@ -10,6 +10,7 @@ pub mod fns;
 pub mod holes;
 pub mod intrinsics;
 pub mod lits;
+pub mod lower;
 pub mod matching;
 pub mod mods;
 pub mod params;

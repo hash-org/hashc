@@ -1,3 +1,5 @@
+use hash_typecheck::operations::lower::TyCache;
+
 use crate::{prelude::DistinguishedItems, progress::AnalysisProgress};
 
 /// Semantic storage is a collection of information that is
@@ -10,4 +12,7 @@ pub struct SemanticStorage {
 
     // Some distinguished items, registered during semantic analysis.
     pub distinguished_items: DistinguishedItems,
+
+    /// The conversion cache between TIR types to Repr types.
+    pub repr_ty_cache: TyCache,
 }
