@@ -12,6 +12,8 @@ pub enum ScopeMemberKind {
     Data,
     /// A constructor (enum variant).
     Constructor,
+    /// A function.
+    Function,
     /// A module block.
     Module,
     /// A parameter.
@@ -30,6 +32,8 @@ pub struct ScopeMember {
     referenced_by: HashSet<AstNodeId>,
     /// The kind of this scope member.
     kind: ScopeMemberKind,
+    /// The index of this scope member in the scope.
+    index_in_scope: usize,
 }
 
 impl ScopeMember {
@@ -46,6 +50,16 @@ impl ScopeMember {
     /// Whether this scope member is referenced by any other nodes.
     pub(crate) fn is_referenced(&self) -> bool {
         !self.referenced_by.is_empty()
+    }
+
+    /// Get the index of this scope member in the scope.
+    pub(crate) fn index_in_scope(&self) -> usize {
+        self.index_in_scope
+    }
+
+    /// Get the kind of this scope member.
+    pub(crate) fn kind(&self) -> ScopeMemberKind {
+        self.kind
     }
 
     /// Add a referencing node to this scope member.
@@ -87,21 +101,31 @@ impl Scope {
         ident: Identifier,
         kind: ScopeMemberKind,
     ) {
+        let index_in_scope = self.members.len();
         self.members.insert(
             ident,
-            ScopeMember { name: ident, defined_by: node_id, referenced_by: HashSet::new(), kind },
+            ScopeMember {
+                name: ident,
+                defined_by: node_id,
+                referenced_by: HashSet::new(),
+                kind,
+                index_in_scope,
+            },
         );
     }
 
-    /// Get a member from this scope.
+    /// Get a member from this scope (mutable).
     pub(crate) fn get_member_mut(&mut self, ident: Identifier) -> Option<&mut ScopeMember> {
         self.members.get_mut(&ident)
+    }
+
+    /// Get a member from this scope
+    pub(crate) fn get_member(&self, ident: Identifier) -> Option<&ScopeMember> {
+        self.members.get(&ident)
     }
 }
 
 /// The scope data for a single source.
-///
-/// This is the result of the scope checking pass on the AST.
 ///
 /// It contains a record of all the scopes, definitions, and references
 /// in the AST, indexed by the AST node ID of each relevant node.
@@ -124,6 +148,11 @@ impl ScopeData {
     /// Get the scope of a node.
     pub(crate) fn get_scope(&self, node: AstNodeId) -> Option<&Scope> {
         self.scope_by_node.get(&node)
+    }
+
+    /// Get the scope of a node, panicking if it does not exist.
+    pub(crate) fn get_existing_scope(&self, node: AstNodeId) -> &Scope {
+        self.get_scope(node).unwrap()
     }
 
     /// Insert a scope into the scope data, only if it does not already exist.

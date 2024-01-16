@@ -24,7 +24,6 @@ use scope::AllScopeData;
 use visitor::ScopeCheckVisitor;
 
 pub mod diagnostics;
-pub mod referencing;
 pub mod scope;
 pub mod visitor;
 
@@ -63,7 +62,12 @@ impl<Ctx: ScopeCheckCtxQuery> CompilerStage<Ctx> for ScopeCheck {
         let source = workspace.node_map.get_source(entry_point);
         let scope_data = scope_data.get_for_source(entry_point);
         let mut visitor = ScopeCheckVisitor::run_on_source(source, scope_data);
-        visitor.diagnostics.into_result(|| ())
+
+        if entry_point.is_prelude() {
+            Ok(()) // @@Todo: properly handle prelude
+        } else {
+            visitor.diagnostics.into_result(|| ())
+        }
     }
 
     fn metrics(&self) -> StageMetrics {

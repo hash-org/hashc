@@ -6,24 +6,25 @@
 //! - Gathering scopes of definitions and indexing them by AST node IDs.
 //! - Checking for recursive definitions.
 //! - Ensuring that there are no free variables in the AST.
+use std::collections::HashMap;
+
 use hash_ast::{
     ast::{
         self, AccessExpr, AccessPat, AccessTy, AstNode, AstNodeId, AstNodeRef, BindingPat,
-        BodyBlock, CallExpr, ConstructorPat, Declaration, EnumDef, EnumDefEntry, ExprArg, FnDef,
-        FnTy, ImplicitFnCall, ImplicitFnDef, MatchCase, ModDef, Module, ModulePatEntry, NamedTy,
-        OwnsAstNode, Param, Params, StructDef, TuplePat, TupleTy, TyArg, TyParam, TyParams,
-        VariableExpr,
+        BodyBlock, CallExpr, ConstructorPat, Declaration, EnumDef, EnumDefEntry, FnDef, FnTy,
+        ImplicitFnCall, ImplicitFnDef, MatchCase, ModDef, Module, ModulePatEntry, NamedTy,
+        OwnsAstNode, Param, Params, StructDef, TuplePat, TupleTy, TyParam, TyParams, VariableExpr,
     },
     ast_visitor_mut_self_default_impl,
     node_map::SourceRef,
     visitor::{walk_mut_self, AstVisitorMutSelf},
 };
 use hash_reporting::diagnostic::{DiagnosticStore, HasDiagnosticsMut};
-use hash_utils::state::{LightState, MutState};
+use hash_source::identifier::Identifier;
+use hash_utils::state::LightState;
 
 use crate::{
     diagnostics::{ScopingDiagnostics, ScopingError},
-    referencing::Usage,
     scope::{Scope, ScopeData, ScopeMember, ScopeMemberKind},
 };
 
@@ -60,8 +61,8 @@ pub(crate) struct ScopeCheckVisitor<'n> {
     pub(crate) scope_data: &'n mut ScopeData,
     /// The diagnostics for the scope checker.
     pub(crate) diagnostics: ScopingDiagnostics,
-    /// The current usage that is being requested for the current node.
-    pub(crate) usage: MutState<Usage>,
+    /// The last name seen being defined in the current scope.
+    pub(crate) last_member_seen: HashMap<AstNodeId, Identifier>,
 }
 
 impl HasDiagnosticsMut for ScopeCheckVisitor<'_> {
@@ -88,10 +89,11 @@ impl ScopeCheckVisitor<'_> {
             current_scopes: Vec::new(),
             scope_data,
             diagnostics: DiagnosticStore::new(),
-            usage: MutState::new(Usage::Dereference),
+            last_member_seen: HashMap::new(),
         };
         for mode in modes.iter() {
             visitor.mode = *mode;
+            visitor.last_member_seen.clear();
             visitor.visit_source(entry_point_source);
         }
         visitor
@@ -110,12 +112,10 @@ impl ScopeCheckVisitor<'_> {
             }
         }
     }
+}
 
-    /// Enter a usage
-    fn with_usage<T>(&mut self, usage: Usage, f: impl FnOnce(&mut Self) -> T) -> T {
-        MutState::enter(self, |this| &mut this.usage, usage, f)
-    }
-
+/// Implementation related to scopes and references
+impl ScopeCheckVisitor<'_> {
     /// Get the current scope, if there is one.
     fn maybe_current_scope_mut(&mut self) -> Option<&mut Scope> {
         let id = *self.current_scopes.last()?;
@@ -127,27 +127,59 @@ impl ScopeCheckVisitor<'_> {
         self.maybe_current_scope_mut().unwrap()
     }
 
+    /// Get the current member, if there is one.
+    fn maybe_last_member_seen(&self, scope: AstNodeId) -> Option<&ScopeMember> {
+        match self.last_member_seen.get(&scope) {
+            Some(ident) => self.scope_data.get_existing_scope(scope).get_member(*ident),
+            None => None,
+        }
+    }
+
+    /// Get the current scope, if there is one.
+    fn maybe_current_scope(&self) -> Option<&Scope> {
+        let id = *self.current_scopes.last()?;
+        self.scope_data.get_scope(id)
+    }
+
+    /// Get the current scope.
+    fn current_scope(&self) -> &Scope {
+        self.maybe_current_scope().unwrap()
+    }
+
     /// Register a reference if it is found and `accept_origin(member) = true`,
     /// otherwise run the given function.
     fn discover_reference_or_else(
         &mut self,
         name: &AstNode<ast::Name>,
-        accept_origin: impl Fn(&ScopeMember) -> bool,
+        accept_origin: impl Fn(&Self, &ScopeMember, &Scope) -> Result<bool, ScopingError>,
         otherwise: impl FnOnce(&mut Self),
     ) {
         // First try to find the definition in the current scopes.
         let mut found = false;
         for scope_id in self.current_scopes.iter().rev() {
-            let scope = self.scope_data.get_existing_scope_mut(*scope_id);
-            if let Some(member) = scope.get_member_mut(name.ident) && accept_origin(member) {
-                member.add_referencing_node(name.id());
-                found = true;
-                break;
+            let scope = self.scope_data.get_existing_scope(*scope_id);
+            if let Some(member) = scope.get_member(name.ident) {
+                match accept_origin(self, member, scope) {
+                    Ok(true) => {
+                        let scope = self.scope_data.get_existing_scope_mut(*scope_id);
+                        let member = scope.get_member_mut(name.ident).unwrap();
+                        member.add_referencing_node(name.id());
+                        found = true;
+                        break;
+                    }
+                    Ok(false) => {
+                        continue;
+                    }
+                    Err(error) => {
+                        self.add_error(error);
+                        return;
+                    }
+                }
             }
         }
 
         if !found {
-            otherwise(self);
+            otherwise(self)
         }
     }
 
@@ -161,8 +193,9 @@ impl ScopeCheckVisitor<'_> {
     ) {
         if self.mode == ScopeVisitMode::DiscoverNonPatternDefinitions {
             let scope = self.current_scope_mut();
-            scope.register_member(name.id(), name.ident, kind)
+            scope.register_member(name.id(), name.ident, kind);
         }
+        self.last_member_seen.insert(self.current_scope().node(), name.ident);
     }
 
     /// Register a definition reference if it is found, otherwise declare a
@@ -171,35 +204,63 @@ impl ScopeCheckVisitor<'_> {
     /// This is meant to be used for `BindingPat`, which might refer to an
     /// existing struct/enum, or declare a new variable.
     fn discover_pattern_definition(&mut self, name: &AstNode<ast::Name>, kind: ScopeMemberKind) {
-        if self.mode == ScopeVisitMode::DiscoverPatternDefinitions {
-            self.discover_reference_or_else(
-                name,
-                |_| true, // @@Todo: do not accept if it is just a variable
-                |this| {
+        self.discover_reference_or_else(
+            name,
+            |this, member, _| match member.kind() {
+                ScopeMemberKind::Constructor | ScopeMemberKind::Data => {
+                    Ok(this.mode == ScopeVisitMode::DiscoverPatternDefinitions)
+                }
+                ScopeMemberKind::Function
+                | ScopeMemberKind::Module
+                | ScopeMemberKind::Parameter
+                | ScopeMemberKind::Variable => Ok(false),
+            },
+            |this| {
+                if this.mode == ScopeVisitMode::DiscoverPatternDefinitions {
                     // If it's not found, then it's a variable declaration.
                     let scope = this.current_scope_mut();
-                    scope.register_member(name.id(), name.ident, kind)
-                },
-            )
-        }
+                    scope.register_member(name.id(), name.ident, kind);
+                }
+                this.last_member_seen.insert(this.current_scope().node(), name.ident);
+            },
+        )
     }
 
-    /// Register a reference if it is found, otherwise report an error.
+    /// Register a symbol reference if it is found, otherwise report an error.
+    ///
+    /// Returns the usage of the reference, if successful.
     ///
     /// Runs in `ResolveReferences` mode.
     fn discover_reference(&mut self, name: &AstNode<ast::Name>) {
         if self.mode == ScopeVisitMode::ResolveReferences {
             self.discover_reference_or_else(
                 name,
-                |_| true,
+                |this, member, scope| {
+                    let last_member_seen =
+                        this.maybe_last_member_seen(scope.node()).map(|m| (m.index_in_scope()));
+                    let out_of_order = || {
+                        Err(ScopingError::OutOfOrderAccess {
+                            symbol: name.ident,
+                            referencing_node: name.id(),
+                            definition_node: member.defined_by(),
+                        })
+                    };
+                    match (last_member_seen, member.kind()) {
+                        (
+                            Some(last_member_index),
+                            ScopeMemberKind::Variable | ScopeMemberKind::Parameter,
+                        ) if member.index_in_scope() >= last_member_index => out_of_order(),
+                        _ => Ok(true),
+                    }
+                },
                 |this| {
                     // If it's not found, then report an error.
                     this.add_error(ScopingError::SymbolNotFound {
                         symbol: name.ident,
                         referencing_node: name.id(),
-                    })
+                    });
                 },
-            )
+            );
         }
     }
 
@@ -230,7 +291,7 @@ impl hash_ast::ast::AstVisitorMutSelf for ScopeCheckVisitor<'_> {
       hiding: VariableExpr, BodyBlock, Params, TyParams, Param, TyParam, StructDef,
       EnumDef, ImplicitFnDef, ModDef, FnDef, Module, TupleLit, TupleTy, FnTy, NamedTy, ImplicitFn,
       AccessTy, AccessExpr, Declaration, CallExpr, ImplicitFnCall, MatchCase, BindingPat,
-      AccessPat, TuplePat, ConstructorPat, ModulePatEntry, EnumDefEntry
+      AccessPat, TuplePat, ConstructorPat, ModulePatEntry, EnumDefEntry, ImplicitFnTy
     );
 
     // Definitions:
@@ -273,34 +334,30 @@ impl hash_ast::ast::AstVisitorMutSelf for ScopeCheckVisitor<'_> {
         &mut self,
         node: AstNodeRef<Declaration>,
     ) -> Result<Self::DeclarationRet, Self::Error> {
-        match node.value.body() {
+        match (node.value.body(), node.pat.body()) {
             // Definitions.
-            ast::Expr::StructDef(_) | ast::Expr::EnumDef(_) | ast::Expr::ModDef(_) => {
+            (
+                ast::Expr::StructDef(_)
+                | ast::Expr::EnumDef(_)
+                | ast::Expr::ModDef(_)
+                | ast::Expr::FnDef(_)
+                | ast::Expr::ImplicitFnDef(_),
+                ast::Pat::Binding(binding),
+            ) => {
                 // Specially handle the binding pattern.
-                match node.pat.body() {
-                    ast::Pat::Binding(binding) => {
-                        self.discover_non_pattern_definition(
-                            &binding.name,
-                            // Choose the appropriate kind of scope member depending on the RHS
-                            // node.
-                            match node.value.body() {
-                                ast::Expr::ModDef(_) => ScopeMemberKind::Module,
-                                ast::Expr::StructDef(_) | ast::Expr::EnumDef(_) => {
-                                    ScopeMemberKind::Data
-                                }
-                                _ => unreachable!(),
-                            },
-                        );
-                    }
-                    _ => {
-                        if self.mode == ScopeVisitMode::DiscoverNonPatternDefinitions {
-                            self.add_error(ScopingError::NonSimpleBindingForDefinition {
-                                binding_node: node.pat.id(),
-                                definition_node: node.value.id(),
-                            });
+                self.discover_non_pattern_definition(
+                    &binding.name,
+                    // Choose the appropriate kind of scope member depending on the RHS
+                    // node.
+                    match node.value.body() {
+                        ast::Expr::ModDef(_) => ScopeMemberKind::Module,
+                        ast::Expr::StructDef(_) | ast::Expr::EnumDef(_) => ScopeMemberKind::Data,
+                        ast::Expr::FnDef(_) | ast::Expr::ImplicitFnDef(_) => {
+                            ScopeMemberKind::Function
                         }
-                    }
-                }
+                        _ => unreachable!(),
+                    },
+                );
 
                 // Recurse only on the type and value, not the pattern.
                 node.ty.as_ref().map(|ty| self.visit_ty(ty.ast_ref()));
@@ -389,6 +446,17 @@ impl hash_ast::ast::AstVisitorMutSelf for ScopeCheckVisitor<'_> {
         })
     }
 
+    type ImplicitFnTyRet = ();
+    fn visit_implicit_fn_ty(
+        &mut self,
+        node: AstNodeRef<ast::ImplicitFnTy>,
+    ) -> Result<Self::ImplicitFnTyRet, Self::Error> {
+        self.enter_scope(node.id(), |this| {
+            let _ = walk_mut_self::walk_implicit_fn_ty(this, node)?;
+            Ok(())
+        })
+    }
+
     type TupleTyRet = ();
     fn visit_tuple_ty(
         &mut self,
@@ -414,8 +482,7 @@ impl hash_ast::ast::AstVisitorMutSelf for ScopeCheckVisitor<'_> {
     type FnDefRet = ();
     fn visit_fn_def(&mut self, node: AstNodeRef<FnDef>) -> Result<Self::FnDefRet, Self::Error> {
         self.enter_scope(node.id(), |this| {
-            this.visit_params(node.params.ast_ref())?;
-            this.with_usage(Usage::Delay, |this| this.visit_expr(node.fn_body.ast_ref()))?;
+            let _ = walk_mut_self::walk_fn_def(this, node)?;
             Ok(())
         })
     }

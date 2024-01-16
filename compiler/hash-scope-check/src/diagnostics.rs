@@ -15,6 +15,7 @@ pub type ScopingDiagnostics = DiagnosticStore<ScopingError, ScopingWarning>;
 pub enum ScopingError {
     NonSimpleBindingForDefinition { binding_node: AstNodeId, definition_node: AstNodeId },
     SymbolNotFound { symbol: Identifier, referencing_node: AstNodeId },
+    OutOfOrderAccess { symbol: Identifier, referencing_node: AstNodeId, definition_node: AstNodeId },
 }
 
 impl AddToReporter for ScopingError {
@@ -41,6 +42,20 @@ impl AddToReporter for ScopingError {
                     .title(format!("cannot find symbol `{}` in the current scope", symbol));
                 error.add_span(referencing_node.span()).add_info(format!(
                     "tried to reference symbol `{}`, which does not exist in this scope.",
+                    symbol
+                ));
+            }
+            ScopingError::OutOfOrderAccess { symbol, referencing_node, definition_node } => {
+                let error = reporter
+                    .error()
+                    .code(HashErrorCode::UnsupportedAccess)
+                    .title(format!("cannot access symbol `{}` before it is defined", symbol));
+                error.add_span(referencing_node.span()).add_info(format!(
+                    "tried to reference symbol `{}`, which is defined after this reference.",
+                    symbol
+                ));
+                error.add_span(definition_node.span()).add_info(format!(
+                    "this is the definition of symbol `{}`, which is referenced before it is defined.",
                     symbol
                 ));
             }
