@@ -17,10 +17,7 @@ use hash_ast::node_map::NodeMap;
 use hash_ast_desugaring::{AstDesugaringCtx, AstDesugaringCtxQuery, AstDesugaringPass};
 use hash_ast_expand::{AstExpansionCtx, AstExpansionCtxQuery, AstExpansionPass};
 use hash_backend::{BackendCtxQuery, CodeGenPass};
-use hash_codegen::{
-    backend::{BackendCtx, CodeGenStorage},
-    target::HasTarget,
-};
+use hash_codegen::backend::{BackendCtx, CodeGenStorage};
 use hash_ir::IrStorage;
 use hash_layout::LayoutStorage;
 use hash_link::{CompilerLinker, LinkerCtx, LinkerCtxQuery};
@@ -190,7 +187,7 @@ impl Compiler {
     /// Create a new [DefaultCompilerInterface].
     pub fn with(
         workspace: Workspace,
-        settings: CompilerSettings,
+        mut settings: CompilerSettings,
         error_stream: impl Fn() -> CompilerOutputStream + 'static,
         output_stream: impl Fn() -> CompilerOutputStream + 'static,
     ) -> Self {
@@ -203,12 +200,14 @@ impl Compiler {
             .build()
             .unwrap();
 
-        let target = settings.target();
+        let target = &mut settings.codegen_settings.target_info.target;
 
         // @@Fixme: ideally this error should be handled else-where
         let layout_info = target
             .parse_data_layout()
             .unwrap_or_else(|err| utils::emit_fatal_error(error_stream(), err));
+
+        target.set_data_layout(layout_info.clone());
 
         Self {
             error_stream: Box::new(error_stream),

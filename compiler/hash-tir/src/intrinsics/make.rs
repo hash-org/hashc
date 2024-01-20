@@ -586,7 +586,7 @@ macro_rules! make_primitives {
                                                         // ##Hack: count the number of characters
                                                         // in the stringified arguments to
                                                         // determine if there are any
-                                                        result_args: if ${count(ctor_arg)} > 0 {
+                                                        result_args: if ${count($ctor_arg)} > 0 {
                                                             Some(args([$($($ctor_arg,)*)?]))
                                                         } else {
                                                             None
