@@ -6,6 +6,7 @@ use hash_reporting::diagnostic::{Diagnostics, HasDiagnostics};
 use hash_source::{entry_point::EntryPointState, SourceId};
 use hash_target::HasTarget;
 use hash_tir::{atom_info::HasAtomInfo, context::Context, tir::FnDefId};
+use hash_tir_utils::lower::{HasTyCache, TyLowerEnv};
 use hash_utils::{state::LightState, timing::HasMetrics};
 
 use crate::{
@@ -31,6 +32,7 @@ pub trait TcEnv:
     HasTcDiagnostics
     + HasTarget
     + HasIrCtx
+    + HasTyCache
     + HasLayout
     + HasAtomInfo
     + HasCompilerSettings
@@ -60,7 +62,7 @@ pub trait TcEnv:
     }
 }
 
-pub trait HasTcEnv {
+pub trait HasTcEnv: TyLowerEnv {
     type Env: TcEnv;
     fn env(&self) -> &Self::Env;
 }

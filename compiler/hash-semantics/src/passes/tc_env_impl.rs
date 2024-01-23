@@ -9,10 +9,8 @@ use hash_tir::{
     stores::tir_stores,
     tir::FnDefId,
 };
-use hash_typecheck::{
-    env::{HasTcDiagnostics, TcEnv},
-    operations::lower::{HasTyCache, TyCache},
-};
+use hash_tir_utils::lower::{HasTyCache, TyCache};
+use hash_typecheck::env::{HasTcDiagnostics, TcEnv};
 use hash_utils::timing::{CellStageMetrics, HasMetrics};
 
 use crate::{

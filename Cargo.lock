@@ -652,12 +652,14 @@ name = "hash-exhaustiveness"
 version = "0.1.0"
 dependencies = [
  "hash-ast",
+ "hash-ir",
  "hash-layout",
  "hash-reporting",
  "hash-source",
  "hash-storage",
  "hash-target",
  "hash-tir",
+ "hash-tir-utils",
  "hash-utils",
 ]
 
@@ -748,6 +750,7 @@ dependencies = [
  "hash-storage",
  "hash-target",
  "hash-tir",
+ "hash-tir-utils",
  "hash-tree-def",
  "hash-typecheck",
  "hash-utils",
@@ -812,6 +815,7 @@ dependencies = [
  "hash-storage",
  "hash-target",
  "hash-tir",
+ "hash-tir-utils",
  "hash-tree-def",
  "hash-typecheck",
  "hash-utils",
@@ -921,6 +925,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash-tir-utils"
+version = "0.1.0"
+dependencies = [
+ "hash-ast",
+ "hash-attrs",
+ "hash-const-eval",
+ "hash-ir",
+ "hash-layout",
+ "hash-reporting",
+ "hash-source",
+ "hash-storage",
+ "hash-target",
+ "hash-tir",
+ "hash-utils",
+]
+
+[[package]]
 name = "hash-token"
 version = "0.1.0"
 dependencies = [
@@ -959,6 +980,7 @@ dependencies = [
  "hash-storage",
  "hash-target",
  "hash-tir",
+ "hash-tir-utils",
  "hash-tree-def",
  "hash-utils",
  "itertools",

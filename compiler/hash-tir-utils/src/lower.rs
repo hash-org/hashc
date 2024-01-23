@@ -39,8 +39,8 @@ use hash_utils::{
     derive_more::{Constructor, Deref},
     fxhash::FxHashMap,
     index_vec::index_vec,
+    itertools::Itertools,
 };
-use itertools::Itertools;
 
 /// A [TyCacheEntry] is used to store the [ReprTyId] that is created from
 /// a [TyId] or a [DataDefId]. It is then used by program logic
@@ -118,15 +118,15 @@ pub enum ShouldCache {
     No,
 }
 
-pub trait TyLowerCtx: HasContext + HasIrCtx + HasTarget + HasTyCache {}
+pub trait TyLowerEnv: HasContext + HasIrCtx + HasTarget + HasTyCache {}
 
 #[derive(Deref, Constructor)]
-pub struct TyLower<'tc, E: TyLowerCtx> {
+pub struct TyLower<'tc, E: TyLowerEnv> {
     #[deref]
     pub env: &'tc E,
 }
 
-impl<E: TyLowerCtx> TyLower<'_, E> {
+impl<E: TyLowerEnv> TyLower<'_, E> {
     /// Perform a type lowering operation whilst also caching the result of the
     /// lowering operation. This is used to avoid duplicated work when lowering
     /// types.

@@ -40,17 +40,14 @@ use super::{
     construct::DeconstructedCtor,
     list::{Array, ArrayKind},
 };
-use crate::{
-    deconstruct::convert_repr_ty, storage::DeconstructedCtorId, ExhaustivenessChecker,
-    ExhaustivenessEnv, PatCtx,
-};
+use crate::{storage::DeconstructedCtorId, ExhaustivenessChecker, ExhaustivenessEnv, PatCtx};
 
 impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     /// Create a [SplitWildcard] from the current context.
     pub(super) fn split_wildcard_from_pat_ctx(&mut self, ctx: PatCtx) -> SplitWildcard {
         let make_range = |start, end| {
             DeconstructedCtor::IntRange(self.make_int_range(
-                convert_repr_ty(ctx.ty), // @@Cowbunga
+                self.ty_lower().repr_ty_from_tir_ty(ctx.ty),
                 start,
                 end,
                 &RangeEnd::Included,

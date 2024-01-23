@@ -1,4 +1,4 @@
-use hash_typecheck::operations::lower::TyCache;
+use hash_tir_utils::lower::TyCache;
 
 use crate::{prelude::DistinguishedItems, progress::AnalysisProgress};
 

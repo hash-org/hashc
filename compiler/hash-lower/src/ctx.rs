@@ -17,7 +17,7 @@ use hash_tir::{
     stores::tir_stores,
     tir::{Arg, DataDefId, DataTy, ModDefId, Node, NodeId},
 };
-use hash_typecheck::operations::lower::{HasTyCache, TyCache, TyLowerCtx};
+use hash_tir_utils::lower::{HasTyCache, TyCache, TyLowerEnv};
 use hash_utils::stream_writeln;
 
 use crate::LoweringCtx;
@@ -77,7 +77,7 @@ impl HasAtomInfo for BuilderCtx<'_> {
     }
 }
 
-impl TyLowerCtx for BuilderCtx<'_> {}
+impl TyLowerEnv for BuilderCtx<'_> {}
 
 impl<'ir> BuilderCtx<'ir> {
     /// Create a new [BuilderCtx] from the given [LoweringCtx].

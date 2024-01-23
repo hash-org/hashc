@@ -12,7 +12,7 @@ impl<T: TcEnv> Tc<'_, T> {
     /// refutability or exhaustiveness of patterns.
     pub fn exhaustiveness_checker<U: HasAstNodeId>(&self, subject: U) -> ExhaustivenessChecker<T> {
         let location = subject.span().unwrap();
-        ExhaustivenessChecker::new(location, self.env)
+        ExhaustivenessChecker::new(location, self.env, self.context)
     }
 
     /// Merge all of the produced diagnostics into the current diagnostics.

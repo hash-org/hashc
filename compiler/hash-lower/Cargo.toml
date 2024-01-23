@@ -25,5 +25,6 @@ hash-storage = { path = "../hash-storage" }
 hash-target = { path = "../hash-target" }
 hash-typecheck = { path = "../hash-typecheck" }
 hash-tir = { path = "../hash-tir" }
+hash-tir-utils = { path = "../hash-tir-utils" }
 hash-tree-def = { path = "../hash-tree-def" }
 hash-utils = { path = "../hash-utils" }

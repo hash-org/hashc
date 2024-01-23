@@ -10,7 +10,7 @@ use hash_tir::{
     intrinsics::{definitions::Intrinsic as TirIntrinsic, make::IsIntrinsic},
     tir::{DataTy, FnDefId, FnTy, NodesId, TyId},
 };
-use hash_typecheck::operations::lower::{ShouldCache, TyLower};
+use hash_tir_utils::lower::{ShouldCache, TyLower};
 
 use crate::ctx::BuilderCtx;
 
