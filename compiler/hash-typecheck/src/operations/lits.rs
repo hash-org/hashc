@@ -11,6 +11,7 @@ use hash_tir::{
     },
     tir::{DataDefCtors, Lit, LitId, NodeId, PrimitiveCtorInfo, Ty, TyId},
 };
+use hash_tir_utils::upcast::TyUpCast;
 
 use crate::{
     diagnostics::TcResult,
@@ -154,9 +155,11 @@ impl<E: TcEnv> OperationsOnNode<LitId> for Tc<'_, E> {
                         .unwrap_or_else(f64_def)
                     }
                 },
-                Lit::Const(_constant) => {
-                    // let _ty = constant.ty();
-                    todo!() // @@Cowbunga: convert the REPR_TY into a TIR type.
+                Lit::Const(constant) => {
+                    let upcast = TyUpCast::new(self);
+                    upcast
+                        .data_def_from_repr_ty(constant.ty())
+                        .expect("constant type is not primitive")
                 }
             },
             lit.origin(),

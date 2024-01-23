@@ -3,3 +3,4 @@
 #![feature(let_chains)]
 
 pub mod lower;
+pub mod upcast;
