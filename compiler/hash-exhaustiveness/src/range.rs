@@ -256,11 +256,11 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     /// Attempt to build a [IntRange] from a provided constant.
     #[inline]
     pub fn make_range_from_constant(&self, constant: Const) -> IntRange {
-        let bias: u128 = self.signed_bias(constant.ty());
+        let bias = self.signed_bias(constant.ty());
 
         // read from the constant the actual bits and apply bias
         //
-        // @@Cowbunga: this isn't quite the right conversion, check rustc!
+        // @@Correctness: this isn't quite the right conversion, check rustc!
         let size = constant.as_scalar().size();
         let val = constant.as_scalar().to_bits(size).unwrap() ^ bias;
         IntRange { start: val, end: val }
@@ -276,7 +276,6 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
         end: &RangeEnd,
     ) -> IntRange {
         let bias = self.signed_bias(ty);
-
         let (lo, hi) = (lo ^ bias, hi ^ bias);
         let offset = (*end == RangeEnd::Excluded) as u128;
         if lo > hi || (lo == hi && *end == RangeEnd::Excluded) {

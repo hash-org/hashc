@@ -11,7 +11,6 @@ use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
     SequenceStoreKey, TrivialSequenceStoreKey,
 };
-use hash_target::HasTarget;
 use hash_tir::{
     intrinsics::utils::{
         numeric_max_val_of_lit, numeric_min_val_of_lit, try_use_ty_as_array_ty,
@@ -30,8 +29,7 @@ use super::{
     range::IntRange,
 };
 use crate::{
-    deconstruct::convert_repr_ty, storage::DeconstructedPatId, usefulness::MatchArm,
-    ExhaustivenessChecker,
+    storage::DeconstructedPatId, usefulness::MatchArm, ExhaustivenessChecker, ExhaustivenessEnv,
 };
 
 /// Expand an `or` pattern into a passed [Vec], whilst also
@@ -66,7 +64,7 @@ pub struct FieldPat {
     pub(crate) pat: PatId,
 }
 
-impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
+impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     /// Performs a lowering operation on all of the specified branches.
     ///
     /// This takes in the `term` which is the type of the subject.
@@ -94,17 +92,6 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
                 (DeconstructedCtor::IntRange(range), vec![])
             }
             Pat::Lit(LitPat(lit)) => match *lit.value() {
-                // Lit::Str(lit) => (DeconstructedCtor::Str(lit.interned_value()), vec![]),
-                // Lit::Int(lit) => {
-                //     let value = Constant::from_int(lit.value(), ty_id);
-                //     let range = self.make_range_from_constant(value);
-                //     (DeconstructedCtor::IntRange(range), vec![])
-                // }
-                // Lit::Char(lit) => {
-                //     let value = Constant::from_char(lit.value(), ty_id);
-                //     let range = self.make_range_from_constant(value);
-                //     (DeconstructedCtor::IntRange(range), vec![])
-                // }
                 Lit::Const(constant) => match constant.ty().value() {
                     ty if ty.is_switchable() => {
                         let range = self.make_range_from_constant(constant);
@@ -352,7 +339,7 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
         let lo = lit_to_u128(lo, false);
         let hi = lit_to_u128(hi, true);
 
-        let ty = convert_repr_ty(ty); // @@Cowbunga
+        let ty = self.ty_lower().repr_ty_from_tir_ty(ty);
         self.make_int_range(ty, lo, hi, &end)
     }
 
@@ -366,11 +353,11 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
             match try_use_ty_as_lit_ty(self.target(), ty).unwrap() {
                 int_ty if int_ty.is_int() => {
                     let (lo, _) = range.boundaries();
-                    let repr_ty = convert_repr_ty(ty); // @@Cowbunga
-                    let bias = self.signed_bias(repr_ty);
+                    let ty = self.ty_lower().repr_ty_from_tir_ty(ty);
+                    let bias = self.signed_bias(ty);
                     let lo = lo ^ bias;
 
-                    let val = Const::from_scalar_like(lo, repr_ty, self.target());
+                    let val = Const::from_scalar_like(lo, ty, self.target());
                     Pat::Lit(LitPat(Node::create_gen(Lit::Const(val))))
                 }
                 LitTy::Char => {
@@ -381,7 +368,7 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
                 _ => unreachable!(),
             }
         } else {
-            let ty = convert_repr_ty(ty); // @@Cowbunga
+            let ty = self.ty_lower().repr_ty_from_tir_ty(ty);
             Pat::Range(self.construct_range_pat(range, ty))
         }
     }
