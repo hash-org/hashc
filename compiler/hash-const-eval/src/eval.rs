@@ -102,15 +102,69 @@ impl<'ctx> ConstFolder<'ctx> {
     ) -> Option<Const> {
         use crate::op::BinOp::*;
 
-        // We have to handle `shl` and `shr` differently since they have different
-        // operand types.
-        if matches!(bin_op, Shl | Shr) {
-            todo!() // @@Cowbunga
-        }
-
         debug_assert_eq!(lhs_ty, rhs_ty);
         let lhs_ty: ReprTyId = lhs_ty.into();
         let size = self.lc.size_of_ty(lhs_ty).ok()?;
+
+        // We have to handle `shl` and `shr` differently since they have different
+        // operand types.
+        //
+        // This matches the codegen implementation:
+        // - compiler/hash-codegen/src/lower/rvalue.rs#63-85
+        //
+        if matches!(bin_op, Shl | Shr) {
+            let size_bits = u128::from(size.bits());
+
+            // We have to ensure that the operand size is smaller
+            // than 128 bits, otherwise we will panic. This is because
+            // types that are larger than 128 bits (i.e. 256bit integers)
+            // would behave differently than expected. For example, if we
+            // had a shift by -1i8 would actually shift by (255), but would *not*
+            // be considered an overflow. A shiift by `-1i16` would however be
+            // considered as an ovrflow. For integers that are `i512`, then a shift by
+            // `-i18` would produce a different result than one by `-1i16`:
+            //
+            // - The first shhifts by 255, and the later by u16::MAX % 512 = 511.
+            //
+            // For this reason, integers that are bigger than i128 with negative operand
+            // shifts will always overflow.
+            //
+            // @@Future: when we implement larger bit widths, we have to properly consider
+            // that some operands (that are negative) now have the possibility
+            // of not overflowing and consequently we will have to change the
+            // implementation here.
+            assert!(size_bits <= 128);
+
+            let overflow = rhs >= size_bits;
+            let rhs = rhs % size_bits;
+            let rhs = u32::try_from(rhs).unwrap(); // This is masked so it will always fit.
+
+            let result = if lhs_ty.is_signed() {
+                let lhs = size.sign_extend(lhs) as i128;
+                let result = match bin_op {
+                    Shl => lhs.checked_shl(rhs).unwrap(),
+                    Shr => lhs.checked_shr(rhs).unwrap(),
+                    _ => panic!("unexpected operator"),
+                };
+
+                result as u128
+            } else {
+                match bin_op {
+                    Shl => lhs.checked_shl(rhs).unwrap(),
+                    Shr => lhs.checked_shr(rhs).unwrap(),
+                    _ => panic!("unexpected operator"),
+                }
+            };
+
+            let truncated = size.truncate(result);
+
+            if overflow {
+                // @@ErrorHandling @@UB: we should somehow emit an error!
+                return None;
+            }
+
+            return Some(Const::new(lhs_ty, ConstKind::Scalar(Scalar::from_uint(truncated, size))));
+        }
 
         // If the type is signed, we have to handle comparisons and arithmetic
         // operations differently.
