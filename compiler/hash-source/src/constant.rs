@@ -159,9 +159,9 @@ impl Scalar {
         u64::try_from(b).unwrap()
     }
 
-    /// Attempt to convert the given [Scalar] value into a signed integer. 
-    /// 
-    /// ##Note: if the provided [Size] mismatched the assumed [Size] of the 
+    /// Attempt to convert the given [Scalar] value into a signed integer.
+    ///
+    /// ##Note: if the provided [Size] mismatched the assumed [Size] of the
     /// [Scalar], then this will return the [Size] of the [Scalar] as an error.
     pub fn try_to_int(self, size: Size) -> Result<i128, Size> {
         let b = self.to_bits(size)?;
@@ -485,21 +485,41 @@ static_single_store!(
 );
 
 impl AllocId {
+    /// Create a new [Alloc]d [String] value using the following structure
+    /// encoding:
+    /// ```
+    /// str := struct(
+    ///    len: usize,
+    ///    bytes: [u8; len],
+    /// )
+    /// ```
+    pub fn str(_value: String) -> Self {
+        todo!() // @@Cowbunga
+    }
+
     /// Attempt to convert a particular [AllocId] into a [String] value.
     ///
     /// This method will just take the raw allocated bytes and "treat" them
     /// as a standard utf8 string.
     ///
     ///##NOTE: If the bytes are not valid utf8 then this  method will panic.
-    pub fn value_as_str(&self) -> String {
+    pub fn to_str(&self) -> String {
         todo!() // @@Cowbunga
     }
 
-    pub fn str(_value: String) -> Self {
-        todo!() // @@Cowbunga
-    }
-
+    /// Create a new [Alloc]d [BigInt] value using the following structure
+    /// encoding:
+    /// ```
+    /// bigint := struct(
+    ///   buf: u128,
+    ///   bytes: [u8; len],
+    /// ```
     pub fn big_int(_value: BigInt) -> Self {
+        todo!() // @@Cowbunga
+    }
+
+    /// Attempt to convert a particular [AllocId] into a [BigInt] value.
+    pub fn to_big_int(&self, _signed: bool) -> BigInt {
         todo!() // @@Cowbunga
     }
 }

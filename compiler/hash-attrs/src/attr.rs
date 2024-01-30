@@ -40,7 +40,7 @@ impl ReprAttr {
     /// Parse a [ReprAttr] from an [Attr].
     pub fn parse(attr: &Attr) -> AttrResult<Self> {
         let arg = attr.get_arg(0).unwrap();
-        let inner = arg.value.as_alloc().value_as_str();
+        let inner = arg.value.as_alloc().to_str();
 
         match inner.as_str() {
             "c" => Ok(ReprAttr::C),

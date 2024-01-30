@@ -146,7 +146,7 @@ make_intrinsics! {
 
     user_error := (message: str_gen_ty()) -> never_gen_ty() => |env| {
         if let Term::Lit(lit) = *message.value() && let Lit::Const(value) = *lit.value() {
-            Err(value.as_alloc().value_as_str())
+            Err(value.as_alloc().to_str())
         } else {
             Err("`user_error` expects a string literal as argument".to_string())
         }

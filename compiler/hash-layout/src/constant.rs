@@ -182,7 +182,7 @@ impl Const {
     pub fn as_big_int(&self) -> BigInt {
         match self.kind {
             ConstKind::Scalar(scalar) => scalar.to_big_int(self.ty.is_signed()),
-            ConstKind::Alloc { .. } => todo!(),
+            ConstKind::Alloc { alloc, .. } => alloc.to_big_int(self.ty.is_signed()),
             _ => panic!("cannot cast to bigint"),
         }
     }

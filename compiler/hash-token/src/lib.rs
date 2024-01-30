@@ -357,7 +357,7 @@ impl TokenKind {
             TokenKind::Unexpected(atom) => format!("an unknown character `{atom}`"),
             TokenKind::Char(ch) => format!("`{ch}`"),
             TokenKind::Str(str) => {
-                let value = str.value_as_str();
+                let value = str.to_str();
                 format!("the string `{}`", value)
             }
             TokenKind::Keyword(kwd) => format!("the keyword `{kwd}`"),
@@ -413,7 +413,7 @@ impl std::fmt::Display for TokenKind {
             TokenKind::RightDelim(delim) => write!(f, "{}", delim.right()),
             TokenKind::Tree(delim, _) => write!(f, "{}...{}", delim.left(), delim.right()),
             TokenKind::Str(str) => {
-                let value = str.value_as_str();
+                let value = str.to_str();
                 write!(f, "\"{}\"", value)
             }
             TokenKind::Keyword(kwd) => kwd.fmt(f),

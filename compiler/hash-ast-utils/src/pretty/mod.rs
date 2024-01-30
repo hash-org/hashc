@@ -814,7 +814,7 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::ImportExpr>,
     ) -> Result<Self::ImportExprRet, Self::Error> {
-        self.write(format!("import(\"{}\")", node.body.data.path.value_as_str()))
+        self.write(format!("import(\"{}\")", node.body.data.path.to_str()))
     }
 
     type TupleExprRet = ();

@@ -43,7 +43,7 @@ impl<'p> ImportResolver<'p> {
     /// module, and then proceed to send a [ParserAction::ParseImport]
     /// through the message queue.
     pub(crate) fn resolve_import(&self, path: AllocId) -> Result<SourceId, ImportError> {
-        let resolved_path = resolve_path(path.value_as_str().as_str(), self.root_dir)?;
+        let resolved_path = resolve_path(path.to_str().as_str(), self.root_dir)?;
 
         // Check if we have already parsed this file
         if let Some(source) = SourceMapUtils::id_by_path(&resolved_path) {

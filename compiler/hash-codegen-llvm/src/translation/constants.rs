@@ -109,7 +109,7 @@ impl<'b, 'm> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
 
     /// Create a global constant value for the [InternedStr].
     fn const_str(&self, s: AllocId) -> (Self::Value, Self::Value) {
-        let value = s.value_as_str();
+        let value = s.to_str();
         let str_len = value.len();
 
         let mut str_consts = self.str_consts.borrow_mut();
