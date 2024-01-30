@@ -13,7 +13,7 @@ use hash_target::data_layout::HasDataLayout;
 // them who depends on `hash-source`
 pub use hash_target::primitives::*;
 pub use hash_target::size::Size;
-use hash_utils::derive_more::Constructor;
+use hash_utils::{derive_more::Constructor, num_bigint::BigInt};
 use paste::paste;
 
 use crate::ty::{ReprTyId, COMMON_REPR_TYS};
@@ -176,6 +176,14 @@ impl Const {
             self.as_scalar().to_target_usize(ctx).try_into().ok()
         } else {
             None
+        }
+    }
+
+    pub fn as_big_int(&self) -> BigInt {
+        match self.kind {
+            ConstKind::Scalar(scalar) => scalar.to_big_int(self.ty.is_signed()),
+            ConstKind::Alloc { .. } => todo!(),
+            _ => panic!("cannot cast to bigint"),
         }
     }
 }

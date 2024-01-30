@@ -23,7 +23,11 @@ use hash_target::{
     alignment::Alignment,
     data_layout::{Endian, HasDataLayout},
 };
-use hash_utils::{derive_more::Constructor, fnv::FnvBuildHasher, num_bigint::BigInt};
+use hash_utils::{
+    derive_more::Constructor,
+    fnv::FnvBuildHasher,
+    num_bigint::{BigInt, Sign},
+};
 
 /// A scalar value. [Scalar]s are used to represent all integer, characters, and
 /// floating point values, as well as integers. The largest scalar value is
@@ -153,6 +157,29 @@ impl Scalar {
     pub fn to_target_usize(self, cx: &impl HasDataLayout) -> u64 {
         let b = self.to_uint(cx.data_layout().pointer_size).unwrap();
         u64::try_from(b).unwrap()
+    }
+
+    /// Attempt to convert the given [Scalar] value into a signed integer. 
+    /// 
+    /// ##Note: if the provided [Size] mismatched the assumed [Size] of the 
+    /// [Scalar], then this will return the [Size] of the [Scalar] as an error.
+    pub fn try_to_int(self, size: Size) -> Result<i128, Size> {
+        let b = self.to_bits(size)?;
+        Ok(size.sign_extend(b) as i128)
+    }
+
+    /// Attempt to coerce the [Scalar] into a `i64`.
+    pub fn try_to_i64(self) -> Result<i64, Size> {
+        self.try_to_int(Size::from_bits(64)).map(|v| i64::try_from(v).unwrap())
+    }
+
+    #[inline]
+    pub fn to_big_int(&self, signed: bool) -> BigInt {
+        if signed {
+            BigInt::from_signed_bytes_le(&self.to_bits(self.size()).unwrap().to_be_bytes())
+        } else {
+            BigInt::from_bytes_le(Sign::NoSign, &self.to_bits(self.size()).unwrap().to_be_bytes())
+        }
     }
 }
 

@@ -165,7 +165,7 @@ impl AttrValue {
 
     /// Try to convert the [AttrValue] into a [BigInt].
     pub fn as_big_int(&self) -> BigInt {
-        todo!() // @@CowBunga
+        self.value.as_big_int()
     }
 }
 
