@@ -1,9 +1,9 @@
 use std::ops::Deref;
 
-use hash_ir::ty::{ReprTy, ToReprTy, VariantIdx};
 use hash_layout::{
     compute::LayoutComputer,
     constant::{Const, ConstKind},
+    ty::{ReprTy, ToReprTy, VariantIdx},
     TyInfo, Variants,
 };
 use hash_source::constant::AllocRange;

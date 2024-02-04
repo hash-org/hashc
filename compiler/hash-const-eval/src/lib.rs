@@ -6,6 +6,8 @@
 pub mod error;
 pub mod eval;
 pub mod op;
+pub mod print;
+pub mod utils;
 
 // Re-export the "primitives" from the hash-target crate so that everyone can
 // use.

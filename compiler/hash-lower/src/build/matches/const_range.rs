@@ -4,11 +4,11 @@
 use std::cmp::Ordering;
 
 use hash_ast::ast;
+use hash_const_eval::utils::ConstUtils;
 use hash_ir::{
     ir::{self, Const, ConstKind},
     ty::{ReprTy, ReprTyId},
 };
-use hash_ir_utils::const_utils::ConstUtils;
 use hash_layout::compute::LayoutComputer;
 use hash_storage::store::statics::StoreId;
 use hash_target::{data_layout::HasDataLayout, primitives::FloatTy};

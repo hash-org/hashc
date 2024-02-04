@@ -684,6 +684,7 @@ name = "hash-ir-utils"
 version = "0.1.0"
 dependencies = [
  "hash-ast",
+ "hash-const-eval",
  "hash-ir",
  "hash-layout",
  "hash-source",
