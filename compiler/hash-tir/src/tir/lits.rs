@@ -3,12 +3,14 @@ use std::{fmt::Display, ops::Deref};
 
 use hash_ast::ast;
 use hash_ast_utils::lit::{parse_float_const_from_lit, parse_int_const_from_lit, LitParseResult};
-use hash_const_eval::Const;
+use hash_const_eval::{print::pretty_print_scalar, Const, ConstKind};
+use hash_source::Size;
 use hash_storage::store::statics::StoreId;
 use hash_target::{
     primitives::{FloatTy, IntTy},
     HasTarget,
 };
+use hash_utils::temp_writer::TempWriter;
 
 use crate::{stores::tir_stores, tir_node_single_store};
 
@@ -208,34 +210,7 @@ impl Deref for LitPat {
 
 impl Display for LitPat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match *self.0.value() {
-            // It's often the case that users don't include the range of the entire
-            // integer and so we will write `-2147483648..x` and
-            // same for max, what we want to do is write `MIN`
-            // and `MAX` for these situations since it is easier for the
-            // user to understand the problem.
-            Lit::Int(_) | Lit::Float(_) => {
-                write!(f, "<raw>")
-            }
-            Lit::Const(_value) => {
-                // @@Cowbunga
-                // let kind = value.map(|constant| constant.ty());
-
-                // // ##Hack: we don't use size since it is never invoked because of
-                // // integer constant don't store usize values.
-                // let dummy_size = Size::ZERO;
-                // let value = value.map(|constant| constant.value.as_u128());
-
-                // if kind.numeric_min(dummy_size) == value {
-                //     write!(f, "{kind}::MIN")
-                // } else if kind.numeric_max(dummy_size) == value {
-                //     write!(f, "{kind}::MAX")
-                // } else {
-                //     write!(f, "{lit}")
-                // }
-                todo!()
-            }
-        }
+        write!(f, "{}", *self.0.value())
     }
 }
 
@@ -243,11 +218,23 @@ impl Display for Lit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Lit::Int(_) | Lit::Float(_) => write!(f, "<raw>"),
-            Lit::Const(_constant) => {
-                // @@Cowbunga: Determine how to print the item based on the
-                // type of the constant, we should have paths for integrals,
-                // floats, and strings.
-                todo!()
+            Lit::Const(constant) => {
+                // It's often the case that users don't include the range of the entire
+                // integer and so we will write `-2147483648..x` and
+                // same for max, what we want to do is write `MIN`
+                // and `MAX` for these situations since it is easier for the
+                // user to understand the problem.
+
+                if let ConstKind::Scalar(scalar) = constant.kind {
+                    let ty = constant.ty().value();
+
+                    let mut buf = TempWriter::default();
+                    pretty_print_scalar(&mut buf, scalar, &ty, Size::ZERO, true).unwrap();
+                    write!(f, "{}", buf.into_string())
+                } else {
+                    // @@Cowbunga: Determine how to print the strings here.
+                    unimplemented!()
+                }
             }
         }
     }
