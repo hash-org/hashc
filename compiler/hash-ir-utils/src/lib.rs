@@ -38,25 +38,6 @@ use hash_target::{
 };
 use hash_utils::derive_more::Constructor;
 
-#[derive(Constructor, Default)]
-struct TempWriter(Vec<u8>);
-
-impl TempWriter {
-    fn into_string(self) -> String {
-        String::from_utf8(self.0).unwrap()
-    }
-}
-
-impl io::Write for TempWriter {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0.extend_from_slice(buf);
-        Ok(buf.len())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
 
 /// A function to pretty print the [Const] in a human-readable format, this
 /// is used when printing the generated IR.
@@ -183,6 +164,7 @@ pub fn pretty_print_scalar(
         _ => panic!("unexpected type for scalar: {ty:?}"),
     }
 }
+use hash_utils::temp_writer::TempWriter;
 
 /// Struct that is used to write interned IR components.
 pub struct IrWriter<'ctx, T> {
