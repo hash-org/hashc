@@ -3,12 +3,12 @@
 //! of items. The full [Term] structure which is defined in the `hash-tir` is
 //! not required for the IR generation stage, and often has un-needed terms for
 //! the lowering process. This is why this builder is used to `lower` the [Term]
-//! types into the [IrTy] which is then used for the lowering process.
+//! types into the [ReprTy] which is then used for the lowering process.
 
 use hash_ast::ast::AstNodeId;
 use hash_ir::{
     ir::{self, Const, ConstKind, Scalar},
-    ty::{IrTy, IrTyId, ToIrTy, COMMON_IR_TYS},
+    ty::{ReprTy, ReprTyId, ToReprTy, COMMON_REPR_TYS},
 };
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_target::{size::Size, HasTarget};
@@ -35,8 +35,8 @@ pub enum FnCallTermKind {
     Call(CallTerm),
 
     /// A cast intrinsic operation, we perform a cast from the type of the
-    /// first term into the desired second [IrTyId].
-    Cast(TermId, IrTyId),
+    /// first term into the desired second [ReprTyId].
+    Cast(TermId, ReprTyId),
 
     /// A "boolean" binary operation which takes two terms and yields a boolean
     /// term as a result.
@@ -52,22 +52,22 @@ pub enum FnCallTermKind {
 }
 
 impl<'tcx> BodyBuilder<'tcx> {
-    /// Get the [IrTyId] from a given [TermId]. This function will internally
-    /// cache results of lowering a [TermId] into an [IrTyId] to avoid
+    /// Get the [ReprTyId] from a given [TermId]. This function will internally
+    /// cache results of lowering a [TermId] into an [ReprTyId] to avoid
     /// duplicate work.
-    pub(crate) fn ty_id_from_tir_term(&self, term: TermId) -> IrTyId {
+    pub(crate) fn ty_id_from_tir_term(&self, term: TermId) -> ReprTyId {
         let ty = self.ctx.get_inferred_ty(term);
         self.ctx.ty_id_from_tir_ty(ty)
     }
 
-    /// Get the [IrTyId] for a give [PatId].
-    pub(super) fn ty_id_from_tir_pat(&self, pat: PatId) -> IrTyId {
+    /// Get the [ReprTyId] for a give [PatId].
+    pub(super) fn ty_id_from_tir_pat(&self, pat: PatId) -> ReprTyId {
         let ty = self.ctx.get_inferred_ty(pat);
         self.ty_id_from_tir_ty(ty)
     }
 
     /// Create an ADT from a defined [DataTy].
-    pub(crate) fn ty_id_from_tir_data(&self, data_ty: DataTy) -> IrTyId {
+    pub(crate) fn ty_id_from_tir_data(&self, data_ty: DataTy) -> ReprTyId {
         self.ctx.ty_from_tir_data(data_ty)
     }
 
@@ -76,27 +76,27 @@ impl<'tcx> BodyBuilder<'tcx> {
         &mut self,
         intrinsic: TirIntrinsic,
         originating_node: AstNodeId,
-    ) -> IrTyId {
+    ) -> ReprTyId {
         self.ctx.ty_id_from_tir_intrinsic(intrinsic, originating_node)
     }
 
     /// Create an function type from the given [FnDefId].
-    pub(super) fn ty_id_from_tir_fn_def(&mut self, fn_def: FnDefId) -> IrTyId {
+    pub(super) fn ty_id_from_tir_fn_def(&mut self, fn_def: FnDefId) -> ReprTyId {
         self.ctx.ty_id_from_tir_fn_def(fn_def)
     }
 
-    /// Get the [IrTyId] from a given [TyId]. This function will internally
-    /// cache results of lowering a [TyId] into an [IrTyId] to avoid
+    /// Get the [ReprTyId] from a given [TyId]. This function will internally
+    /// cache results of lowering a [TyId] into an [ReprTyId] to avoid
     /// duplicate work.
-    pub(super) fn ty_id_from_tir_ty(&self, ty: TyId) -> IrTyId {
+    pub(super) fn ty_id_from_tir_ty(&self, ty: TyId) -> ReprTyId {
         self.ctx.ty_id_from_tir_ty(ty)
     }
 
-    pub(super) fn ty_id_from_lit(&self, lit: &Lit) -> IrTyId {
+    pub(super) fn ty_id_from_lit(&self, lit: &Lit) -> ReprTyId {
         match lit {
             Lit::Int(val) => val.kind().unwrap().to_ir_ty(),
-            Lit::Str(_) => COMMON_IR_TYS.str,
-            Lit::Char(_) => COMMON_IR_TYS.char,
+            Lit::Str(_) => COMMON_REPR_TYS.str,
+            Lit::Char(_) => COMMON_REPR_TYS.char,
             Lit::Float(val) => val.kind().unwrap().to_ir_ty(),
         }
     }
@@ -212,7 +212,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     pub(crate) fn eval_range_lit(
         &self,
         maybe_pat: Option<LitPat>,
-        ty_id: IrTyId,
+        ty_id: ReprTyId,
         at_end: bool,
     ) -> (Const, u128) {
         let scalar = match maybe_pat {
@@ -225,17 +225,17 @@ impl<'tcx> BodyBuilder<'tcx> {
                 return (constant, scalar.to_bits(scalar.size()).unwrap());
             }
             None => ty_id.map(|ty| match ty {
-                IrTy::Char if at_end => Scalar::from(std::char::MAX),
-                IrTy::Char => {
+                ReprTy::Char if at_end => Scalar::from(std::char::MAX),
+                ReprTy::Char => {
                     Scalar::from_uint(0u32, Size::from_bytes(std::mem::size_of::<char>() as u64))
                 }
-                IrTy::Int(int_ty) => {
+                ReprTy::Int(int_ty) => {
                     let ptr_size = self.ctx.target().ptr_size();
                     let size = int_ty.size(ptr_size);
                     let value = if at_end { size.signed_int_max() } else { size.signed_int_min() };
                     Scalar::from_int(value, size)
                 }
-                IrTy::UInt(ty) => {
+                ReprTy::UInt(ty) => {
                     let ptr_size = self.ctx.target().ptr_size();
                     let size = ty.size(ptr_size);
 

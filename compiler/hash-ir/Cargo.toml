@@ -18,3 +18,4 @@ hash-storage = { path = "../hash-storage" }
 hash-target = { path = "../hash-target" }
 hash-tir = { path = "../hash-tir" }
 hash-utils = { path = "../hash-utils" }
+hash-layout = { path = "../hash-layout" }

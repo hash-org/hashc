@@ -2,7 +2,7 @@ use std::ops::Deref;
 
 use hash_ir::{
     constant::{AllocRange, Const, ConstKind},
-    ty::{IrTy, ToIrTy, VariantIdx},
+    ty::{ReprTy, ToReprTy, VariantIdx},
 };
 use hash_layout::{compute::LayoutComputer, TyInfo, Variants};
 use hash_storage::store::statics::StoreId;
@@ -62,7 +62,9 @@ impl ConstUtils<'_> {
         // Check if we can just use a scalar value here..
         let try_as_scalar = match field_info.ty.value() {
             ty if ty.is_scalar() => true,
-            IrTy::Ref(ty, _, _) => ty.map(|inner| matches!(inner, IrTy::Str | IrTy::Slice(_))),
+            ReprTy::Ref(ty, _, _) => {
+                ty.map(|inner| matches!(inner, ReprTy::Str | ReprTy::Slice(_)))
+            }
             _ => false,
         };
 
@@ -108,7 +110,7 @@ impl ConstUtils<'_> {
         let data = alloc.borrow().read_scalar(range, &self.lc).assert_bits(tag_size);
 
         let (variant, _) = match info.ty.value() {
-            IrTy::Adt(def) => def
+            ReprTy::Adt(def) => def
                 .borrow()
                 .discriminants()
                 .find(|(_, val)| *val == data)
@@ -130,9 +132,9 @@ impl ConstUtils<'_> {
         let value @ ConstKind::Alloc { mut offset, .. } = self.kind() else { return None };
 
         let (variant, field_count, downcasted_layout) = match ty.value() {
-            IrTy::Array { length, .. } => (None, length, layout),
-            IrTy::Adt(def) if def.borrow().variants.is_empty() => return None,
-            IrTy::Adt(def) => {
+            ReprTy::Array { length, .. } => (None, length, layout),
+            ReprTy::Adt(def) if def.borrow().variants.is_empty() => return None,
+            ReprTy::Adt(def) => {
                 let (offset_with_tag, variant) = self.read_discriminant()?;
                 let variant_layout = info.for_variant(self.lc, variant);
                 offset = offset_with_tag;

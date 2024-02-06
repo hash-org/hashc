@@ -25,7 +25,7 @@
 //! we have to avoid mangling the symbol name.
 
 use hash_attrs::builtin::attrs;
-use hash_ir::ty::InstanceId;
+use hash_ir::ty::{InstanceHelpers, InstanceId};
 use hash_source::{identifier::IDENTS, InteractiveId, ModuleId};
 use hash_storage::store::{statics::StoreId, StoreKey};
 
@@ -107,7 +107,7 @@ pub fn compute_symbol_name(instance_id: InstanceId) -> String {
             m.push(format!("{name}").as_str());
         }
 
-        if instance.is_generic_origin() {
+        if instance.is_origin_polymorphic() {
             m.push(format!("_g{instance_id:?}").as_str());
             push_string_encoded_count(
                 instance_id.to_index() as u128,

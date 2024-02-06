@@ -19,7 +19,7 @@ use crate::{
         Const, ConstOp, IrRef, Local, Operand, Place, PlaceProjection, RValue, Statement,
         SwitchTargets, Terminator, UnaryOp,
     },
-    ty::{IrTyId, Mutability, RefKind, VariantIdx},
+    ty::{Mutability, RefKind, ReprTyId, VariantIdx},
 };
 
 /// A [PlaceCtx] is a reference of where a a particular [Place] is
@@ -160,7 +160,7 @@ pub trait IrVisitorMut<'ir>: Sized {
         walk_mut::walk_use_rvalue(self, value, ctx);
     }
 
-    fn visit_const_op_rvalue(&mut self, _: ConstOp, _: IrTyId, _: &IrVisitorCtx<'_>) {}
+    fn visit_const_op_rvalue(&mut self, _: ConstOp, _: ReprTyId, _: &IrVisitorCtx<'_>) {}
 
     fn visit_unary_op_rvalue(&mut self, op: UnaryOp, value: &Operand, ctx: &IrVisitorCtx<'_>) {
         walk_mut::walk_unary_op_rvalue(self, op, value, ctx);
@@ -621,7 +621,13 @@ pub trait ModifyingIrVisitor<'ir>: Sized {
         walk_modifying::walk_use_rvalue(self, value, ctx);
     }
 
-    fn visit_const_op_rvalue(&self, _: &mut ConstOp, _: &mut IrTyId, _: &mut IrVisitorCtxMut<'_>) {}
+    fn visit_const_op_rvalue(
+        &self,
+        _: &mut ConstOp,
+        _: &mut ReprTyId,
+        _: &mut IrVisitorCtxMut<'_>,
+    ) {
+    }
 
     fn visit_unary_op_rvalue(
         &self,

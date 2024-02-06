@@ -4,7 +4,7 @@
 use hash_ast::ast::AstNodeId;
 use hash_ir::{
     ir::{BasicBlock, Local, LocalDecl, Place},
-    ty::{IrTyId, Mutability},
+    ty::{Mutability, ReprTyId},
 };
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::tir::{
@@ -61,7 +61,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     fn visit_primary_pattern_bindings(
         &mut self,
         pat: PatId,
-        f: &mut impl FnMut(&mut Self, Mutability, SymbolId, AstNodeId, IrTyId),
+        f: &mut impl FnMut(&mut Self, Mutability, SymbolId, AstNodeId, ReprTyId),
     ) {
         let span = self.span_of_pat(pat);
 

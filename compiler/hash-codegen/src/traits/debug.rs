@@ -5,7 +5,7 @@
 //! debug information to all of the generated IR.
 
 use hash_abi::FnAbi;
-use hash_ir::ty::IrTyId;
+use hash_ir::ty::ReprTyId;
 use hash_source::{identifier::Identifier, location::Span};
 
 use super::BackendTypes;
@@ -38,7 +38,7 @@ pub trait DebugInfoBuilderMethods: BackendTypes {
     fn create_debug_info_for_variable(
         &self,
         name: Identifier,
-        ty: IrTyId,
+        ty: ReprTyId,
         scope: Self::DebugInfoScope,
         kind: VariableKind,
         span: Span,

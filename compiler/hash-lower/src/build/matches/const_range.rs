@@ -7,7 +7,7 @@ use hash_ast::ast;
 use hash_ir::{
     constant::ConstKind,
     ir::{self, Const},
-    ty::{IrTy, IrTyId},
+    ty::{ReprTy, ReprTyId},
 };
 use hash_ir_utils::const_utils::ConstUtils;
 use hash_layout::compute::LayoutComputer;
@@ -35,12 +35,12 @@ pub(super) struct ConstRange {
 
     /// The type of the range. This is stored for convience when computing
     /// the range.
-    pub ty: IrTyId,
+    pub ty: ReprTyId,
 }
 
 impl ConstRange {
     /// Create a [ConstRange] from [RangePat].
-    pub fn from_range(range: &RangePat, ty: IrTyId, builder: &BodyBuilder) -> Self {
+    pub fn from_range(range: &RangePat, ty: ReprTyId, builder: &BodyBuilder) -> Self {
         let (lo, _) = builder.eval_range_lit(range.lo, ty, false);
         let (hi, _) = builder.eval_range_lit(range.hi, ty, true);
 
@@ -97,7 +97,7 @@ pub fn compare_const_values(
     // In the case that the type is a trivial char, we can do a direct scalar
     // compare and avoid the extra work.
     match ty {
-        IrTy::Int(_) | IrTy::Float(_) => {}
+        ReprTy::Int(_) | ReprTy::Float(_) => {}
         _ => {
             if let (ConstKind::Scalar(left_s), ConstKind::Scalar(right_s)) =
                 (left.kind(), right.kind())
@@ -114,18 +114,18 @@ pub fn compare_const_values(
     let right = ConstUtils::new(lc, right).eval_bits();
 
     match ty {
-        IrTy::Int(ty) => {
+        ReprTy::Int(ty) => {
             let size = ty.size(lc.data_layout().pointer_size);
             let a = size.sign_extend(left);
             let b = size.sign_extend(right);
             Some((a as i128).cmp(&(b as i128)))
         }
-        IrTy::Float(FloatTy::F32) => {
+        ReprTy::Float(FloatTy::F32) => {
             let a = f32::from_bits(left as u32);
             let b = f32::from_bits(left as u32);
             a.partial_cmp(&b)
         }
-        IrTy::Float(FloatTy::F64) => {
+        ReprTy::Float(FloatTy::F64) => {
             let a = f64::from_bits(left as u64);
             let b = f64::from_bits(left as u64);
             a.partial_cmp(&b)

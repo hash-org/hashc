@@ -13,7 +13,7 @@ use hash_ir::{
         SwitchTargets, TerminatorKind,
     },
     lang_items::LangItem,
-    ty::{AdtId, IrTy, IrTyId, ToIrTy, VariantIdx, COMMON_IR_TYS},
+    ty::{AdtId, ReprTy, ReprTyId, ToReprTy, VariantIdx, COMMON_REPR_TYS},
 };
 use hash_reporting::macros::panic_on_span;
 use hash_storage::store::statics::StoreId;
@@ -43,7 +43,7 @@ pub(super) enum TestKind {
     SwitchInt {
         /// The type that is being tested, it is either a `integral`, `char` or
         /// `bool`.
-        ty: IrTyId,
+        ty: ReprTyId,
 
         /// The constants that are being tested, they are all integers in an
         /// ordered map.
@@ -54,7 +54,7 @@ pub(super) enum TestKind {
     Eq {
         /// The type of the equality test, whether it is a `f32`, `f64` or `str`
         /// or some reference type.
-        ty: IrTyId,
+        ty: ReprTyId,
 
         /// The constant that is being compared to.
         value: Const,
@@ -101,7 +101,7 @@ impl Test {
             TestKind::SwitchInt { ty, ref options } => {
                 ty.map(|ty| {
                     // The boolean branch is always 2...
-                    if let IrTy::Bool = ty {
+                    if let ReprTy::Bool = ty {
                         2
                     } else {
                         // @@FixMe: this isn't always true since the number of options
@@ -168,7 +168,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         // Emit a test for a literal kind of pattern, here we also consider
         // constants as being literals.
-        let emit_const_test = |value: Const, ty: IrTyId| {
+        let emit_const_test = |value: Const, ty: ReprTyId| {
             // If it is not an integral constant, we use an `Eq` test. This will
             // happen when the constant is either a float or a string.
             if value.is_switchable() {
@@ -183,13 +183,13 @@ impl<'tcx> BodyBuilder<'tcx> {
                 let ty_id = self.ty_id_from_tir_pat(pair.pat);
 
                 ty_id.map(|ty| match ty {
-                    IrTy::Bool => {
+                    ReprTy::Bool => {
                         // Constify the bool literal
                         let value =
                             if pat.ctor.1 == 0 { Const::bool(true) } else { Const::bool(false) };
                         emit_const_test(value, ty_id)
                     }
-                    IrTy::Adt(id) => {
+                    ReprTy::Adt(id) => {
                         let (variant_count, adt) = id.map(|adt| {
                             // Structs can be simplified...
                             if adt.flags.is_struct() {
@@ -469,7 +469,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// and the suffix places to be the correct places.
     fn candidate_after_slice_test(
         &mut self,
-        ty: IrTyId,
+        ty: ReprTyId,
         pair_index: usize,
         candidate: &mut Candidate,
         prefix: &[PatId],
@@ -593,7 +593,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             TestKind::SwitchInt { ty, ref options } => {
                 let target_blocks = make_target_blocks(self);
 
-                let terminator_kind = if ty.map(|ty| *ty == IrTy::Bool) {
+                let terminator_kind = if ty.map(|ty| *ty == ReprTy::Bool) {
                     debug_assert!(options.len() == 2);
 
                     let [first_block, second_block] = *target_blocks else {
@@ -693,7 +693,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             TestKind::Len { len, op } => {
                 let target_blocks = make_target_blocks(self);
 
-                let usize_ty = COMMON_IR_TYS.usize;
+                let usize_ty = COMMON_REPR_TYS.usize;
                 let actual = self.temp_place(usize_ty);
 
                 // Assign `actual = length(place)`
@@ -732,7 +732,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     ) {
         debug_assert!(op.is_comparator());
 
-        let bool_ty = COMMON_IR_TYS.bool;
+        let bool_ty = COMMON_REPR_TYS.bool;
         let result = self.temp_place(bool_ty);
 
         // Push an assignment with the result of the comparison, i.e. `result = op(lhs,
@@ -759,7 +759,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         make_target_blocks: impl FnOnce(&mut Self) -> Vec<BasicBlock>,
         expected: Const,
         value: Place,
-        ty: IrTyId,
+        ty: ReprTyId,
         span: AstNodeId,
     ) {
         let expected = Operand::Const(expected);
@@ -771,12 +771,12 @@ impl<'tcx> BodyBuilder<'tcx> {
         //
         // - &[T] == &[T]
         // - &[T; N] == &[T; N]
-        if ty != COMMON_IR_TYS.str {
+        if ty != COMMON_REPR_TYS.str {
             panic!("unsupported non-scalar compare for type: {:?}", ty);
         }
 
         let str_eq = self.get_lang_item(LangItem::StrEq);
-        let eq_result = self.temp_place(COMMON_IR_TYS.bool);
+        let eq_result = self.temp_place(COMMON_REPR_TYS.bool);
         let eq_block = self.control_flow_graph.start_new_block();
         self.control_flow_graph.terminate(
             block,
@@ -881,7 +881,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     fn values_not_contained_in_range(
         &mut self,
         pat: &RangePat,
-        ty: IrTyId,
+        ty: ReprTyId,
         options: &IndexMap<Const, u128>,
     ) -> Option<bool> {
         let const_range = ConstRange::from_range(pat, ty, self);

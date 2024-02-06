@@ -650,6 +650,7 @@ dependencies = [
  "fixedbitset",
  "hash-ast",
  "hash-attrs",
+ "hash-layout",
  "hash-reporting",
  "hash-source",
  "hash-storage",
@@ -677,7 +678,8 @@ name = "hash-layout"
 version = "0.1.0"
 dependencies = [
  "fixedbitset",
- "hash-ir",
+ "hash-ast",
+ "hash-reporting",
  "hash-source",
  "hash-storage",
  "hash-target",

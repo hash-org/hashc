@@ -29,7 +29,7 @@ pub use crate::constant::{AllocId, Const, ConstKind, Scalar};
 use crate::{
     basic_blocks::BasicBlocks,
     cast::CastKind,
-    ty::{AdtId, IrTy, IrTyId, Mutability, PlaceTy, RefKind, VariantIdx, COMMON_IR_TYS},
+    ty::{AdtId, Mutability, PlaceTy, RefKind, ReprTy, ReprTyId, VariantIdx, COMMON_REPR_TYS},
 };
 
 impl From<Const> for Operand {
@@ -150,8 +150,8 @@ impl BinOp {
     }
 
     /// Compute the type of [BinOp] operator when applied to
-    /// a particular [IrTy].
-    pub fn ty(&self, lhs: IrTyId, rhs: IrTyId) -> IrTyId {
+    /// a particular [ReprTy].
+    pub fn ty(&self, lhs: ReprTyId, rhs: ReprTyId) -> ReprTyId {
         match self {
             BinOp::BitOr
             | BinOp::BitAnd
@@ -176,7 +176,7 @@ impl BinOp {
 
             // Comparisons
             BinOp::Eq | BinOp::Neq | BinOp::Gt | BinOp::GtEq | BinOp::Lt | BinOp::LtEq => {
-                COMMON_IR_TYS.bool
+                COMMON_REPR_TYS.bool
             }
         }
     }
@@ -262,7 +262,7 @@ pub enum LocalKind {
 
 /// Essentially a register for a value, the local declaration
 /// is used to store some data within the function body, it contains
-/// an associated [Mutability], and [IrTy], as well as a name if the
+/// an associated [Mutability], and [ReprTy], as well as a name if the
 /// information is available.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LocalDecl {
@@ -270,7 +270,7 @@ pub struct LocalDecl {
     pub mutability: Mutability,
 
     /// The type of the local.
-    pub ty: IrTyId,
+    pub ty: ReprTyId,
 
     /// An optional name for the local, this is used for building the
     /// IR and for printing the IR (in order to label which local associates
@@ -289,26 +289,26 @@ pub struct LocalDecl {
 
 impl LocalDecl {
     /// Create a new [LocalDecl].
-    pub fn new(name: Identifier, mutability: Mutability, ty: IrTyId) -> Self {
+    pub fn new(name: Identifier, mutability: Mutability, ty: ReprTyId) -> Self {
         Self { mutability, ty, name: Some(name), auxiliary: false }
     }
 
     /// Create a new mutable [LocalDecl].
-    pub fn new_mutable(name: Identifier, ty: IrTyId) -> Self {
+    pub fn new_mutable(name: Identifier, ty: ReprTyId) -> Self {
         Self::new(name, Mutability::Mutable, ty)
     }
 
     /// Create a new immutable [LocalDecl].
-    pub fn new_immutable(name: Identifier, ty: IrTyId) -> Self {
+    pub fn new_immutable(name: Identifier, ty: ReprTyId) -> Self {
         Self::new(name, Mutability::Immutable, ty)
     }
 
-    pub fn new_auxiliary(ty: IrTyId, mutability: Mutability) -> Self {
+    pub fn new_auxiliary(ty: ReprTyId, mutability: Mutability) -> Self {
         Self { mutability, ty, name: None, auxiliary: true }
     }
 
-    /// Returns the [IrTyId] of the local.
-    pub fn ty(&self) -> IrTyId {
+    /// Returns the [ReprTyId] of the local.
+    pub fn ty(&self) -> ReprTyId {
         self.ty
     }
 
@@ -409,7 +409,7 @@ impl Place {
 
     /// Deduce the type of the [Place] from the [IrCtx] and the local
     /// declarations.
-    pub fn ty(&self, info: &BodyInfo) -> IrTyId {
+    pub fn ty(&self, info: &BodyInfo) -> ReprTyId {
         PlaceTy::from_place(*self, info).ty
     }
 
@@ -476,11 +476,11 @@ pub enum AggregateKind {
 
     /// An array aggregate kind initialisation. The type of the array
     /// is stored here. Additionally, the length of the array is recorded
-    /// in [`IrTy::Array`] data, and can be derived from the type.
+    /// in [`ReprTy::Array`] data, and can be derived from the type.
     ///
     /// N.B. This type is the type of the array, not the type of the
     /// elements within the array.
-    Array(IrTyId),
+    Array(ReprTyId),
 
     /// Enum aggregate kind, this is used to represent an initialisation
     /// of an enum variant with the specified variant index.
@@ -522,7 +522,7 @@ pub enum Operand {
 impl Operand {
     /// Compute the type of the [Operand] based on
     /// the IrCtx.
-    pub fn ty(&self, info: &BodyInfo) -> IrTyId {
+    pub fn ty(&self, info: &BodyInfo) -> ReprTyId {
         match self {
             Operand::Const(kind) => kind.ty(),
             Operand::Place(place) => place.ty(info),
@@ -549,7 +549,7 @@ pub enum RValue {
     /// @@Future: maybe in the future this should be replaced by a compile-time
     /// API variant which will just run some kind of operation and return the
     /// constant.
-    ConstOp(ConstOp, IrTyId),
+    ConstOp(ConstOp, ReprTyId),
 
     /// A unary expression with a unary operator.
     UnaryOp(UnaryOp, Operand),
@@ -565,7 +565,7 @@ pub enum RValue {
 
     /// A cast operation, this will convert the value of the operand to the
     /// specified type.
-    Cast(CastKind, Operand, IrTyId),
+    Cast(CastKind, Operand, ReprTyId),
 
     /// Compute the `length` of a place, yielding a `usize`.
     ///
@@ -605,27 +605,27 @@ impl RValue {
         }
     }
 
-    /// Get the [IrTy] of the [RValue].
-    pub fn ty(&self, info: &BodyInfo) -> IrTyId {
+    /// Get the [ReprTy] of the [RValue].
+    pub fn ty(&self, info: &BodyInfo) -> ReprTyId {
         match self {
             RValue::Use(operand) => operand.ty(info),
-            RValue::ConstOp(ConstOp::AlignOf | ConstOp::SizeOf, _) => COMMON_IR_TYS.usize,
+            RValue::ConstOp(ConstOp::AlignOf | ConstOp::SizeOf, _) => COMMON_REPR_TYS.usize,
             RValue::UnaryOp(_, operand) => operand.ty(info),
             RValue::BinaryOp(op, box (lhs, rhs)) => op.ty(lhs.ty(info), rhs.ty(info)),
             RValue::CheckedBinaryOp(op, box (lhs, rhs)) => {
                 let ty = op.ty(lhs.ty(info), rhs.ty(info));
-                IrTy::make_tuple(&[ty, COMMON_IR_TYS.bool])
+                ReprTy::make_tuple(&[ty, COMMON_REPR_TYS.bool])
             }
             RValue::Cast(_, _, ty) => *ty,
-            RValue::Len(_) => COMMON_IR_TYS.usize,
+            RValue::Len(_) => COMMON_REPR_TYS.usize,
             RValue::Ref(mutability, place, kind) => {
                 let ty = place.ty(info);
-                IrTy::create(IrTy::Ref(ty, *mutability, *kind))
+                ReprTy::create(ReprTy::Ref(ty, *mutability, *kind))
             }
             RValue::Aggregate(kind, _) => match kind {
                 AggregateKind::Enum(id, _)
                 | AggregateKind::Struct(id)
-                | AggregateKind::Tuple(id) => IrTy::create(IrTy::Adt(*id)),
+                | AggregateKind::Tuple(id) => ReprTy::create(ReprTy::Adt(*id)),
                 AggregateKind::Array(ty) => *ty,
             },
             RValue::Discriminant(place) => {
@@ -633,7 +633,7 @@ impl RValue {
                 ty.borrow().discriminant_ty()
             }
             RValue::Repeat(op, length) => {
-                IrTy::create(IrTy::Array { ty: op.ty(info), length: *length })
+                ReprTy::create(ReprTy::Array { ty: op.ty(info), length: *length })
             }
         }
     }
@@ -1244,7 +1244,7 @@ pub struct BodyMetadata {
     pub source: BodySource,
 
     /// The type of the body that was lowered
-    ty: Option<IrTyId>,
+    ty: Option<ReprTyId>,
 }
 
 impl BodyMetadata {
@@ -1254,12 +1254,12 @@ impl BodyMetadata {
     }
 
     /// Set the type of the body that was lowered.
-    pub fn set_ty(&mut self, ty: IrTyId) {
+    pub fn set_ty(&mut self, ty: ReprTyId) {
         self.ty = Some(ty);
     }
 
     /// Get the type of the body that was lowered.
-    pub fn ty(&self) -> IrTyId {
+    pub fn ty(&self) -> ReprTyId {
         self.ty.expect("body type was not computed")
     }
 
@@ -1346,6 +1346,6 @@ mod size_asserts {
     use super::*;
 
     static_assert_size!(Statement, 72);
-    static_assert_size!(Terminator, 104);
+    static_assert_size!(Terminator, 128);
     static_assert_size!(RValue, 48);
 }

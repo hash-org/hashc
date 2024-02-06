@@ -4,7 +4,7 @@
 use hash_abi::{
     ArgAbi, ArgAttributeFlag, ArgAttributes, ArgExtension, CallingConvention, FnAbi, PassMode,
 };
-use hash_ir::ty::{Instance, InstanceId, IrTy, IrTyId, Mutability, RefKind};
+use hash_ir::ty::{Instance, InstanceId, Mutability, RefKind, ReprTy, ReprTyId};
 use hash_layout::compute::LayoutError;
 use hash_storage::store::statics::StoreId;
 use hash_target::abi::{Scalar, ScalarKind};
@@ -16,7 +16,7 @@ use crate::traits::{layout::LayoutMethods, HasCtxMethods};
 /// the scalar maybe a pair of values.
 fn adjust_arg_attributes(
     attributes: &mut ArgAttributes,
-    ty: IrTyId,
+    ty: ReprTyId,
     scalar: Scalar,
     is_return: bool,
 ) {
@@ -47,7 +47,7 @@ fn adjust_arg_attributes(
     // If the pointer type is a read-only, then we can set the "read_only"
     // attribute.
     ty.map(|ty| {
-        let IrTy::Ref(_, mutability, kind) = ty else {
+        let ReprTy::Ref(_, mutability, kind) = ty else {
             return;
         };
 
@@ -74,7 +74,7 @@ pub enum FnAbiError {
     Layout(LayoutError),
 }
 
-/// Compute an [FnAbi] from a provided [IrTyId]. If the ABI
+/// Compute an [FnAbi] from a provided [ReprTyId]. If the ABI
 /// has already been computed for the particular instance, then
 /// the cached version of the ABI is returned.
 ///
@@ -90,7 +90,7 @@ pub fn compute_fn_abi_from_instance<'b, Ctx: HasCtxMethods<'b> + LayoutMethods<'
     let calling_convention = CallingConvention::make_from_abi_and_target(abi, ctx.target());
 
     // Closure to create a new argument for the ABI from a given type.
-    let make_arg_abi = |ty: IrTyId, index: Option<usize>| {
+    let make_arg_abi = |ty: ReprTyId, index: Option<usize>| {
         let is_return = index.is_none();
         let info = ctx.layout_of(ty);
 

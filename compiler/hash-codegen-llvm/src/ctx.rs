@@ -11,7 +11,7 @@ use hash_codegen::{
     traits::{BackendTypes, HasCtxMethods},
 };
 use hash_ir::{
-    ty::{InstanceId, IrTyId, VariantIdx},
+    ty::{InstanceId, ReprTyId, VariantIdx},
     IrCtx,
 };
 use hash_pipeline::settings::CompilerSettings;
@@ -65,9 +65,9 @@ pub struct CodeGenCtx<'b, 'm> {
 
     /// A collection of [TyMemoryRemap]s that have occurred for
     /// all of the types that have been translated. Additionally, this is used
-    /// as a cache to avoid re-lowering [IrTyId]s into the equivalent
+    /// as a cache to avoid re-lowering [ReprTyId]s into the equivalent
     /// LLVM types.
-    pub(crate) ty_remaps: RefCell<FxHashMap<(IrTyId, Option<VariantIdx>), TyMemoryRemap<'m>>>,
+    pub(crate) ty_remaps: RefCell<FxHashMap<(ReprTyId, Option<VariantIdx>), TyMemoryRemap<'m>>>,
 
     /// A map which stores the created [AnyValueEnum]s for the constant
     /// strings [InternedStr] that have been created.

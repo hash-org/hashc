@@ -16,7 +16,7 @@ use std::{borrow::Borrow, mem};
 use hash_ast::ast::{self, AstNodeId};
 use hash_ir::{
     ir::{BasicBlock, Place, PlaceProjection},
-    ty::{AdtId, IrTy, Mutability},
+    ty::{AdtId, Mutability, ReprTy},
 };
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_target::{size::Size, HasTarget};
@@ -309,16 +309,16 @@ impl<'tcx> BodyBuilder<'tcx> {
                 //
                 // @@Todo: deal with big-ints
                 let (range, bias) = match range_ty.value() {
-                    IrTy::Char => {
+                    ReprTy::Char => {
                         (Some(('\u{0000}' as u128, '\u{10FFFF}' as u128, Size::from_bytes(4))), 0)
                     }
-                    IrTy::Int(int_ty) => {
+                    ReprTy::Int(int_ty) => {
                         let size = int_ty.size(ptr_width);
                         let max = size.truncate(u128::MAX);
                         let bias = 1u128 << (size.bits() - 1);
                         (Some((0, max, size)), bias)
                     }
-                    IrTy::UInt(uint_ty) => {
+                    ReprTy::UInt(uint_ty) => {
                         let size = uint_ty.size(ptr_width);
                         let max = size.truncate(u128::MAX);
                         (Some((0, max, size)), 0)
@@ -363,8 +363,8 @@ impl<'tcx> BodyBuilder<'tcx> {
 
                 // If the type is a boolean, then we can't simplify this pattern any further...
                 let adt = ty.map(|ty| match ty {
-                    IrTy::Bool => None,
-                    IrTy::Adt(id) => (*id).borrow().flags.is_struct().then_some(*id),
+                    ReprTy::Bool => None,
+                    ReprTy::Adt(id) => (*id).borrow().flags.is_struct().then_some(*id),
                     ty => panic!("unexpected type: {ty:?}"),
                 });
 

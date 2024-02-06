@@ -2,7 +2,7 @@
 
 use hash_ir::{
     ir::{BasicBlock, Local, Place, PlaceProjection, Projections},
-    ty::{IrTyId, Mutability, VariantIdx},
+    ty::{Mutability, ReprTyId, VariantIdx},
 };
 use hash_storage::store::statics::StoreId;
 use hash_tir::tir::{AccessTerm, DerefTerm, IndexTerm, ParamIndex, Term, TermId, Ty};
@@ -168,10 +168,10 @@ impl<'tcx> BodyBuilder<'tcx> {
         }
     }
 
-    /// Function to lookup the index of a particular field within a [IrTyId]
+    /// Function to lookup the index of a particular field within a [ReprTyId]
     /// using a [ParamIndex]. This function assumes that the underlying type
-    /// is a [IrTy::Adt].
-    fn lookup_field_index(&mut self, ty: IrTyId, field: ParamIndex) -> usize {
+    /// is a [ReprTy::Adt].
+    fn lookup_field_index(&mut self, ty: ReprTyId, field: ParamIndex) -> usize {
         ty.borrow().as_adt().map(|adt| {
             // @@Todo: deal with unions here.
             if adt.flags.is_struct() || adt.flags.is_tuple() {

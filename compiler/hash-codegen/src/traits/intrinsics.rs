@@ -5,7 +5,7 @@
 //! compiler.
 
 use hash_abi::FnAbi;
-use hash_ir::ty::IrTyId;
+use hash_ir::ty::ReprTyId;
 
 use super::BackendTypes;
 
@@ -17,7 +17,7 @@ pub trait IntrinsicBuilderMethods<'b>: BackendTypes {
     /// Generate a call to an intrinsic function.
     fn codegen_intrinsic_call(
         &mut self,
-        ty: IrTyId,
+        ty: ReprTyId,
         fn_abi: &FnAbi,
         args: &[Self::Value],
         result: Self::Value,

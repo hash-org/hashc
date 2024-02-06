@@ -1,7 +1,7 @@
 //! Defines all of the intrinsics that are expected to be
 //! declared within the language prelude.
 
-use crate::ty::{InstanceId, IrTyId};
+use crate::ty::{InstanceId, ReprTyId};
 
 /// Defines all of the intrinsics that are present within the
 /// language runtime, and will be filled in at code generation.
@@ -57,7 +57,7 @@ pub struct IntrinsicData {
     instance: InstanceId,
 
     /// The type of the lang item.
-    ty: IrTyId,
+    ty: ReprTyId,
 }
 
 /// This struct is used to map the [Intrinsic] enum to the
@@ -76,8 +76,8 @@ impl Intrinsics {
         Self { intrinsics: [None; std::mem::variant_count::<Intrinsic>()] }
     }
 
-    /// Set the [IrTyId] for the specified intrinsic.
-    pub fn set(&mut self, intrinsic: Intrinsic, instance: InstanceId, ty: IrTyId) {
+    /// Set the [ReprTyId] for the specified intrinsic.
+    pub fn set(&mut self, intrinsic: Intrinsic, instance: InstanceId, ty: ReprTyId) {
         self.intrinsics[intrinsic as usize] = Some(IntrinsicData { instance, ty });
     }
 
@@ -87,7 +87,7 @@ impl Intrinsics {
     }
 
     /// Get the [InstanceId] for the specified intrinsic.
-    pub fn get_ty(&self, intrinsic: Intrinsic) -> Option<IrTyId> {
+    pub fn get_ty(&self, intrinsic: Intrinsic) -> Option<ReprTyId> {
         self.intrinsics[intrinsic as usize].map(|item| item.ty)
     }
 }

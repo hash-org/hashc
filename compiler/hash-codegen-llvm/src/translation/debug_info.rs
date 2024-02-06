@@ -21,7 +21,7 @@ impl<'b, 'm> DebugInfoBuilderMethods for LLVMBuilder<'_, 'b, 'm> {
     fn create_debug_info_for_variable(
         &self,
         _name: Identifier,
-        _ty: hash_ir::ty::IrTyId,
+        _ty: hash_ir::ty::ReprTyId,
         _scope: Self::DebugInfoScope,
         _kind: VariableKind,
         _span: Span,

@@ -6,7 +6,7 @@ use std::cmp::Ordering;
 use hash_ir::{
     cast::{CastTy, IntCastKind},
     ir::{self, BinOp, RValue},
-    ty::{self, IrTyId, RefKind, VariantIdx, COMMON_IR_TYS},
+    ty::{self, RefKind, ReprTyId, VariantIdx, COMMON_REPR_TYS},
 };
 use hash_storage::store::statics::StoreId;
 
@@ -107,7 +107,7 @@ fn apply_shift_mask<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
 /// zero extended.
 fn build_unchecked_rshift<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
     builder: &mut Builder,
-    ty: IrTyId,
+    ty: ReprTyId,
     lhs: Builder::Value,
     rhs: Builder::Value,
 ) -> Builder::Value {
@@ -224,7 +224,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     }
 
     /// Compute the type of an [RValue].
-    pub fn ty_of_rvalue(&self, value: &RValue) -> IrTyId {
+    pub fn ty_of_rvalue(&self, value: &RValue) -> ReprTyId {
         value.ty(&self.body.aux())
     }
 
@@ -252,7 +252,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
                 OperandRef {
                     value: OperandValue::Immediate(value),
-                    info: builder.layout_of(COMMON_IR_TYS.usize),
+                    info: builder.layout_of(COMMON_REPR_TYS.usize),
                 }
             }
             ir::RValue::UnaryOp(operator, ref operand) => {
@@ -383,7 +383,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
                 OperandRef {
                     value: OperandValue::Immediate(size),
-                    info: builder.layout_of(COMMON_IR_TYS.usize),
+                    info: builder.layout_of(COMMON_REPR_TYS.usize),
                 }
             }
             ir::RValue::Ref(_, place, kind) => {
@@ -431,7 +431,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         operator: ir::BinOp,
         lhs_value: Builder::Value,
         rhs_value: Builder::Value,
-        ty: IrTyId,
+        ty: ReprTyId,
     ) -> Builder::Value {
         let is_float = ty.borrow().is_float();
         let is_signed = ty.borrow().is_signed();
@@ -533,7 +533,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         operator: ir::BinOp,
         lhs_value: Builder::Value,
         rhs_value: Builder::Value,
-        ty: IrTyId,
+        ty: ReprTyId,
     ) -> OperandValue<Builder::Value> {
         let (value, overflow) = match operator {
             BinOp::Add | BinOp::Sub | BinOp::Mul => {
@@ -654,7 +654,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         if let Some(local) = place.as_local() {
             if let LocalRef::Operand(Some(op)) = self.locals[local] {
                 let size = op.info.ty.map(|ty| {
-                    if let ty::IrTy::Array { length: size, .. } = ty {
+                    if let ty::ReprTy::Array { length: size, .. } = ty {
                         Some(*size)
                     } else {
                         None

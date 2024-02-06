@@ -18,7 +18,6 @@
 
 use std::{fmt, iter};
 
-use hash_ir::ty::{IrTy, VariantIdx};
 use hash_source::identifier::Identifier;
 use hash_storage::store::statics::StoreId;
 use hash_target::{
@@ -27,7 +26,9 @@ use hash_target::{
 use hash_utils::{index_vec::index_vec, tree_writing::CharacterSet};
 
 use crate::{
-    compute::LayoutComputer, FieldLayout, Layout, LayoutId, LayoutShape, TyInfo, Variants,
+    compute::LayoutComputer,
+    ty::{ReprTy, VariantIdx},
+    FieldLayout, Layout, LayoutId, LayoutShape, TyInfo, Variants,
 };
 
 /// [LayoutWriterConfig] stores all of the configuration for the [LayoutWriter]
@@ -543,7 +544,7 @@ impl LayoutWriterHelper<'_> {
 /// The [LayoutWriter] is a wrapper around [LayoutCtx] that allows
 /// for the pretty printing of a [Layout] in a human readable format.
 pub struct LayoutWriter<'l> {
-    /// The layout and associated [IrTy] to be written.
+    /// The layout and associated [ReprTy] to be written.
     pub ty_info: TyInfo,
 
     /// The current context for printing the layout. The [LayoutComputer]
@@ -577,11 +578,11 @@ impl<'l> LayoutWriter<'l> {
         Self { ty_info, ctx, config: LayoutWriterConfig::ascii() }
     }
 
-    /// Perform a mapping over the [IrTy] and [Layout] associated with
+    /// Perform a mapping over the [ReprTy] and [Layout] associated with
     /// this [LayoutWriter].
     fn with_info<F, T>(&self, f: F) -> T
     where
-        F: FnOnce(&Self, &IrTy, &Layout) -> T,
+        F: FnOnce(&Self, &ReprTy, &Layout) -> T,
     {
         self.ty_info.ty.map(|ty| self.ty_info.layout.map(|layout| f(self, ty, layout)))
     }
@@ -624,7 +625,7 @@ impl<'l> LayoutWriter<'l> {
     /// computing box content.
     fn create_box_contents(
         &self,
-        ty: &IrTy,
+        ty: &ReprTy,
         layout: &Layout,
         variant: Option<(Size, VariantIdx)>,
     ) -> Vec<BoxContent> {
@@ -672,7 +673,7 @@ impl<'l> LayoutWriter<'l> {
                 // Load in the fields of the aggregate, however, this depends
                 // on the type that is being stored.
                 let field_titles = match (layout.abi, ty) {
-                    (_, IrTy::Adt(adt)) => {
+                    (_, ReprTy::Adt(adt)) => {
                         adt.map(|adt| {
                             // we load in the variant that is specified in the
                             // "layouts" of the type.

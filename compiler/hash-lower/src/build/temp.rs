@@ -2,7 +2,7 @@
 
 use hash_ir::{
     ir::{BasicBlock, Local, LocalDecl, Place},
-    ty::{IrTyId, Mutability},
+    ty::{Mutability, ReprTyId},
 };
 use hash_tir::tir::TermId;
 
@@ -28,7 +28,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     }
 
     /// Create a temporary place with a given type.
-    pub(crate) fn temp_place(&mut self, ty: IrTyId) -> Place {
+    pub(crate) fn temp_place(&mut self, ty: ReprTyId) -> Place {
         let decl = LocalDecl::new_auxiliary(ty, Mutability::Immutable);
 
         Place::from_local(self.locals.push(decl))

@@ -4,6 +4,7 @@
 #![feature(let_chains)]
 
 pub mod compute;
+pub mod ty;
 pub mod write;
 
 use std::{
@@ -13,7 +14,6 @@ use std::{
 };
 
 use compute::LayoutComputer;
-use hash_ir::ty::{IrTy, IrTyId, ToIrTy, VariantIdx, COMMON_IR_TYS};
 use hash_storage::{
     static_single_store,
     store::statics::{SingleStoreValue, StoreId},
@@ -27,6 +27,9 @@ use hash_target::{
     size::Size,
 };
 use hash_utils::{fxhash::FxHashMap, index_vec::IndexVec};
+use ty::{AdtStore, ReprTyListStore, ReprTyStore};
+
+use crate::ty::{InstanceStore, ReprTy, ReprTyId, ToReprTy, VariantIdx, COMMON_REPR_TYS};
 
 /// The [PointerKind] specifies what kind of pointer this is, whether
 /// it is a shared reference, or a unique reference. In the @@Future, more
@@ -60,29 +63,33 @@ pub struct PointeeInfo {
 }
 
 stores!(
-    LayoutStores;
-    layouts: LayoutStore
+    RepresentationStores;
+    layouts: LayoutStore,
+    instances: InstanceStore,
+    tys: ReprTyStore,
+    ty_list: ReprTyListStore,
+    adts: AdtStore,
 );
 
 /// The global [`LayoutStores`] instance.
-static STORES: OnceLock<LayoutStores> = OnceLock::new();
+static STORES: OnceLock<RepresentationStores> = OnceLock::new();
 
 /// Access the global [`LayoutStores`] instance.
-pub(crate) fn layout_store() -> &'static LayoutStores {
-    STORES.get_or_init(LayoutStores::new)
+pub(crate) fn repr_stores() -> &'static RepresentationStores {
+    STORES.get_or_init(RepresentationStores::new)
 }
 
-/// Used to cache the [Layout]s that are created from [IrTyId]s.
-type LayoutCache<'c> = Ref<'c, FxHashMap<IrTyId, LayoutId>>;
+/// Used to cache the [Layout]s that are created from [ReprTyId]s.
+type LayoutCache<'c> = Ref<'c, FxHashMap<ReprTyId, LayoutId>>;
 
 /// A store for all of the interned [Layout]s, and a cache for
-/// the [Layout]s that are created from [IrTyId]s.
+/// the [Layout]s that are created from [ReprTyId]s.
 pub struct LayoutStorage {
-    /// Cache for the [Layout]s that are created from [IrTyId]s.
-    cache: RefCell<FxHashMap<IrTyId, LayoutId>>,
+    /// Cache for the [Layout]s that are created from [ReprTyId]s.
+    cache: RefCell<FxHashMap<ReprTyId, LayoutId>>,
 
     /// Cache for information about pointees with a particular offset.
-    pointee_info_cache: RefCell<FxHashMap<(IrTyId, Size), Option<PointeeInfo>>>,
+    pointee_info_cache: RefCell<FxHashMap<(ReprTyId, Size), Option<PointeeInfo>>>,
 
     /// A reference to the [TargetDataLayout] of the current
     /// session.
@@ -113,12 +120,12 @@ impl LayoutStorage {
     }
 
     /// Insert a new [LayoutId] entry into the cache.
-    pub(crate) fn add_cache_entry(&self, ty: IrTyId, layout: LayoutId) {
+    pub(crate) fn add_cache_entry(&self, ty: ReprTyId, layout: LayoutId) {
         self.cache.borrow_mut().insert(ty, layout);
     }
 
     pub fn layouts(&self) -> &LayoutStore {
-        layout_store().layouts()
+        repr_stores().layouts()
     }
 }
 
@@ -147,27 +154,27 @@ macro_rules! create_common_layout_table {
 // Create common layouts for all of the primitive types
 create_common_layout_table!(
     // Primitive types
-    bool: IrTy::Bool,
-    char: IrTy::Char,
-    str: IrTy::Str,
-    never: IrTy::Never,
+    bool: ReprTy::Bool,
+    char: ReprTy::Char,
+    str: ReprTy::Str,
+    never: ReprTy::Never,
     // Floating point types
-    f32: IrTy::Float(FloatTy::F32),
-    f64: IrTy::Float(FloatTy::F64),
+    f32: ReprTy::Float(FloatTy::F32),
+    f64: ReprTy::Float(FloatTy::F64),
     // Signed integer types
-    i8: IrTy::Int(SIntTy::I8),
-    i16: IrTy::Int(SIntTy::I16),
-    i32: IrTy::Int(SIntTy::I32),
-    i64: IrTy::Int(SIntTy::I64),
-    i128: IrTy::Int(SIntTy::I128),
-    isize: IrTy::Int(SIntTy::ISize),
+    i8: ReprTy::Int(SIntTy::I8),
+    i16: ReprTy::Int(SIntTy::I16),
+    i32: ReprTy::Int(SIntTy::I32),
+    i64: ReprTy::Int(SIntTy::I64),
+    i128: ReprTy::Int(SIntTy::I128),
+    isize: ReprTy::Int(SIntTy::ISize),
     // Unsigned integer types
-    u8: IrTy::UInt(UIntTy::U8),
-    u16: IrTy::UInt(UIntTy::U16),
-    u32: IrTy::UInt(UIntTy::U32),
-    u64: IrTy::UInt(UIntTy::U64),
-    u128: IrTy::UInt(UIntTy::U128),
-    usize: IrTy::UInt(UIntTy::USize),
+    u8: ReprTy::UInt(UIntTy::U8),
+    u16: ReprTy::UInt(UIntTy::U16),
+    u32: ReprTy::UInt(UIntTy::U32),
+    u64: ReprTy::UInt(UIntTy::U64),
+    u128: ReprTy::UInt(UIntTy::U128),
+    usize: ReprTy::UInt(UIntTy::USize),
 );
 
 /// [TyInfo] stores a reference to the type, and a reference to the
@@ -175,7 +182,7 @@ create_common_layout_table!(
 #[derive(Debug, Clone, Copy)]
 pub struct TyInfo {
     /// The type reference.
-    pub ty: IrTyId,
+    pub ty: ReprTyId,
 
     /// The layout information for the particular type.
     pub layout: LayoutId,
@@ -183,7 +190,7 @@ pub struct TyInfo {
 
 impl TyInfo {
     /// Create a new [TyInfo] with the given type and layout.
-    pub fn new(ty: IrTyId, layout: LayoutId) -> Self {
+    pub fn new(ty: ReprTyId, layout: LayoutId) -> Self {
         Self { ty, layout }
     }
 
@@ -207,11 +214,11 @@ impl TyInfo {
         self.layout.is_uninhabited()
     }
 
-    /// Perform a mapping over the [IrTy] and [Layout] associated with
+    /// Perform a mapping over the [ReprTy] and [Layout] associated with
     /// this [LayoutWriter].
     fn with_info<F, T>(&self, f: F) -> T
     where
-        F: FnOnce(&Self, &IrTy, &Layout) -> T,
+        F: FnOnce(&Self, &ReprTy, &Layout) -> T,
     {
         self.ty.map(|ty| self.layout.map(|layout| f(self, ty, layout)))
     }
@@ -220,38 +227,38 @@ impl TyInfo {
     /// [LayoutId] associated with the field.
     pub fn field(&self, ctx: LayoutComputer, field_index: usize) -> Self {
         let ty = self.with_info(|_, ty, layout| match ty {
-            IrTy::Int(_)
-            | IrTy::UInt(_)
-            | IrTy::Float(_)
-            | IrTy::Bool
-            | IrTy::Char
-            | IrTy::Never
-            | IrTy::FnDef { .. }
-            | IrTy::Fn { .. } => {
+            ReprTy::Int(_)
+            | ReprTy::UInt(_)
+            | ReprTy::Float(_)
+            | ReprTy::Bool
+            | ReprTy::Char
+            | ReprTy::Never
+            | ReprTy::FnDef { .. }
+            | ReprTy::Fn { .. } => {
                 panic!("TyInfo::field on a type `{}` that does not contain fields", ty)
             }
 
             // Handle pointers that might have additional information attached to them, i.e.
             // `str` and `[T]` types.
-            IrTy::Ref(pointee, _, _) => {
+            ReprTy::Ref(pointee, _, _) => {
                 // We just create a `void*` pointer...
                 if field_index == 0 {
-                    return COMMON_IR_TYS.void_ptr;
+                    return COMMON_REPR_TYS.void_ptr;
                 }
 
                 // Deal with loading metadata for the pointer, for now it is either a slice
                 // or a string which only contain the length of the data.
                 pointee.map(|ty| match ty {
-                    IrTy::Str | IrTy::Slice(_) => COMMON_IR_TYS.usize,
+                    ReprTy::Str | ReprTy::Slice(_) => COMMON_REPR_TYS.usize,
                     ty => {
                         unreachable!("TyInfo::field cannot read metadata for pointer type `{ty:?}`")
                     }
                 })
             }
 
-            IrTy::Str => COMMON_IR_TYS.u8,
-            IrTy::Slice(element) | IrTy::Array { ty: element, .. } => *element,
-            IrTy::Adt(id) => match layout.variants {
+            ReprTy::Str => COMMON_REPR_TYS.u8,
+            ReprTy::Slice(element) | ReprTy::Array { ty: element, .. } => *element,
+            ReprTy::Adt(id) => match layout.variants {
                 Variants::Single { index } => {
                     id.map(|adt| adt.variants[index].fields[field_index].ty)
                 }
@@ -578,7 +585,7 @@ static_single_store!(
     id = pub LayoutId,
     value = Layout,
     store_name = layouts,
-    store_source = layout_store(),
+    store_source = repr_stores(),
     derives = Debug
 );
 

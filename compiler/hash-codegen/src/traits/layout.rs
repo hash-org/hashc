@@ -1,15 +1,15 @@
 //! Trait methods to do with calculating and accessing the layout of types
 //! within a backend.
 
-use hash_ir::ty::IrTyId;
+use hash_ir::ty::ReprTyId;
 
 use super::{BackendTypes, HasCtxMethods};
 use crate::layout::TyInfo;
 
 /// Methods for calculating and querying the layout of types within a backend.
 pub trait LayoutMethods<'b>: BackendTypes + HasCtxMethods<'b> {
-    /// Compute the layout of a interned type via [IrTyId].
-    fn layout_of(&self, ty: IrTyId) -> TyInfo {
+    /// Compute the layout of a interned type via [ReprTyId].
+    fn layout_of(&self, ty: ReprTyId) -> TyInfo {
         // @@Todo: provide a mechanism for gracefully reporting the error rather
         // than unwrapping
         let layout = self.layouts().layout_of_ty(ty).unwrap();
