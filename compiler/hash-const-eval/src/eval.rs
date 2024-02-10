@@ -8,7 +8,7 @@ use hash_storage::store::statics::StoreId;
 use hash_target::data_layout::HasDataLayout;
 use hash_utils::{derive_more::Constructor, num_traits};
 
-use crate::op::BinOp;
+use crate::op::{BinOp, UnOp};
 
 /// A constant folder which is used to fold constants into a single
 /// constant.
@@ -300,6 +300,7 @@ impl<'ctx> ConstFolder<'ctx> {
         })
     }
 
-    // @@Todo: implement folding unary operators in the same manner as binary
-    // operators.
+    pub fn try_fold_un_op(&self, op: UnOp, operand: &Const) -> Option<Const> {
+        todo!()
+    }
 }

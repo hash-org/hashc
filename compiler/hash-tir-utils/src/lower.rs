@@ -121,7 +121,7 @@ pub enum ShouldCache {
 pub trait TyLowerEnv: HasContext + HasIrCtx + HasTarget + HasTyCache {}
 
 #[derive(Deref, Constructor)]
-pub struct TyLower<'tc, E: TyLowerEnv> {
+pub struct TyLower<'tc, E> {
     #[deref]
     pub env: &'tc E,
 }
