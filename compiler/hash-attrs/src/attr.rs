@@ -15,7 +15,7 @@ use hash_utils::{
 
 use crate::{
     diagnostics::{AttrError, AttrResult},
-    ty::AttrId,
+    ty::{repr_ty_from_primitive_ty, AttrId},
 };
 
 /// Valid `#[repr(...)]` options, ideally we should be able to just generate
@@ -154,7 +154,8 @@ impl AttrValue {
     ) -> LitParseResult<Option<Self>> {
         let constant = match expr {
             ast::Expr::Lit(ast::LitExpr { data }) => {
-                let ty = expected_ty.map(|_| todo!()); // @@Cowbunga
+                let ty = expected_ty
+                    .map(|ty| repr_ty_from_primitive_ty(ty).expect("expected a primitive type"));
                 data.to_const(ty, ptr_size)?
             }
             _ => return Ok(None),
