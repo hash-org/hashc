@@ -1,5 +1,5 @@
-/// Declaratively defines all the primitives and intrinsics of the language at
-/// the TIR level.
+//! Declaratively defines all the primitives and intrinsics of the language at
+//! the TIR level.
 use std::process;
 
 use hash_const_eval::{
@@ -27,73 +27,7 @@ use crate::{
     },
 };
 
-// #[derive(Copy, Clone, Debug, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
-// #[repr(u8)]
-// pub enum UnOp {
-//     /// Logical negation (!)
-//     Not,
-//     /// Bitwise negation (~)
-//     BitNot,
-//     /// Negation (-)
-//     Neg,
-// }
-
-// /// A boolean-valued binary operator.
-// #[derive(Copy, Clone, Debug, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
-// #[repr(u8)]
-// pub enum CondBinOp {
-//     /// '=='
-//     EqEq,
-//     /// '!='
-//     NotEq,
-//     /// '>'
-//     Gt,
-//     /// '>='
-//     GtEq,
-//     /// '<'
-//     Lt,
-//     /// '<='
-//     LtEq,
-// }
-
-// /// This represents the result of a short-circuiting binary operators
-// /// that can occur as intrinsics.
-// #[derive(Copy, Clone, Debug, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
-// #[repr(u8)]
-// pub enum ShortCircuitingBoolOp {
-//     /// '||'
-//     Or,
-//     /// '&&'
-//     And,
-// }
-
-// /// A binary operator whose result is the same type as its arguments.
-// #[derive(Copy, Clone, Debug, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
-// #[repr(u8)]
-// pub enum BinOp {
-//     /// '|'
-//     BitOr,
-//     /// '&'
-//     BitAnd,
-//     /// '^'
-//     BitXor,
-//     /// '**'
-//     Exp,
-//     /// '>>'
-//     Shr,
-//     /// '<<'
-//     Shl,
-//     /// '+'
-//     Add,
-//     /// '-'
-//     Sub,
-//     /// '*'
-//     Mul,
-//     /// '/'
-//     Div,
-//     /// '%'
-//     Mod,
-// }
+const INVALID_OP: &str = "Invalid cond-binary operation parameters";
 
 make_intrinsics! {
     size_of := (T: Type()) -> usize_gen_ty() => |env| {
@@ -173,116 +107,6 @@ make_intrinsics! {
         // Use the constant evaluator to perform the operation.
         let eval = ConstFolder::new(env.layout_computer());
         Ok(None) // @@Cowbunga
-
-        // // Valid operations on big-ints
-        // macro_rules! operate_bool {
-        //     ($op:expr, $lhs:expr, $rhs:expr) => {
-        //         match $op {
-        //             CondBinOp::EqEq => $lhs == $rhs,
-        //             CondBinOp::NotEq => $lhs != $rhs,
-        //             _ => return Err(INVALID_OP.to_string()),
-        //         }
-        //     };
-        // }
-
-        // // Valid operations on floats
-        // macro_rules! operate_float {
-        //     ($op:expr, $lhs:expr, $rhs:expr) => {
-        //         match $op {
-        //             CondBinOp::EqEq => $lhs == $rhs,
-        //             CondBinOp::NotEq => $lhs != $rhs,
-        //             CondBinOp::Gt => $lhs > $rhs,
-        //             CondBinOp::GtEq => $lhs >= $rhs,
-        //             CondBinOp::Lt => $lhs < $rhs,
-        //             CondBinOp::LtEq => $lhs <= $rhs,
-        //         }
-        //     };
-        // }
-
-        // // Valid operations on integers
-        // macro_rules! operate_int {
-        //     ($op:expr, $lhs:expr, $rhs:expr) => {
-        //         match $op {
-        //             CondBinOp::EqEq => $lhs == $rhs,
-        //             CondBinOp::NotEq => $lhs != $rhs,
-        //             CondBinOp::Gt => $lhs > $rhs,
-        //             CondBinOp::GtEq => $lhs >= $rhs,
-        //             CondBinOp::Lt => $lhs < $rhs,
-        //             CondBinOp::LtEq => $lhs <= $rhs,
-        //         }
-        //     };
-        // }
-
-        // // Valid operations on characters
-        // macro_rules! operate_char {
-        //     ($op:expr, $lhs:expr, $rhs:expr) => {
-        //         match $op {
-        //             CondBinOp::EqEq => $lhs == $rhs,
-        //             CondBinOp::NotEq => $lhs != $rhs,
-        //             CondBinOp::Gt => $lhs > $rhs,
-        //             CondBinOp::GtEq => $lhs >= $rhs,
-        //             CondBinOp::Lt => $lhs < $rhs,
-        //             CondBinOp::LtEq => $lhs <= $rhs,
-        //         }
-        //     };
-        // }
-
-        // macro_rules! handle_integer {
-        //     ($rust_ty:ty) => {{
-        //         match (try_use_term_as_integer_lit::<_, $rust_ty>(&env, a), try_use_term_as_integer_lit::<_, $rust_ty>(&env, b)) {
-        //             (Some(lhs), Some(rhs)) => {
-        //                 Ok(Some(bool_term(operate_int!(parsed_op, lhs, rhs), a.origin().computed())))
-        //             },
-        //             _ => Ok(None),
-        //         }
-        //     }};
-        // }
-
-        // macro_rules! handle_float {
-        //     ($rust_ty:ty) => {{
-        //         match (try_use_term_as_float_lit::<$rust_ty>(a), try_use_term_as_float_lit::<$rust_ty>(b)) {
-        //             (Some(lhs), Some(rhs)) => {
-        //                 Ok(Some(bool_term(operate_float!(parsed_op, lhs, rhs), a.origin().computed())))
-        //             },
-        //             _ => Ok(None),
-        //         }
-        //     }};
-        // }
-
-        // // Handle each `T` parameter:
-        // match try_use_ty_as_lit_ty(&env, T) {
-        //     Some(lit_ty) => match lit_ty {
-        //         LitTy::U8 => handle_integer!(u8),
-        //         LitTy::U16 => handle_integer!(u16),
-        //         LitTy::U32 => handle_integer!(u32),
-        //         LitTy::U64 => handle_integer!(u64),
-        //         LitTy::U128 => handle_integer!(u128),
-        //         LitTy::I8 => handle_integer!(i8),
-        //         LitTy::I16 => handle_integer!(i16),
-        //         LitTy::I32 => handle_integer!(i32),
-        //         LitTy::I64 => handle_integer!(i64),
-        //         LitTy::I128 => handle_integer!(i128),
-        //         LitTy::F32 => handle_float!(f32),
-        //         LitTy::F64 =>  handle_float!(f64),
-        //         LitTy::Bool => {
-        //             match (try_use_term_as_bool(a), try_use_term_as_bool(b)) {
-        //                 (Some(lhs), Some(rhs)) => {
-        //                     Ok(Some(bool_term(operate_bool!(parsed_op, lhs, rhs), a.origin().computed())))
-        //                 },
-        //                 _ => Ok(None),
-        //             }
-        //         }
-        //         LitTy::Char => {
-        //             match (try_use_term_as_char_lit(a), try_use_term_as_char_lit(b)) {
-        //                 (Some(lhs), Some(rhs)) => {
-        //                     Ok(Some(bool_term(operate_char!(parsed_op, lhs, rhs), a.origin().computed())))
-        //                 },
-        //                 _ => Ok(None),
-        //             }
-        //         }
-        //     },
-        //     None => Err(INVALID_OP.to_string()),
-        // }
     };
 
     // Short-circuiting boolean binary operations
@@ -300,24 +124,6 @@ make_intrinsics! {
 
         // Use the constant evaluator to perform the operation.
         let eval = ConstFolder::new(env.layout_computer());
-        Ok(None) // @@Cowbunga
-
-        // // Valid operations on booleans
-        // macro_rules! operate_bool {
-        //     ($op:expr, $lhs:expr, $rhs:expr) => {
-        //         match $op {
-        //             ShortCircuitingBoolOp::And => $lhs && $rhs,
-        //             ShortCircuitingBoolOp::Or => $lhs || $rhs,
-        //         }
-        //     };
-        // }
-
-        // match (try_use_term_as_bool(a), try_use_term_as_bool(b)) {
-        //     (Some(lhs), Some(rhs)) => {
-        //         Ok(Some(bool_term(operate_bool!(parsed_op, lhs, rhs), a.origin().computed())))
-        //     },
-        //     _ => Ok(None),
-        // }
     };
 
     // Binary operations (returning the same type as the arguments)
@@ -337,84 +143,6 @@ make_intrinsics! {
         let eval = ConstFolder::new(env.layout_computer());
 
         Ok(None) // @@Cowbunga
-
-
-        // Valid operations on floats
-        // macro_rules! operate_float {
-        //     ($op:expr, $lhs:expr, $rhs:expr) => {
-        //         match $op {
-        //             BinOp::Exp => $lhs.powf($rhs),
-        //             BinOp::Add => $lhs + $rhs,
-        //             BinOp::Sub => $lhs - $rhs,
-        //             BinOp::Mul => $lhs * $rhs,
-        //             BinOp::Div => $lhs / $rhs,
-        //             BinOp::Mod => $lhs % $rhs,
-        //             _ => return Err(INVALID_OP.to_string()),
-        //         }
-        //     };
-        // }
-
-        // // Valid operations on integers
-        // macro_rules! operate_int {
-        //     ($op:expr, $lhs:expr, $rhs:expr) => {
-        //         match $op {
-        //             BinOp::BitOr => $lhs | $rhs,
-        //             BinOp::BitAnd => $lhs & $rhs,
-        //             BinOp::BitXor => $lhs ^ $rhs,
-        //             BinOp::Shr => $lhs >> $rhs,
-        //             BinOp::Shl => $lhs << $rhs,
-        //             BinOp::Add => $lhs + $rhs,
-        //             BinOp::Sub => $lhs - $rhs,
-        //             BinOp::Mul => $lhs * $rhs,
-        //             BinOp::Div => $lhs / $rhs,
-        //             BinOp::Mod => $lhs % $rhs,
-        //             _ => return Err(INVALID_OP.to_string()),
-        //         }
-        //     };
-        // }
-
-        // macro_rules! handle_integer {
-        //     ($rust_ty:ty) => {{
-        //         match (try_use_term_as_integer_lit::<_, $rust_ty>(&env, a), try_use_term_as_integer_lit::<_, $rust_ty>(&env, b)) {
-        //             (Some(lhs), Some(rhs)) => {
-        //                 Ok(Some(create_term_from_const(operate_int!(parsed_op, lhs, rhs), a.origin().computed())))
-        //             },
-        //             _ => Ok(None),
-        //         }
-        //     }};
-        // }
-
-        // macro_rules! handle_float {
-        //     ($rust_ty:ty) => {{
-        //         match (try_use_term_as_float_lit::<$rust_ty>(a), try_use_term_as_float_lit::<$rust_ty>(b)) {
-        //             (Some(lhs), Some(rhs)) => {
-        //                 Ok(Some(create_term_from_const(operate_float!(parsed_op, lhs, rhs), a.origin().computed())))
-        //             },
-        //             _ => Ok(None),
-        //         }
-        //     }};
-        // }
-
-        // // Handle each `T` parameter:
-        // match try_use_ty_as_lit_ty(&env, T) {
-        //     Some(lit_ty) => match lit_ty {
-        //         LitTy::U8 => handle_integer!(u8),
-        //         LitTy::U16 => handle_integer!(u16),
-        //         LitTy::U32 => handle_integer!(u32),
-        //         LitTy::U64 => handle_integer!(u64),
-        //         LitTy::U128 => handle_integer!(u128),
-        //         LitTy::I8 => handle_integer!(i8),
-        //         LitTy::I16 => handle_integer!(i16),
-        //         LitTy::I32 => handle_integer!(i32),
-        //         LitTy::I64 => handle_integer!(i64),
-        //         LitTy::I128 => handle_integer!(i128),
-        //         LitTy::F32 => handle_float!(f32),
-        //         LitTy::F64 => handle_float!(f64),
-        //         LitTy::Bool => Err(INVALID_OP.to_string()),
-        //         LitTy::Char => Err(INVALID_OP.to_string()),
-        //     },
-        //     None => Err(INVALID_OP.to_string()),
-        // }
     };
 
     // Unary operations
@@ -432,76 +160,6 @@ make_intrinsics! {
         let eval = ConstFolder::new(env.layout_computer());
 
         Ok(None) // @@Cowbunga
-
-        // // Valid operations on booleans
-        // macro_rules! operate_bool {
-        //     ($op:expr, $a:expr) => {
-        //         match $op {
-        //             UnOp::Not => !$a,
-        //             _ => return Err(INVALID_OP.to_string()),
-        //         }
-        //     };
-        // }
-
-        // // Valid operations on floats
-        // macro_rules! operate_float {
-        //     ($op:expr, $a:expr) => {
-        //         match $op {
-        //             UnOp::Neg => -($a),
-        //             _ => return Err(INVALID_OP.to_string()),
-        //         }
-        //     };
-        // }
-
-        // // Valid operations on integers
-        // macro_rules! operate_integer {
-        //     ($op:expr, $a:expr) => {
-        //         match $op {
-        //             UnOp::Neg => -($a),
-        //             UnOp::BitNot => !($a),
-        //             _ => return Err(INVALID_OP.to_string()),
-        //         }
-        //     };
-        // }
-
-        // macro_rules! handle_integer {
-        //     ($rust_ty:ty) => {
-        //         match try_use_term_as_integer_lit::<_, $rust_ty>(&env, a) {
-        //             Some(a_lit) => Ok(Some(create_term_from_const(operate_integer!(parsed_op, a_lit), a.origin().computed()))),
-        //             None => Ok(None),
-        //         }
-        //     };
-        // }
-
-        // macro_rules! handle_float {
-        //     ($rust_ty:ty) => {
-        //         match try_use_term_as_float_lit::<$rust_ty>(a) {
-        //             Some(a_lit) => Ok(Some(create_term_from_const(operate_float!(parsed_op, a_lit), a.origin().computed()))),
-        //             None => Ok(None),
-        //         }
-        //     };
-        // }
-
-        // // Handle each `T` parameter:
-        // match try_use_ty_as_lit_ty(&env, T) {
-        //     Some(lit_ty) => match lit_ty {
-        //         LitTy::I8 => handle_integer!(i8),
-        //         LitTy::I16 => handle_integer!(i16),
-        //         LitTy::I32 => handle_integer!(i32),
-        //         LitTy::I64 => handle_integer!(i64),
-        //         LitTy::I128 => handle_integer!(i128),
-        //         LitTy::F32 => handle_float!(f32),
-        //         LitTy::F64 => handle_float!(f64),
-        //         LitTy::Bool => {
-        //             match try_use_term_as_bool(a) {
-        //                 Some(a_bool) => Ok(Some(bool_term(operate_bool!(parsed_op, a_bool), a.origin().computed()))),
-        //                 None => Ok(None),
-        //             }
-        //         }
-        //         _ => Err(INVALID_OP.to_string()),
-        //     },
-        //     None => Err(INVALID_OP.to_string()),
-        // }
     };
 }
 
