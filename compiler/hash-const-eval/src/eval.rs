@@ -3,7 +3,7 @@ use hash_layout::{
     constant::{Const, ConstKind, Ty},
     ty::{ReprTy, ReprTyId},
 };
-use hash_source::{constant::Scalar, FloatTy};
+use hash_source::{constant::Scalar, FloatTy, Size};
 use hash_storage::store::statics::StoreId;
 use hash_target::data_layout::HasDataLayout;
 use hash_utils::{derive_more::Constructor, num_traits};
@@ -301,6 +301,64 @@ impl<'ctx> ConstFolder<'ctx> {
     }
 
     pub fn try_fold_un_op(&self, op: UnOp, operand: &Const) -> Option<Const> {
-        todo!()
+        // If the two constants are non-scalar, then we abort the folding... @@Future:
+        // do we need this?
+        let ConstKind::Scalar(scalar) = operand.kind() else {
+            return None;
+        };
+
+        let ty = operand.ty();
+
+        match ty.value() {
+            t if t.is_integral() => {
+                let size = self.lc.size_of_ty(ty).ok()?;
+                let bits = scalar.to_bits(size).ok()?;
+                self.unary_int_op(op, ty, size, bits)
+            }
+            ReprTy::Float(fl_ty) => match fl_ty {
+                FloatTy::F32 => Self::unary_float_op(op, scalar.to_f32()),
+                FloatTy::F64 => Self::unary_float_op(op, scalar.to_f64()),
+            },
+            ReprTy::Bool => {
+                let l: bool = scalar.try_into().ok()?;
+                Self::unary_bool_op(op, l)
+            }
+            _ => None,
+        }
+    }
+
+    fn unary_int_op(&self, op: UnOp, ty: ReprTyId, size: Size, operand: u128) -> Option<Const> {
+        use crate::op::UnOp::*;
+
+        // @@Overflow: properly deal and communicate that an
+        // overflow has occurred.
+        let (val, _overflow) = match op {
+            Neg => {
+                assert!(ty.borrow().is_signed());
+                let value = size.sign_extend(operand) as i128;
+                let (res, overflow) = value.overflowing_neg();
+                let res = res as u128;
+                let truncated = size.truncate(res);
+
+                (truncated, overflow || size.sign_extend(res) != res)
+            }
+            BitNot | Not => (size.truncate(!operand), false),
+        };
+
+        Some(Const::new(ty, ConstKind::Scalar(Scalar::from_uint(val, size))))
+    }
+
+    fn unary_float_op<F: num_traits::Float + Into<Const>>(op: UnOp, operand: F) -> Option<Const> {
+        match op {
+            UnOp::Neg => Some((-operand).into()),
+            _ => None,
+        }
+    }
+
+    fn unary_bool_op(op: UnOp, operand: bool) -> Option<Const> {
+        match op {
+            UnOp::Not => Some(Const::bool(!operand)),
+            _ => None,
+        }
     }
 }
