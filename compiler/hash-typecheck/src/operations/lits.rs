@@ -179,7 +179,8 @@ impl<E: TcEnv> OperationsOnNode<LitId> for Tc<'_, E> {
             match (*src.value(), *target.value()) {
                 (Lit::Int(i1), Lit::Int(i2)) => i1 == i2,
                 (Lit::Float(f1), Lit::Float(f2)) => f1 == f2,
-                (Lit::Const(c1), Lit::Const(c2)) => c1 == c2, // @@Cowbunga: use const comparison method
+                (Lit::Const(c1), Lit::Const(c2)) => c1 == c2, /* @@Cowbunga: use const
+                                                                * comparison method */
                 _ => false,
             },
             src,

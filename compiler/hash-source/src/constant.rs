@@ -14,7 +14,14 @@ use std::{
     sync::OnceLock,
 };
 
-use hash_storage::{static_single_store, store::{statics::{SingleStoreValue, StoreId}, Store}, stores};
+use hash_storage::{
+    static_single_store,
+    store::{
+        statics::{SingleStoreValue, StoreId},
+        Store,
+    },
+    stores,
+};
 // Re-export the "primitives" from the hash-target crate so that everyone can use
 // them who depends on `hash-source`
 pub use hash_target::primitives::*;
@@ -454,7 +461,7 @@ impl<Buf: AllocBuf> Alloc<Buf> {
     ///   buf: usize,
     ///   bytes: [u8; len],
     /// ```
-    /// 
+    ///
     /// ##NOTE: the `bytes` are in big endian.
     pub fn big_int(value: BigInt) -> Self {
         let mut len = value.bits().to_be_bytes();
@@ -498,7 +505,7 @@ impl<Buf: AllocBuf> Alloc<Buf> {
     pub fn read_usize<C: HasDataLayout>(&self, offset: usize, ctx: &C) -> usize {
         let ptr_size = ctx.data_layout().pointer_size;
 
-        let data = &self.buf[offset..offset+ptr_size.bytes_usize()];
+        let data = &self.buf[offset..offset + ptr_size.bytes_usize()];
         let int = read_target_uint(ctx.data_layout().endian, data).unwrap();
         int as usize
     }

@@ -218,22 +218,28 @@ impl Display for Lit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Lit::Int(_) | Lit::Float(_) => write!(f, "<raw>"),
+
+            // @@Fugly: we should use `pretty_print_const` here (especially when it becomes
+            // `Term::Const`)
             Lit::Const(constant) => {
                 // It's often the case that users don't include the range of the entire
                 // integer and so we will write `-2147483648..x` and
                 // same for max, what we want to do is write `MIN`
                 // and `MAX` for these situations since it is easier for the
                 // user to understand the problem.
+                let ty = constant.ty().value();
 
-                if let ConstKind::Scalar(scalar) = constant.kind {
-                    let ty = constant.ty().value();
-
-                    let mut buf = TempWriter::default();
-                    pretty_print_scalar(&mut buf, scalar, &ty, Size::ZERO, true).unwrap();
-                    write!(f, "{}", buf.into_string())
-                } else {
-                    // @@Cowbunga: Determine how to print the strings here.
-                    unimplemented!()
+                match constant.kind {
+                    ConstKind::Zero => write!(f, "()"),
+                    ConstKind::Scalar(scalar) => {
+                        let mut buf = TempWriter::default();
+                        pretty_print_scalar(&mut buf, scalar, &ty, Size::ZERO, true).unwrap();
+                        write!(f, "{}", buf.into_string())
+                    }
+                    ConstKind::Pair { data, .. } if ty.is_str() => {
+                        write!(f, "\"{}\"", data.to_str())
+                    }
+                    _ => panic!("unexpected constant kind"),
                 }
             }
         }
