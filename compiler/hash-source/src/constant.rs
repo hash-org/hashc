@@ -433,15 +433,7 @@ impl<Buf: AllocBuf> Alloc<Buf> {
     /// )
     /// ```
     pub fn str(value: String) -> Self {
-        let mut len = value.len().to_be_bytes();
-        let mut buf = Vec::from(value.as_bytes());
-
-        len.reverse(); // since we're writing them backwards.
-        for byte in len.into_iter() {
-            buf.insert(0, byte)
-        }
-
-        Self::from_bytes(buf, Alignment::ONE, Mutability::Immutable)
+        Self::from_bytes(value.as_bytes(), Alignment::ONE, Mutability::Immutable)
     }
 
     /// Attempt to convert a particular [AllocId] into a [String] value.
@@ -464,14 +456,7 @@ impl<Buf: AllocBuf> Alloc<Buf> {
     ///
     /// ##NOTE: the `bytes` are in big endian.
     pub fn big_int(value: BigInt) -> Self {
-        let mut len = value.bits().to_be_bytes();
-        let (_, mut buf) = value.to_bytes_be();
-
-        len.reverse(); // since we're writing them backwards.
-        for byte in len.into_iter() {
-            buf.insert(0, byte)
-        }
-
+        let (_, buf) = value.to_bytes_be();
         Self::from_bytes(buf, Alignment::ONE, Mutability::Immutable)
     }
 
