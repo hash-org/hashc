@@ -553,20 +553,19 @@ stores!(
 
 impl ConstStores {
     /// Add a collection of interned strings from a given map.
-    pub fn add_local_table(&self, _local: LocalStringTable) {
-        // if local.table.is_empty() {
-        //     return;
-        // }
+    pub fn add_local_table(&self, local: LocalStringTable) {
+        if local.table.is_empty() {
+            return;
+        }
 
-        // // Acquire the writer and merge the table into the main one.
-        // let mut writer = self.table.write();
-        // let index = local.max_key.unwrap().to_usize();
-        // StringTable::reserve(&mut writer, index);
+        // Acquire the writer and merge the table into the main one.
+        let mut writer = self.allocations.internal_data().borrow_mut().write();
+        let index = local.max_key.unwrap().index as usize;
+        writer.reserve(index);
 
-        // for (key, value) in local.table {
-        //     writer[value.to_usize()] = Some(Box::leak(key.into_boxed_str()));
-        // }
-        todo!() // @@Cowbunga
+        for (key, value) in local.table {
+            writer[value.index as usize] = Alloc::str(key);
+        }
     }
 }
 
