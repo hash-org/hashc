@@ -5,7 +5,7 @@
 //! be interned, and accessed when needed.
 
 use std::{
-    borrow::Cow,
+    borrow::{BorrowMut, Cow},
     collections::HashMap,
     fmt,
     io::{self, Read},
@@ -14,7 +14,7 @@ use std::{
     sync::OnceLock,
 };
 
-use hash_storage::{static_single_store, stores};
+use hash_storage::{static_single_store, store::{statics::{SingleStoreValue, StoreId}, Store}, stores};
 // Re-export the "primitives" from the hash-target crate so that everyone can use
 // them who depends on `hash-source`
 pub use hash_target::primitives::*;
@@ -417,6 +417,62 @@ impl AllocBuf for Box<[u8]> {
 }
 
 impl<Buf: AllocBuf> Alloc<Buf> {
+    /// Create a new [Alloc]d [String] value using the following structure
+    /// encoding:
+    /// ```
+    /// str := struct(
+    ///    len: usize,
+    ///    bytes: [u8; len],
+    /// )
+    /// ```
+    pub fn str(value: String) -> Self {
+        let mut len = value.len().to_be_bytes();
+        let mut buf = Vec::from(value.as_bytes());
+
+        len.reverse(); // since we're writing them backwards.
+        for byte in len.into_iter() {
+            buf.insert(0, byte)
+        }
+
+        Self::from_bytes(buf, Alignment::ONE, Mutability::Immutable)
+    }
+
+    /// Attempt to convert a particular [AllocId] into a [String] value.
+    ///
+    /// This method will just take the raw allocated bytes and "treat" them
+    /// as a standard utf8 string.
+    ///
+    ///##NOTE: If the bytes are not valid utf8 then this  method will panic.
+    pub fn to_str(&self) -> String {
+        todo!() // @@Cowbunga
+    }
+
+    /// Create a new [Alloc]d [BigInt] value using the following structure
+    /// encoding:
+    /// ```
+    /// bigint := struct(
+    ///   buf: usize,
+    ///   bytes: [u8; len],
+    /// ```
+    /// 
+    /// ##NOTE: the `bytes` are in big endian.
+    pub fn big_int(value: BigInt) -> Self {
+        let mut len = value.bits().to_be_bytes();
+        let (_, mut buf) = value.to_bytes_be();
+
+        len.reverse(); // since we're writing them backwards.
+        for byte in len.into_iter() {
+            buf.insert(0, byte)
+        }
+
+        Self::from_bytes(buf, Alignment::ONE, Mutability::Immutable)
+    }
+
+    /// Attempt to convert a particular [AllocId] into a [BigInt] value.
+    pub fn to_big_int(&self, _signed: bool) -> BigInt {
+        todo!() // @@Cowbunga
+    }
+
     /// Creates an [Alloc] initialized by the given bytes.
     pub fn from_bytes<'a>(
         slice: impl Into<Cow<'a, [u8]>>,
@@ -436,6 +492,15 @@ impl<Buf: AllocBuf> Alloc<Buf> {
     #[inline]
     pub fn read_bytes(&self, range: AllocRange) -> &[u8] {
         &self.buf[range.start.bytes_usize()..range.end().bytes_usize()]
+    }
+
+    /// Read a [usize] from an offset in the [Alloc].
+    pub fn read_usize<C: HasDataLayout>(&self, offset: usize, ctx: &C) -> usize {
+        let ptr_size = ctx.data_layout().pointer_size;
+
+        let data = &self.buf[offset..offset+ptr_size.bytes_usize()];
+        let int = read_target_uint(ctx.data_layout().endian, data).unwrap();
+        int as usize
     }
 
     /// Read a [Scalar] from the given [Alloc].
@@ -485,42 +550,20 @@ static_single_store!(
 );
 
 impl AllocId {
-    /// Create a new [Alloc]d [String] value using the following structure
-    /// encoding:
-    /// ```
-    /// str := struct(
-    ///    len: usize,
-    ///    bytes: [u8; len],
-    /// )
-    /// ```
-    pub fn str(_value: String) -> Self {
-        todo!() // @@Cowbunga
+    pub fn str(value: String) -> Self {
+        Alloc::create(Alloc::str(value))
     }
 
-    /// Attempt to convert a particular [AllocId] into a [String] value.
-    ///
-    /// This method will just take the raw allocated bytes and "treat" them
-    /// as a standard utf8 string.
-    ///
-    ///##NOTE: If the bytes are not valid utf8 then this  method will panic.
     pub fn to_str(&self) -> String {
-        todo!() // @@Cowbunga
+        self.borrow().to_str()
     }
 
-    /// Create a new [Alloc]d [BigInt] value using the following structure
-    /// encoding:
-    /// ```
-    /// bigint := struct(
-    ///   buf: u128,
-    ///   bytes: [u8; len],
-    /// ```
-    pub fn big_int(_value: BigInt) -> Self {
-        todo!() // @@Cowbunga
+    pub fn big_int(value: BigInt) -> Self {
+        Alloc::create(Alloc::big_int(value))
     }
 
-    /// Attempt to convert a particular [AllocId] into a [BigInt] value.
-    pub fn to_big_int(&self, _signed: bool) -> BigInt {
-        todo!() // @@Cowbunga
+    pub fn to_big_int(&self, signed: bool) -> BigInt {
+        self.borrow().to_big_int(signed)
     }
 }
 
