@@ -97,7 +97,9 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
                         let range = self.make_range_from_constant(constant);
                         (DeconstructedCtor::IntRange(range), vec![])
                     }
-                    ReprTy::Str => (DeconstructedCtor::Str(constant.as_alloc()), vec![]),
+                    _ if constant.ty() == COMMON_REPR_TYS.str => {
+                        (DeconstructedCtor::Str(constant.as_alloc()), vec![])
+                    }
                     _ => unreachable!(),
                 },
                 _ => unreachable!(),
