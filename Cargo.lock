@@ -527,6 +527,7 @@ dependencies = [
  "hash-layout",
  "hash-reporting",
  "hash-source",
+ "hash-storage",
  "hash-token",
  "hash-utils",
 ]
