@@ -1,3 +1,7 @@
+//! Module which contains implementation and utilities for constant
+//! propagation and constant folding optimisations that can occur on
+//! Hash IR.
+
 use hash_layout::{
     compute::LayoutComputer,
     constant::{Const, ConstKind, Ty},
@@ -45,7 +49,6 @@ impl<'ctx> ConstFolder<'ctx> {
                 let r: bool = right.try_into().ok()?;
                 Self::binary_bool_op(op, l, r)
             }
-
             ReprTy::Char => {
                 let l: char = left.try_into().ok()?;
                 let r: char = right.try_into().ok()?;

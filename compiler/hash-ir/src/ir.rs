@@ -1157,6 +1157,6 @@ mod size_asserts {
     use super::*;
 
     static_assert_size!(Statement, 72);
-    static_assert_size!(Terminator, 104);
+    static_assert_size!(Terminator, 128);
     static_assert_size!(RValue, 48);
 }
