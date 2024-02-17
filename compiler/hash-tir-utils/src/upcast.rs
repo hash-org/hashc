@@ -67,10 +67,16 @@ impl<'tc, E: HasTarget> TyUpCast<'tc, E> {
                 FloatTy::F32 => Some(f32_def()),
                 FloatTy::F64 => Some(f64_def()),
             },
-            ReprTy::Str => Some(str_def()),
             ReprTy::Bool => Some(bool_def()),
             ReprTy::Char => Some(char_def()),
             ReprTy::Never => Some(never_def()),
+            ReprTy::Ref(ty, _, _) => {
+                if ty.map(|inner| matches!(inner, ReprTy::Str)) {
+                    Some(str_def())
+                } else {
+                    None
+                }
+            }
             _ => None,
         }
     }
