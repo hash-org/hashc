@@ -183,9 +183,9 @@ impl Scalar {
     #[inline]
     pub fn to_big_int(&self, signed: bool) -> BigInt {
         if signed {
-            BigInt::from_signed_bytes_le(&self.to_bits(self.size()).unwrap().to_be_bytes())
+            BigInt::from_signed_bytes_be(&self.to_bits(self.size()).unwrap().to_be_bytes())
         } else {
-            BigInt::from_bytes_le(Sign::NoSign, &self.to_bits(self.size()).unwrap().to_be_bytes())
+            BigInt::from_bytes_be(Sign::NoSign, &self.to_bits(self.size()).unwrap().to_be_bytes())
         }
     }
 }
