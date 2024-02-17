@@ -356,10 +356,7 @@ impl TokenKind {
         match self {
             TokenKind::Unexpected(atom) => format!("an unknown character `{atom}`"),
             TokenKind::Char(ch) => format!("`{ch}`"),
-            TokenKind::Str(str) => {
-                let value = str.to_str();
-                format!("the string `{}`", value)
-            }
+            TokenKind::Str(alloc) => format!("the string `{}`", alloc.to_str()),
             TokenKind::Keyword(kwd) => format!("the keyword `{kwd}`"),
             TokenKind::Ident(ident) => format!("the identifier `{}`", *ident),
             kind => format!("a `{kind}`"),
