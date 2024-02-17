@@ -23,8 +23,8 @@ use hash_target::{size::Size, HasTarget};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     tir::{
-        BindingPat, CtorPat, IfPat, MatchCase, ParamIndex, Pat, PatArgsId, PatId, RangePat,
-        SymbolId, TuplePat,
+        BindingPat, CtorTerm, IfPat, MatchCase, ParamIndex, Pat, PatArgsId, PatId, RangePat,
+        SymbolId, Term, TupleTerm,
     },
 };
 use hash_utils::{
@@ -197,21 +197,14 @@ impl<'tcx> BodyBuilder<'tcx> {
 
             // Check if the bindings has a single or-pattern
             if let [pair] = &*match_pairs {
-                if pair.pat.borrow().is_or() {
+                if let Term::Pat(Pat::Or(sub_pats)) = pair.pat.value().data {
                     // append all the new bindings, and then swap the two vectors around
                     existing_bindings.extend_from_slice(&new_bindings);
                     mem::swap(&mut candidate.bindings, &mut existing_bindings);
 
-                    // Now we need to create sub-candidates for each of the or-patterns
-                    let Pat::Or(sub_pats) = *pair.pat.value() else { unreachable!() };
-
                     // @@Temporary: We need to load in the alternatives for the or pat...
-                    let sub_pats = sub_pats
-                        .alternatives
-                        .borrow()
-                        .iter()
-                        .map(|pat| pat.assert_pat())
-                        .collect_vec();
+                    let sub_pats =
+                        sub_pats.alternatives.borrow().iter().map(|pat| pat).collect_vec();
 
                     candidate.sub_candidates =
                         self.create_sub_candidates(&pair.place, candidate, &sub_pats);
@@ -246,7 +239,9 @@ impl<'tcx> BodyBuilder<'tcx> {
                 mem::swap(&mut candidate.bindings, &mut existing_bindings);
 
                 // sort all of the pats in the candidate by `or-pat` last
-                candidate.pairs.sort_by_key(|pair| pair.pat.borrow().is_or());
+                candidate
+                    .pairs
+                    .sort_by_key(|pair| matches!(pair.pat.value().data, Term::Pat(Pat::Or(_))));
 
                 // We weren't able to perform any further simplifications, so return false
                 return false;
@@ -267,7 +262,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         let span = self.span_of_pat(pair.pat); // Get the span of this particular pattern...
 
         match *pair.pat.value() {
-            Pat::Binding(BindingPat { is_mutable, name, .. }) => {
+            Term::Pat(Pat::Binding(BindingPat { is_mutable, name, .. })) => {
                 // @@Ugly: it would be nice to just have a "wildcard" variant, for
                 // wildcards we have nothing else left to do.
                 if name.borrow().name.is_none() {
@@ -297,7 +292,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
                 Ok(())
             }
-            Pat::Range(RangePat { lo, hi, end }) => {
+            Term::Pat(Pat::Range(RangePat { lo, hi, end })) => {
                 let ptr_width = self.target().ptr_size();
 
                 // get the range and bias of this range pattern from
@@ -349,7 +344,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
                 Err(pair)
             }
-            Pat::Tuple(TuplePat { data, .. }) => {
+            Term::Tuple(TupleTerm { data }) => {
                 // get the type of the tuple so that we can read all of the
                 // fields
                 let ty = self.ty_id_from_tir_pat(pair.pat);
@@ -358,7 +353,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 candidate.pairs.extend(self.match_pat_fields(data, adt, pair.place));
                 Ok(())
             }
-            Pat::Ctor(CtorPat { ctor_pat_args, .. }) => {
+            Term::Ctor(CtorTerm { ctor_args, .. }) => {
                 let ty = self.ty_id_from_tir_pat(pair.pat);
 
                 // If the type is a boolean, then we can't simplify this pattern any further...
@@ -371,11 +366,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // If this is a struct then we need to match on the fields of
                 // the struct since it is an *irrefutable* pattern.
                 if let Some(adt_id) = adt {
-                    candidate.pairs.extend(self.match_pat_fields(
-                        ctor_pat_args,
-                        adt_id,
-                        pair.place,
-                    ));
+                    candidate.pairs.extend(self.match_pat_fields(ctor_args, adt_id, pair.place));
                     return Ok(());
                 }
 
@@ -383,37 +374,40 @@ impl<'tcx> BodyBuilder<'tcx> {
             }
             // The simplification that can occur here is if both the prefix and the
             // suffix are empty, then we can perform some simplifications.
-            Pat::Array(array_pat) => {
-                let (prefix, suffix, rest) = array_pat.into_parts();
+            Term::Array(array_pat) => {
+                // @@Todo
+                todo!()
+                // let (prefix, suffix, rest) = array_pat.into_parts();
 
-                if prefix.is_empty() && suffix.is_empty() && rest.is_some() {
-                    let ty = self.ty_id_from_tir_pat(pair.pat);
+                // if prefix.is_empty() && suffix.is_empty() && rest.is_some() {
+                //     let ty = self.ty_id_from_tir_pat(pair.pat);
 
-                    // This means that this is irrefutable since we will always match this
-                    // pattern.
-                    self.adjust_list_pat_candidates(
-                        ty,
-                        &mut candidate.pairs,
-                        &pair.place,
-                        &prefix,
-                        rest,
-                        &suffix,
-                    );
+                //     // This means that this is irrefutable since we will
+                // always match this     // pattern.
+                //     self.adjust_list_pat_candidates(
+                //         ty,
+                //         &mut candidate.pairs,
+                //         &pair.place,
+                //         &prefix,
+                //         rest,
+                //         &suffix,
+                //     );
 
-                    Ok(())
-                } else {
-                    Err(pair)
-                }
+                //     Ok(())
+                // } else {
+                //     Err(pair)
+                // }
             }
 
             // Look at the pattern located within the if-pat
-            Pat::If(IfPat { pat, .. }) => {
+            Term::Pat(Pat::If(IfPat { pat, .. })) => {
                 self.simplify_match_pair(MatchPair { pat, place: pair.place.clone() }, candidate)
             }
 
             // We have to deal with these outside of this function
-            Pat::Lit(_) => Err(pair),
-            Pat::Or(_) => Err(pair),
+            Term::Lit(_) => Err(pair),
+            Term::Pat(Pat::Or(_)) => Err(pair),
+            _ => panic!("unexpected pattern: {pair:?}"),
         }
     }
 
@@ -446,7 +440,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     };
 
                     let place = place.clone_project(PlaceProjection::Field(index));
-                    MatchPair { pat: arg.pat.assert_pat(), place }
+                    MatchPair { pat: arg.value, place }
                 })
                 .collect()
         })
@@ -470,7 +464,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     candidate.origin,
                     pat,
                     subject,
-                    candidate.has_guard || pat.borrow().is_or(),
+                    candidate.has_guard || (matches!(pat.value().data, Term::Pat(Pat::Or(_)))),
                 );
                 self.simplify_candidate(&mut sub_candidate);
                 sub_candidate

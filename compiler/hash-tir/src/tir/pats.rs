@@ -10,13 +10,10 @@ use hash_storage::{
 };
 use hash_utils::derive_more::From;
 
-use super::TermId;
+use super::{NodeOrigin, TermId, TermListId};
 use crate::{
     stores::tir_stores,
-    tir::{
-        ArrayPat, CtorPat, CtorTerm, IfPat, LitPat, NodeId, OrPat, PatArgsId, PatOrCapture,
-        SymbolId, Term, TuplePat, TupleTerm,
-    },
+    tir::{ArrayPat, CtorTerm, IfPat, LitPat, NodeId, OrPat, PatArgsId, SymbolId, Term, TupleTerm},
     tir_node_sequence_store_indirect, tir_node_single_store,
 };
 
@@ -76,17 +73,8 @@ pub enum Pat {
     /// A range pattern, `1..10` or `'a'..<'z'`.
     Range(RangePat),
 
-    /// A literal pattern, `3`, `'a'`, or `"мир"`.
-    Lit(LitPat),
-
-    /// A tuple collection of patterns, e.g. `('A', 2)`, `(1, 2, ...)`.
-    Tuple(TuplePat),
-
-    /// An array pattern, e.g. `[1, 2, 3]`, [1, ...]`.
-    Array(ArrayPat),
-
-    /// A constructor pattern, `Some(3)`, `X(name = "y", age = 12)`.
-    Ctor(CtorPat),
+    /// A spread pattern.
+    Spread(Spread),
 
     /// A choice pattern, `a | b | c`.
     Or(OrPat),
@@ -95,8 +83,8 @@ pub enum Pat {
     If(IfPat),
 }
 
-tir_node_single_store!(Pat);
-tir_node_sequence_store_indirect!(PatList[PatOrCapture]);
+pub type PatId = TermId;
+pub type PatListId = TermListId;
 
 impl Pat {
     /// Check if the pattern is a [`Pat::Or`].
@@ -121,32 +109,17 @@ impl Pat {
             _ => None,
         }
     }
-}
 
-impl PatId {
     /// Try to use the pattern as a term.
     ///
     /// This is only possible for patterns that are not [`Pat::Or`].
-    pub fn try_use_as_term(&self) -> Option<TermId> {
-        let origin = self.origin();
-        match *self.value() {
+    pub fn try_use_as_term(&self, origin: NodeOrigin) -> Option<TermId> {
+        match self {
             Pat::Binding(var) => Some(Term::from(var.name, origin)),
             Pat::Range(_) => Some(Term::from(SymbolId::fresh(origin), origin)),
-            Pat::Lit(lit) => Some(Term::from(Term::Lit(*lit), origin)),
-            Pat::Ctor(ctor_pat) => Some(Term::from(
-                CtorTerm {
-                    ctor: ctor_pat.ctor,
-                    data_args: ctor_pat.data_args,
-                    ctor_args: ctor_pat.ctor_pat_args.try_use_as_term_args()?,
-                },
-                origin,
-            )),
-            Pat::Tuple(tuple_pat) => {
-                Some(Term::from(TupleTerm { data: tuple_pat.data.try_use_as_term_args()? }, origin))
-            }
-            Pat::Array(_) => None, // @@Improvement: we can use this as a term too
             Pat::Or(_) => None,
-            Pat::If(if_pat) => if_pat.pat.try_use_as_term(),
+            Pat::If(if_pat) => Some(if_pat.pat),
+            Pat::Spread(_) => None,
         }
     }
 }
@@ -179,19 +152,10 @@ impl fmt::Display for Pat {
         match self {
             Pat::Binding(binding_pat) => write!(f, "{}", binding_pat),
             Pat::Range(range_pat) => write!(f, "{}", range_pat),
-            Pat::Lit(lit_pat) => write!(f, "{}", lit_pat),
-            Pat::Tuple(tuple_pat) => write!(f, "{}", tuple_pat),
-            Pat::Ctor(ctor_pat) => write!(f, "{}", ctor_pat),
             Pat::Or(or_pat) => write!(f, "{}", or_pat),
             Pat::If(if_pat) => write!(f, "{}", if_pat),
-            Pat::Array(list_pat) => write!(f, "{}", list_pat),
+            Pat::Spread(spread) => write!(f, "{}", spread),
         }
-    }
-}
-
-impl fmt::Display for PatId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", *self.value())
     }
 }
 

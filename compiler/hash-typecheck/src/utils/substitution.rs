@@ -255,11 +255,6 @@ impl<'a, T: TcEnv> Substituter<'a, T> {
                     self.apply_sub_in_place(ty, sub);
                 }
             }
-            Atom::Pat(pat) => {
-                if let Some(ty) = self.tc.try_get_inferred_ty(pat) {
-                    self.apply_sub_in_place(ty, sub);
-                }
-            }
             Atom::Lit(_) | Atom::FnDef(_) => {}
         }
         match atom {
@@ -293,7 +288,6 @@ impl<'a, T: TcEnv> Substituter<'a, T> {
                 self.apply_sub_in_place(fn_def.body, &shadowed_sub);
                 ControlFlow::Break(())
             }
-            Atom::Pat(_) => ControlFlow::Continue(()),
             Atom::Lit(_) => ControlFlow::Break(()),
         }
     }
@@ -345,7 +339,6 @@ impl<'a, T: TcEnv> Substituter<'a, T> {
                 }
                 ControlFlow::Break(())
             }
-            Atom::Pat(_) => ControlFlow::Continue(()),
             Atom::Lit(_) => ControlFlow::Break(()),
         }
     }
@@ -364,15 +357,6 @@ impl<'a, T: TcEnv> Substituter<'a, T> {
                 }
                 Term::Ctor(ctor_term) => {
                     if let Some(atom) = self.has_holes(ctor_term.ctor_args) {
-                        *has_holes = Some(atom);
-                    }
-                    ControlFlow::Break(())
-                }
-                _ => ControlFlow::Continue(()),
-            },
-            Atom::Pat(pat) => match *pat.value() {
-                Pat::Ctor(ctor_pat) => {
-                    if let Some(atom) = self.has_holes(ctor_pat.ctor_pat_args) {
                         *has_holes = Some(atom);
                     }
                     ControlFlow::Break(())

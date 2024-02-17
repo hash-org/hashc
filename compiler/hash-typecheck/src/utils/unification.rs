@@ -57,7 +57,6 @@ impl<E: TcEnv> Tc<'_, E> {
                     Err(TcError::MismatchingTypes { expected: b, actual: a })
                 }
                 (Atom::FnDef(a), Atom::FnDef(b)) => Err(TcError::MismatchingFns { a, b }),
-                (Atom::Pat(a), Atom::Pat(b)) => Err(TcError::MismatchingPats { a, b }),
                 _ => unreachable!(),
             }
         }
@@ -74,7 +73,6 @@ impl<E: TcEnv> Tc<'_, E> {
                 Err(TcError::MismatchingTypes { expected: b, actual: a })
             }
             (Atom::FnDef(a), Atom::FnDef(b)) => Err(TcError::MismatchingFns { a, b }),
-            (Atom::Pat(a), Atom::Pat(b)) => Err(TcError::MismatchingPats { a, b }),
             _ => unreachable!(),
         }
     }

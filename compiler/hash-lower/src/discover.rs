@@ -150,7 +150,7 @@ impl FnDiscoverer<'_> {
                     ControlFlow::Break(())
                 }
             }
-            Atom::Term(_) | Atom::Lit(_) | Atom::Pat(_) => ControlFlow::Continue(()),
+            Atom::Term(_) | Atom::Lit(_) => ControlFlow::Continue(()),
         });
     }
 }

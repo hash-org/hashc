@@ -3,7 +3,8 @@ use std::fmt::Display;
 
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 
-use crate::tir::{NodeId, NodeOrigin, NodesId, PatId, PatListId, Spread, TermId, TermListId};
+use super::{Term, TermListSeqId};
+use crate::tir::{NodeId, NodeOrigin, NodesId, Pat, PatId, PatListId, Spread, TermId, TermListId};
 
 /// A term that is used as an index into an array.
 #[derive(Debug, Clone, Copy)]
@@ -62,6 +63,29 @@ impl ArrayTerm {
             ArrayTerm::Repeated(_, repeat) => repeat.origin(),
         }
     }
+
+    /// Get the first spread argument, if any.
+    pub fn get_spread(&self) -> Option<Spread> {
+        match self {
+            ArrayTerm::Normal(array) => {
+                for term in array.iter() {
+                    if let Term::Pat(Pat::Spread(spread)) = term.value().data {
+                        return Some(spread);
+                    }
+                }
+                None
+            }
+            ArrayTerm::Repeated(_, _) => None,
+        }
+    }
+
+    /// Get the length of the array.
+    pub fn elements_or_repeated(&self) -> Option<TermListId> {
+        match self {
+            ArrayTerm::Normal(elements) => Some(*elements),
+            ArrayTerm::Repeated(_, _) => None,
+        }
+    }
 }
 
 /// A list pattern.
@@ -85,10 +109,10 @@ impl ArrayPat {
 
         let args = self.pats.elements().borrow();
         if let Some(pos) = self.spread.map(|s| s.index) {
-            prefix.extend(args[..pos].iter().copied().map(|p| p.assert_pat()));
-            suffix.extend(args[pos..].iter().copied().map(|p| p.assert_pat()));
+            prefix.extend(args[..pos].iter().copied());
+            suffix.extend(args[pos..].iter().copied());
         } else {
-            prefix.extend(args.iter().copied().map(|p| p.assert_pat()));
+            prefix.extend(args.iter().copied());
         }
 
         (prefix, suffix, self.spread)

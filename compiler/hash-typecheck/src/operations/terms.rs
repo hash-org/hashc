@@ -3,13 +3,13 @@ use std::ops::ControlFlow;
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    tir::{NodesId, Term, TermId, TermListId, Ty, TyId},
+    tir::{NodesId, Pat, Term, TermId, TermListId, Ty, TyId},
 };
 
 use crate::{
     diagnostics::TcResult,
     env::TcEnv,
-    options::normalisation::NormaliseResult,
+    options::normalisation::{already_normalised, NormaliseResult},
     tc::{FnInferMode, Tc},
     traits::{OperationsOn, OperationsOnNode},
     utils::dumping::potentially_dump_tir,
@@ -82,6 +82,13 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
             Ty::Universe(mut universe_ty) => {
                 self.check(&mut universe_ty, annotation_ty, term_id)?
             }
+            Term::Pat(pat) => match pat {
+                Pat::Binding(mut var) => self.check(&mut var, annotation_ty, term_id)?,
+                Pat::Range(mut range_pat) => self.check(&mut range_pat, annotation_ty, term_id)?,
+                Pat::Or(mut or_pat) => self.check(&mut or_pat, annotation_ty, term_id)?,
+                Pat::If(mut if_pat) => self.check(&mut if_pat, annotation_ty, term_id)?,
+                Pat::Spread(_) => (), // @@Todo: handle
+            },
         };
 
         self.check_ty(annotation_ty)?;
@@ -183,6 +190,9 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
             | Term::Array(_)
             | Term::Tuple(_)
             | Term::Ctor(_) => Ok(Some(ControlFlow::Continue(()))),
+
+            // Patterns
+            Term::Pat(pat) => already_normalised(),
 
             // Imperative:
             Term::LoopControl(loop_control) => self.try_normalise(loop_control, term),

@@ -3,8 +3,8 @@ use hash_ast::lit::LitParseError;
 use hash_reporting::diagnostic::IntoCompound;
 use hash_tir::{
     tir::{
-        fns::FnDefId, NodeOrigin, ParamError, ParamIndex, ParamsId, PatId, SomeParamsOrArgsId,
-        TermId, TyId,
+        fns::FnDefId, NodeOrigin, ParamError, ParamIndex, ParamsId, ParamsOrArgsId, PatId, TermId,
+        TyId,
     },
     visitor::Atom,
 };
@@ -50,14 +50,14 @@ pub enum TcError {
     NeedMoreTypeAnnotationsToUnify { src: Atom, target: Atom },
 
     /// The given arguments do not match the length of the target parameters.
-    WrongArgLength { params_id: ParamsId, args_id: SomeParamsOrArgsId },
+    WrongArgLength { params_id: ParamsId, args_id: ParamsOrArgsId },
 
     /// The given parameters do not match the length of their annotations.
     WrongParamLength { given_params_id: ParamsId, annotation_params_id: ParamsId },
 
     /// The two given argument/parameter lists cannot be unified due to
     /// mismatching lengths.
-    DifferentParamOrArgLengths { a: SomeParamsOrArgsId, b: SomeParamsOrArgsId },
+    DifferentParamOrArgLengths { a: ParamsOrArgsId, b: ParamsOrArgsId },
 
     /// Cannot dereference the subject as it is not a reference.
     CannotDeref { subject: TermId, actual_subject_ty: TyId },

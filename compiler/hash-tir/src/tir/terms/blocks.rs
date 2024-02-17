@@ -50,7 +50,7 @@ pub struct BlockTerm {
 impl fmt::Display for Decl {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let value = match *self.bind_pat.value() {
-            Pat::Binding(binding_pat) => {
+            Term::Pat(Pat::Binding(binding_pat)) => {
                 match *self.value.value() {
                     // If a function is being declared, print the body, otherwise just
                     // its name.

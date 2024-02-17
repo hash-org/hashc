@@ -22,18 +22,6 @@ pub struct TupleTerm {
     pub data: ArgsId,
 }
 
-/// A tuple pattern
-///
-/// This is, in its most general form, `(a_1 = s_1,...,a_n = s_n)`.
-#[derive(Debug, Clone, Copy)]
-pub struct TuplePat {
-    /// The pattern arguments given for the tuple, `(s_1,...,s_n)`
-    pub data: PatArgsId,
-
-    /// The spread in the data patterns, if any.
-    pub data_spread: Option<Spread>,
-}
-
 impl Display for TupleTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "(")?;
@@ -46,14 +34,6 @@ impl Display for TupleTerm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "(")?;
         write!(f, "{}", self.data)?;
-        write!(f, ")")
-    }
-}
-
-impl Display for TuplePat {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "(")?;
-        write!(f, "{}", PatArgsWithSpread::from((self.data, self.data_spread)))?;
         write!(f, ")")
     }
 }

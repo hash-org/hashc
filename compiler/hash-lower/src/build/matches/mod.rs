@@ -82,7 +82,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             .copied()
             .map(|arm| {
                 let span = self.span_of_pat(arm.bind_pat);
-                let has_guard = arm.bind_pat.borrow().is_if();
+                let has_guard = matches!(arm.bind_pat.value().data, Term::Pat(Pat::If(_)));
 
                 let candidate = Candidate::new(span, arm.bind_pat, subject_place, has_guard);
                 (*arm, candidate)
@@ -378,7 +378,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         // If this is the case, it means that we have no or-patterns
         // here... since we sorted them
-        if !first.pairs[0].pat.borrow().is_or() {
+        if !matches!(first.pairs[0].pat.value().data, Term::Pat(Pat::Or(_))) {
             self.test_candidates(origin, candidates, block, otherwise_block);
             return;
         }
@@ -390,17 +390,11 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         for pair in pairs {
             let or_span = self.span_of_pat(pair.pat);
-            let Pat::Or(pats) = *pair.pat.value() else {
+            let Term::Pat(Pat::Or(pats)) = *pair.pat.value() else {
                 unreachable!("`or` pattern expected after candidate sorting")
             };
 
-            let pats = pats
-                .alternatives
-                .elements()
-                .borrow()
-                .iter()
-                .map(|pat| pat.assert_pat())
-                .collect_vec();
+            let pats = pats.alternatives.elements().borrow().iter().copied().collect_vec();
 
             first.visit_leaves(|leaf| {
                 self.test_or_pat(leaf, &mut otherwise, &pair.place, &pats, or_span);
@@ -584,7 +578,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// into scope.
     fn bind_pat(&mut self, origin: AstNodeId, pat: PatId, candidate: Candidate) -> BasicBlock {
         let guard = match *pat.value() {
-            Pat::If(IfPat { condition, .. }) => Some(condition),
+            Term::Pat(Pat::If(IfPat { condition, .. })) => Some(condition),
             _ => None,
         };
 

@@ -10,11 +10,11 @@ use hash_ast::ast::{self, AstNodeId, AstNodeRef};
 use hash_reporting::macros::panic_on_span;
 use hash_storage::store::{statics::SequenceStoreValue, SequenceStoreKey};
 use hash_tir::{
-    intrinsics::utils::bool_pat,
+    intrinsics::utils::bool_term,
     tir::{
-        pats::BindingPat, ArrayPat, CharLit, CtorPat, IfPat, Lit, LitPat, Node, NodeId, NodeOrigin,
-        OrPat, ParamIndex, Pat, PatArg, PatArgsId, PatId, PatListId, PatOrCapture, RangePat,
-        Spread, StrLit, SymbolId, TuplePat,
+        pats::BindingPat, Arg, ArrayPat, ArrayTerm, CharLit, CtorTerm, IfPat, Lit, LitPat, Node,
+        NodeId, NodeOrigin, OrPat, ParamIndex, Pat, PatArgsId, PatId, PatListId, RangePat, Spread,
+        StrLit, SymbolId, Term, TermId, TupleTerm,
     },
 };
 
@@ -42,18 +42,18 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
             .enumerate()
             .map(|(i, arg)| {
                 Ok(Node::at(
-                    PatArg {
+                    Arg {
                         target: match arg.name.as_ref() {
                             Some(name) => ParamIndex::Name(name.ident),
                             None => ParamIndex::pos(i),
                         },
-                        pat: PatOrCapture::Pat(self.make_pat_from_ast_pat(arg.pat.ast_ref())?),
+                        value: self.make_pat_from_ast_pat(arg.pat.ast_ref())?,
                     },
                     NodeOrigin::Given(arg.id()),
                 ))
             })
             .collect::<SemanticResult<Vec<_>>>()?;
-        Ok(Node::create_at(Node::<PatArg>::seq(args), NodeOrigin::Given(entries.id())))
+        Ok(Node::create_at(Node::<Arg>::seq(args), NodeOrigin::Given(entries.id())))
     }
 
     /// Create a [`PatListId`] from the given [`ast::Pat`]s.
@@ -63,9 +63,9 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
     ) -> SemanticResult<PatListId> {
         let created_pats = pats
             .iter()
-            .map(|pat| Ok(PatOrCapture::Pat(self.make_pat_from_ast_pat(pat.ast_ref())?)))
+            .map(|pat| Ok(self.make_pat_from_ast_pat(pat.ast_ref())?))
             .collect::<SemanticResult<Vec<_>>>()?;
-        Ok(Node::create_at(PatOrCapture::seq(created_pats), NodeOrigin::Given(pats.id())))
+        Ok(Node::create_at(TermId::seq(created_pats), NodeOrigin::Given(pats.id())))
     }
 
     /// Create a [`Spread`] from the given [`ast::SpreadPat`].
@@ -199,13 +199,13 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
             ResolvedAstPathComponent::Terminal(terminal) => match terminal {
                 TerminalResolvedPathComponent::CtorPat(ctor_pat) => {
                     // Constructor pattern
-                    Ok(Node::create_at(Pat::Ctor(**ctor_pat), origin))
+                    Ok(Node::create_at(Term::Ctor(**ctor_pat), origin))
                 }
                 TerminalResolvedPathComponent::Var(bound_var) => {
                     // Binding pattern
                     // @@Todo: is_mutable, perhaps refactor `BindingPat`?
                     Ok(Node::create_at(
-                        Pat::Binding(BindingPat { name: *bound_var, is_mutable: false }),
+                        Term::Pat(Pat::Binding(BindingPat { name: *bound_var, is_mutable: false })),
                         origin,
                     ))
                 }
@@ -214,13 +214,12 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                 {
                     // @@Hack: Constructor term without args is a valid pattern
                     Ok(Node::create_at(
-                        Pat::Ctor(CtorPat {
+                        Term::Ctor(CtorTerm {
                             ctor: ctor_term.ctor,
-                            ctor_pat_args: Node::create_at(
-                                Node::<PatArg>::seq(empty()),
+                            ctor_args: Node::create_at(
+                                Node::<Arg>::seq(empty()),
                                 ctor_term.ctor_args.origin(),
                             ),
-                            ctor_pat_args_spread: None,
                             data_args: ctor_term.data_args,
                         }),
                         origin,
@@ -255,28 +254,22 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
         let origin = NodeOrigin::Given(lit_pat.id());
         match lit_pat.body() {
             ast::Lit::Str(str_lit) => Node::create_at(
-                Pat::Lit(LitPat(Node::create_at(
-                    Lit::Str(StrLit { underlying: *str_lit }),
-                    origin,
-                ))),
+                Term::Lit(Node::create_at(Lit::Str(StrLit { underlying: *str_lit }), origin)),
                 origin,
             ),
             ast::Lit::Char(char_lit) => Node::create_at(
-                Pat::Lit(LitPat(Node::create_at(
-                    Lit::Char(CharLit { underlying: *char_lit }),
-                    origin,
-                ))),
+                Term::Lit(Node::create_at(Lit::Char(CharLit { underlying: *char_lit }), origin)),
                 origin,
             ),
             ast::Lit::Int(int_lit) => Node::create_at(
-                Pat::Lit(LitPat(Node::create_at(Lit::Int((*int_lit).into()), origin))),
+                Term::Lit(Node::create_at(Lit::Int((*int_lit).into()), origin)),
                 origin,
             ),
             ast::Lit::Byte(byte_lit) => Node::create_at(
-                Pat::Lit(LitPat(Node::create_at(Lit::Int((*byte_lit).into()), origin))),
+                Term::Lit(Node::create_at(Lit::Int((*byte_lit).into()), origin)),
                 origin,
             ),
-            ast::Lit::Bool(bool_lit) => bool_pat(bool_lit.data, NodeOrigin::Given(lit_pat.id())),
+            ast::Lit::Bool(bool_lit) => bool_term(bool_lit.data, NodeOrigin::Given(lit_pat.id())),
             ast::Lit::Float(_) => {
                 panic!("Found invalid literal in pattern")
             }
@@ -379,38 +372,36 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                 panic_on_span!(node.span(), "Found module pattern during symbol resolution")
             }
             ast::Pat::Tuple(tuple_pat) => Ok(Node::create_at(
-                Pat::Tuple(TuplePat {
+                Term::Tuple(TupleTerm {
                     data: self.make_pat_args_from_ast_pat_args(&tuple_pat.fields)?,
-                    data_spread: self.make_spread_from_ast_spread(&tuple_pat.spread)?,
                 }),
                 origin,
             )),
             ast::Pat::Array(array_pat) => Ok(Node::create_at(
-                Pat::Array(ArrayPat {
-                    pats: self.make_pat_list_from_ast_pats(&array_pat.fields)?,
-                    spread: self.make_spread_from_ast_spread(&array_pat.spread)?,
-                }),
+                Term::Array(ArrayTerm::Normal(
+                    self.make_pat_list_from_ast_pats(&array_pat.fields)?,
+                )),
                 origin,
             )),
             ast::Pat::Lit(lit_pat) => Ok(self.make_pat_from_ast_lit(lit_pat.data.ast_ref())),
             ast::Pat::Or(or_pat) => Ok(Node::create_at(
-                Pat::Or(OrPat {
+                Term::Pat(Pat::Or(OrPat {
                     alternatives: self.make_pat_list_from_ast_pats(&or_pat.variants)?,
-                }),
+                })),
                 origin,
             )),
             ast::Pat::If(if_pat) => Ok(Node::create_at(
-                Pat::If(IfPat {
+                Term::Pat(Pat::If(IfPat {
                     condition: self.make_term_from_ast_expr(if_pat.condition.ast_ref())?,
                     pat: self.make_pat_from_ast_pat(if_pat.pat.ast_ref())?,
-                }),
+                })),
                 origin,
             )),
             ast::Pat::Wild(_) => Ok(Node::create_at(
-                Pat::Binding(BindingPat {
+                Term::Pat(Pat::Binding(BindingPat {
                     name: SymbolId::fresh(NodeOrigin::Given(node.id())),
                     is_mutable: false,
-                }),
+                })),
                 origin,
             )),
             ast::Pat::Range(ast::RangePat { lo, hi, end }) => {
@@ -418,7 +409,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                     lo.as_ref().map(|lo| self.make_lit_pat_from_non_bool_ast_lit(lo.ast_ref()));
                 let hi =
                     hi.as_ref().map(|hi| self.make_lit_pat_from_non_bool_ast_lit(hi.ast_ref()));
-                Ok(Node::create_at(Pat::Range(RangePat { lo, hi, end: *end }), origin))
+                Ok(Node::create_at(Term::Pat(Pat::Range(RangePat { lo, hi, end: *end })), origin))
             }
             ast::Pat::TokenMacro(_) => {
                 panic_on_span!(node.span(), "Found token macro pattern during symbol resolution")

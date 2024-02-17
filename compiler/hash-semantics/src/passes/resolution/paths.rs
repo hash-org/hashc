@@ -27,8 +27,8 @@ use hash_storage::store::statics::{SequenceStoreValue, StoreId};
 use hash_tir::{
     intrinsics::definitions::Intrinsic,
     tir::{
-        Arg, ArgsId, CallTerm, CtorPat, CtorTerm, DataDefId, FnDefId, ModDefId, ModMemberValue,
-        Node, NodeId, NodeOrigin, SymbolId, Term, VarTerm,
+        Arg, ArgsId, CallTerm, CtorTerm, DataDefId, FnDefId, ModDefId, ModMemberValue, Node,
+        NodeId, NodeOrigin, SymbolId, Term, VarTerm,
     },
 };
 
@@ -123,7 +123,7 @@ pub enum TerminalResolvedPathComponent {
     /// An intrinsic.
     Intrinsic(Intrinsic),
     /// A data constructor pattern.
-    CtorPat(Node<CtorPat>),
+    CtorPat(Node<CtorTerm>),
     /// A data constructor term.
     CtorTerm(Node<CtorTerm>),
     /// A function call term.
@@ -260,25 +260,19 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                                     NonTerminalResolvedPathComponent::Data(data_def_id, args),
                                 ))
                             }
-                            (
-                                ResolvedArgs::Term(data_args),
-                                Some(ResolvedArgs::Pat(ctor_pat_args, ctor_pat_args_spread)),
-                            ) => match data_def_single_ctor {
-                                Some(ctor) => Ok(ResolvedAstPathComponent::Terminal(
-                                    TerminalResolvedPathComponent::CtorPat(Node::at(
-                                        CtorPat {
-                                            ctor,
-                                            data_args,
-                                            ctor_pat_args,
-                                            ctor_pat_args_spread,
-                                        },
-                                        component.origin(),
+                            (ResolvedArgs::Term(data_args), Some(ResolvedArgs::Pat(ctor_args))) => {
+                                match data_def_single_ctor {
+                                    Some(ctor) => Ok(ResolvedAstPathComponent::Terminal(
+                                        TerminalResolvedPathComponent::CtorPat(Node::at(
+                                            CtorTerm { ctor, data_args, ctor_args },
+                                            component.origin(),
+                                        )),
                                     )),
-                                )),
-                                None => Err(SemanticError::DataDefIsNotSingleton {
-                                    location: component.name_node_id.span(),
-                                }),
-                            },
+                                    None => Err(SemanticError::DataDefIsNotSingleton {
+                                        location: component.name_node_id.span(),
+                                    }),
+                                }
+                            }
                             (
                                 ResolvedArgs::Term(data_args),
                                 Some(ResolvedArgs::Term(ctor_args)),
@@ -293,7 +287,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                                     location: component.name_node_id.span(),
                                 }),
                             },
-                            (ResolvedArgs::Pat(_, _), _) => {
+                            (ResolvedArgs::Pat(_), _) => {
                                 Err(SemanticError::CannotUseDataTypeInPatternPosition {
                                     location: component.name_node_id.span(),
                                 })
@@ -370,15 +364,10 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                                         )),
                                     ))
                                 }
-                                ResolvedArgs::Pat(ctor_pat_args, spread) => {
+                                ResolvedArgs::Pat(ctor_args) => {
                                     Ok(ResolvedAstPathComponent::Terminal(
                                         TerminalResolvedPathComponent::CtorPat(Node::at(
-                                            CtorPat {
-                                                ctor: ctor_def_id,
-                                                ctor_pat_args,
-                                                data_args,
-                                                ctor_pat_args_spread: spread,
-                                            },
+                                            CtorTerm { ctor: ctor_def_id, ctor_args, data_args },
                                             component.origin(),
                                         )),
                                     ))

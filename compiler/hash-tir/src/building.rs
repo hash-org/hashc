@@ -134,9 +134,4 @@ pub mod gen {
     pub fn ty(inner: impl Into<Ty>) -> TyId {
         Ty::from(inner, NodeOrigin::Generated)
     }
-
-    /// Create a pattern by the given data.
-    pub fn pat(inner: impl Into<Pat>) -> PatId {
-        Node::create_at(inner.into(), NodeOrigin::Generated)
-    }
 }

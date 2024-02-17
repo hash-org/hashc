@@ -6,7 +6,7 @@ use hash_tir::{
     stack::StackId,
     tir::{
         ArgId, ArgsSeqId, CtorDefId, CtorDefsSeqId, DataDefId, FnDefId, ModDefId, ModMemberId,
-        ModMembersSeqId, ParamId, ParamsSeqId, PatArgId, PatArgsSeqId, PatId, TermId, TyId,
+        ModMembersSeqId, ParamId, ParamsSeqId, PatArgId, PatId, TermId, TyId,
     },
 };
 use hash_utils::{fxhash::FxHashMap, parking_lot::RwLock};
@@ -169,6 +169,4 @@ ast_info! {
     args: AstMap<ArgId>,
     args_seq: AstMap<ArgsSeqId>,
 
-    pat_args: AstMap<PatArgId>,
-    pat_args_seq: AstMap<PatArgsSeqId>,
 }

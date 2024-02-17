@@ -14,7 +14,7 @@ use crate::{
     stores::tir_stores,
     tir::{
         ArgsId, CtorDefId, DataDefId, FnDefId, FnTy, HasAstNodeId, Node, NodeId, NodeOrigin,
-        NodesId, PatArgsId, SomeArgsId, SymbolId, TermId, TupleTy, Ty, TyId,
+        NodesId, PatArgsId, SymbolId, TermId, TupleTy, Ty, TyId,
     },
     tir_node_sequence_store_direct,
 };
@@ -69,10 +69,17 @@ impl Param {
 
     /// Create a new parameter list with the given argument names, and holes for
     /// all types, and no default values.
-    pub fn seq_from_args_with_hole_types(args: impl Into<SomeArgsId>) -> ParamsId {
-        let args: SomeArgsId = args.into();
+    pub fn seq_from_args_with_hole_types(args: ArgsId) -> ParamsId {
         Param::seq_from_names_with_hole_types(
-            args.iter().map(|arg| (arg.into_name(arg.origin()), arg.origin().inferred())),
+            args.iter().map(|arg| {
+                (
+                    match arg.value().data.target {
+                        ParamIndex::Name(name) => SymbolId::from_name(name, arg.origin()),
+                        ParamIndex::Position(_) => SymbolId::fresh(arg.origin()),
+                    },
+                    arg.origin().inferred(),
+                )
+            }),
             args.origin().inferred(),
         )
     }
@@ -161,19 +168,17 @@ impl ParamIndex {
 /// Some kind of parameters or arguments, either [`ParamsId`], [`PatArgsId`] or
 /// [`ArgsId`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, From)]
-pub enum SomeParamsOrArgsId {
+pub enum ParamsOrArgsId {
     Params(ParamsId),
-    PatArgs(PatArgsId),
     Args(ArgsId),
 }
 
-impl SomeParamsOrArgsId {
+impl ParamsOrArgsId {
     /// Get the length of the inner stored parameters.
     pub fn len(&self) -> usize {
         match self {
-            SomeParamsOrArgsId::Params(id) => id.value().len(),
-            SomeParamsOrArgsId::PatArgs(id) => id.value().len(),
-            SomeParamsOrArgsId::Args(id) => id.value().len(),
+            ParamsOrArgsId::Params(id) => id.value().len(),
+            ParamsOrArgsId::Args(id) => id.value().len(),
         }
     }
 
@@ -182,22 +187,20 @@ impl SomeParamsOrArgsId {
         self.len() == 0
     }
 
-    /// Get the English subject noun of the [SomeParamsOrArgsId]
+    /// Get the English subject noun of the [ParamsOrArgsId]
     pub fn as_str(&self) -> &'static str {
         match self {
-            SomeParamsOrArgsId::Params(_) => "parameters",
-            SomeParamsOrArgsId::PatArgs(_) => "pattern arguments",
-            SomeParamsOrArgsId::Args(_) => "arguments",
+            ParamsOrArgsId::Params(_) => "parameters",
+            ParamsOrArgsId::Args(_) => "arguments",
         }
     }
 }
 
-impl HasAstNodeId for SomeParamsOrArgsId {
+impl HasAstNodeId for ParamsOrArgsId {
     fn node_id(&self) -> Option<hash_ast::ast::AstNodeId> {
         match self {
-            SomeParamsOrArgsId::Params(id) => id.node_id(),
-            SomeParamsOrArgsId::PatArgs(id) => id.node_id(),
-            SomeParamsOrArgsId::Args(id) => id.node_id(),
+            ParamsOrArgsId::Params(id) => id.node_id(),
+            ParamsOrArgsId::Args(id) => id.node_id(),
         }
     }
 }
@@ -303,12 +306,11 @@ impl fmt::Display for ParamIndex {
     }
 }
 
-impl fmt::Display for SomeParamsOrArgsId {
+impl fmt::Display for ParamsOrArgsId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SomeParamsOrArgsId::Params(id) => write!(f, "{}", id),
-            SomeParamsOrArgsId::PatArgs(id) => write!(f, "{}", id),
-            SomeParamsOrArgsId::Args(id) => write!(f, "{}", id),
+            ParamsOrArgsId::Params(id) => write!(f, "{}", id),
+            ParamsOrArgsId::Args(id) => write!(f, "{}", id),
         }
     }
 }

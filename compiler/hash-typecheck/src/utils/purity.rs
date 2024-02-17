@@ -49,6 +49,7 @@ impl<E: TcEnv> Tc<'_, E> {
                 // These have effects if their constituents do
                 Term::Lit(_)
                 | Term::Ctor(_)
+                | Term::Pat(_)
                 | Term::Tuple(_)
                 | Term::Var(_)
                 | Term::Match(_)
@@ -124,7 +125,6 @@ impl<E: TcEnv> Tc<'_, E> {
                 });
                 ControlFlow::Break(())
             }
-            Atom::Pat(_) => ControlFlow::Continue(()),
             Atom::Lit(_) => ControlFlow::Break(()),
         }
     }

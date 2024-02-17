@@ -190,7 +190,6 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
             }
             // @@Temporary: can be removed soon when FnDefIds are no longer a thing.
             Atom::FnDef(_) => already_normalised(),
-            Atom::Pat(pat) => normalisation_result_control_flow_into(self.try_normalise_node(pat)),
             Atom::Lit(lit) => normalisation_result_control_flow_into(self.try_normalise_node(lit)),
         }
     }

@@ -7,8 +7,8 @@ use hash_storage::store::{
     SequenceStoreKey,
 };
 use hash_tir::tir::{
-    ArgsId, CallTerm, Node, NodeOrigin, Param, ParamId, ParamsId, PatArgsId, SomeParamsOrArgsId,
-    Spread, Term, TermId, Ty,
+    ArgsId, CallTerm, Node, NodeOrigin, Param, ParamId, ParamsId, PatArgsId, Spread, Term, TermId,
+    Ty,
 };
 
 use super::ResolutionPass;
@@ -53,7 +53,7 @@ impl AstArgGroup<'_> {
 #[derive(Copy, Clone, Debug)]
 pub enum ResolvedArgs {
     Term(ArgsId),
-    Pat(PatArgsId, Option<Spread>),
+    Pat(PatArgsId),
 }
 
 impl ResolvedArgs {
@@ -61,22 +61,13 @@ impl ResolvedArgs {
     pub fn len(&self) -> usize {
         match self {
             ResolvedArgs::Term(args) => args.len(),
-            ResolvedArgs::Pat(args, _) => args.len(),
+            ResolvedArgs::Pat(args) => args.len(),
         }
     }
 
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
-    }
-}
-
-impl From<ResolvedArgs> for SomeParamsOrArgsId {
-    fn from(value: ResolvedArgs) -> Self {
-        match value {
-            ResolvedArgs::Term(args) => SomeParamsOrArgsId::Args(args),
-            ResolvedArgs::Pat(args, _) => SomeParamsOrArgsId::PatArgs(args),
-        }
     }
 }
 
@@ -259,7 +250,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                     self.try_or_add_error(self.make_pat_args_from_ast_pat_args(pat_args));
                 let spread = self.try_or_add_error(self.make_spread_from_ast_spread(spread));
                 match (pat_args, spread) {
-                    (Some(pat_args), Some(spread)) => Ok(ResolvedArgs::Pat(pat_args, spread)),
+                    (Some(pat_args), Some(spread)) => Ok(ResolvedArgs::Pat(pat_args)),
                     _ => Err(SemanticError::Signal),
                 }
             }
@@ -300,7 +291,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                         NodeOrigin::Given(original_node_id),
                     );
                 }
-                ResolvedArgs::Pat(_, _) => {
+                ResolvedArgs::Pat(_) => {
                     // Here we are trying to call a function with pattern arguments.
                     // This is not allowed.
                     return Err(SemanticError::CannotUseFunctionInPatternPosition {

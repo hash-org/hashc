@@ -8,8 +8,8 @@ use hash_ir::{
 };
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::tir::{
-    blocks::Decl, ArrayPat, BindingPat, CtorPat, IfPat, NodesId, OrPat, Pat, PatId, SymbolId,
-    TermId, TuplePat,
+    blocks::Decl, ArrayPat, ArrayTerm, BindingPat, CtorTerm, IfPat, NodesId, OrPat, Pat, PatId,
+    SymbolId, Term, TermId, TupleTerm,
 };
 
 use super::{candidate::Candidate, BlockAnd, BodyBuilder};
@@ -66,7 +66,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         let span = self.span_of_pat(pat);
 
         match *pat.value() {
-            Pat::Binding(BindingPat { name, is_mutable, .. }) => {
+            Term::Pat(Pat::Binding(BindingPat { name, is_mutable, .. })) => {
                 // If the symbol has no associated name, then it is not binding
                 // anything...
                 if name.borrow().name.is_none() {
@@ -82,77 +82,82 @@ impl<'tcx> BodyBuilder<'tcx> {
 
                 f(self, mutability, name, span, ty);
             }
-            Pat::Ctor(CtorPat { ctor_pat_args: fields, ctor_pat_args_spread: spread, .. })
-            | Pat::Tuple(TuplePat { data: fields, data_spread: spread }) => {
+            Term::Ctor(CtorTerm { ctor_args: fields, .. })
+            | Term::Tuple(TupleTerm { data: fields }) => {
                 fields.elements().borrow().iter().for_each(|field| {
-                    self.visit_primary_pattern_bindings(field.pat.assert_pat(), f);
+                    self.visit_primary_pattern_bindings(field.value, f);
                 });
 
-                if let Some(spread_pat) = spread {
-                    //@@Todo: we need to get the type of the spread.
-                    let ty = self.ty_id_from_tir_pat(pat);
+                // if let Some(spread_pat) = spread {
+                //     //@@Todo: we need to get the type of the spread.
+                //     let ty = self.ty_id_from_tir_pat(pat);
 
-                    f(
-                        self,
-                        // @@Todo: it should be possible to make this a mutable
-                        // pattern reference, for now we assume it is always immutable.
-                        Mutability::Immutable,
-                        spread_pat.name,
-                        span,
-                        ty,
-                    )
-                }
+                //     f(
+                //         self,
+                //         // @@Todo: it should be possible to make this a
+                // mutable         // pattern reference, for now
+                // we assume it is always immutable.
+                //         Mutability::Immutable,
+                //         spread_pat.name,
+                //         span,
+                //         ty,
+                //     )
+                // }
             }
-            Pat::Array(ArrayPat { pats, spread }) => {
-                if let Some(spread_pat) = spread {
-                    let index = spread_pat.index;
+            Term::Array(array) => {
+                // @@Todo
+                todo!()
+                // if let Some(spread_pat) = spread {
+                //     let index = spread_pat.index;
 
-                    // Create the fields into an iterator, and only take the `prefix`
-                    // amount of fields to iterate
-                    let pats = pats.value();
+                //     // Create the fields into an iterator, and only take the
+                // `prefix`     // amount of fields to iterate
+                //     let pats = pats.value();
 
-                    let prefix_fields = pats.iter().take(index);
-                    for field in prefix_fields {
-                        self.visit_primary_pattern_bindings(field.assert_pat(), f);
-                    }
+                //     let prefix_fields = pats.iter().take(index);
+                //     for field in prefix_fields {
+                //         self.visit_primary_pattern_bindings(field.
+                // assert_pat(), f);     }
 
-                    //@@TodoTIR: we need to get the type of the spread.
-                    let ty = self.ty_id_from_tir_pat(pat);
+                //     //@@TodoTIR: we need to get the type of the spread.
+                //     let ty = self.ty_id_from_tir_pat(pat);
 
-                    f(
-                        self,
-                        // @@Todo: it should be possible to make this a mutable
-                        // pattern reference, for now we assume it is always immutable.
-                        Mutability::Immutable,
-                        spread_pat.name,
-                        span,
-                        ty,
-                    );
+                //     f(
+                //         self,
+                //         // @@Todo: it should be possible to make this a
+                // mutable         // pattern reference, for now
+                // we assume it is always immutable.
+                //         Mutability::Immutable,
+                //         spread_pat.name,
+                //         span,
+                //         ty,
+                //     );
 
-                    // Now deal with the suffix fields.
-                    let suffix_fields = pats.iter().skip(index);
+                //     // Now deal with the suffix fields.
+                //     let suffix_fields = pats.iter().skip(index);
 
-                    for field in suffix_fields {
-                        self.visit_primary_pattern_bindings(field.assert_pat(), f);
-                    }
-                } else {
-                    pats.borrow().iter().for_each(|pat| {
-                        self.visit_primary_pattern_bindings(pat.assert_pat(), f);
-                    });
-                }
+                //     for field in suffix_fields {
+                //         self.visit_primary_pattern_bindings(field.
+                // assert_pat(), f);     }
+                // } else {
+                //     pats.borrow().iter().for_each(|pat| {
+                //         self.visit_primary_pattern_bindings(pat.assert_pat(),
+                // f);     });
+                // }
             }
-            Pat::Or(OrPat { alternatives }) => {
+            Term::Pat(Pat::Or(OrPat { alternatives })) => {
                 // We only need to visit the first variant since we already
                 // check that the variant bindings are all the same.
                 if let Some(pat) = alternatives.at(0) {
-                    self.visit_primary_pattern_bindings(pat.assert_pat(), f);
+                    self.visit_primary_pattern_bindings(pat, f);
                 }
             }
-            Pat::If(IfPat { pat, .. }) => {
+            Term::Pat(Pat::If(IfPat { pat, .. })) => {
                 self.visit_primary_pattern_bindings(pat, f);
             }
             // These patterns never have any bindings.
-            Pat::Range(_) | Pat::Lit(_) => {}
+            Term::Pat(Pat::Range(_)) | Term::Lit(_) => {}
+            _ => unreachable!(),
         }
     }
 
@@ -172,7 +177,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         };
 
         match *pat.value() {
-            Pat::Binding(BindingPat { name, .. }) => {
+            Term::Pat(Pat::Binding(BindingPat { name, .. })) => {
                 // we lookup the local from the current scope, and get the place of where
                 // to place this value.
                 if let Some(local) = self.lookup_local(name) {

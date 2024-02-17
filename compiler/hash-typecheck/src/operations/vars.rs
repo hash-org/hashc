@@ -87,24 +87,17 @@ impl<E: TcEnv> OperationsOn<VarTerm> for Tc<'_, E> {
 }
 
 impl<E: TcEnv> OperationsOn<BindingPat> for Tc<'_, E> {
-    type AnnotNode = (TyId, Option<TermId>);
+    type AnnotNode = TyId;
     type Node = PatId;
 
     fn check(
         &self,
         var: &mut BindingPat,
-        (annotation_ty, binds_to): Self::AnnotNode,
+        annotation_ty: Self::AnnotNode,
         _: Self::Node,
     ) -> TcResult<()> {
         self.check_ty(annotation_ty)?;
-        match binds_to {
-            Some(value) if self.has_effects(value) == Some(false) => {
-                self.context().add_assignment_to_closest_stack(var.name, annotation_ty, value);
-            }
-            _ => {
-                self.context().add_typing_to_closest_stack(var.name, annotation_ty);
-            }
-        }
+        self.context().add_typing_to_closest_stack(var.name, annotation_ty);
         Ok(())
     }
 

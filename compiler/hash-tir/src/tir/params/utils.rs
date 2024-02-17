@@ -13,18 +13,18 @@ use hash_storage::store::{
 use hash_utils::{pluralise, printing::SequenceDisplay};
 
 use crate::tir::{
-    Arg, ArgId, ArgsId, HasAstNodeId, Node, NodeId, NodesId, ParamId, ParamIndex, ParamsId, PatArg,
-    PatArgId, PatArgsId, PatOrCapture, SomeArgId, SomeArgsId, Spread,
+    Arg, ArgId, ArgsId, HasAstNodeId, Node, NodeId, NodesId, ParamId, ParamIndex, ParamsId,
+    PatArgId, PatArgsId, SymbolId, Term,
 };
 
 /// An error that can occur when checking [Param]s against [Args].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParamError {
     /// When there are too many arguments.
-    TooManyArgs { expected: ParamsId, got: SomeArgsId },
+    TooManyArgs { expected: ParamsId, got: ArgsId },
 
     /// When an argument is specified more than once.
-    DuplicateArg { first: SomeArgId, second: SomeArgId },
+    DuplicateArg { first: ArgId, second: ArgId },
 
     /// When a parameter is specified more than once.
     DuplicateParam { first: ParamId, second: ParamId },
@@ -32,24 +32,24 @@ pub enum ParamError {
     /// When a positional argument is specified after an initial
     /// named argument, which makes it ambiguous which parameter the
     /// positional argument is referring to.
-    PositionalArgAfterNamedArg { first_named: SomeArgId, next_positional: SomeArgId },
+    PositionalArgAfterNamedArg { first_named: ArgId, next_positional: ArgId },
 
     /// When a default parameter is found before a required parameter.
     RequiredParamAfterDefaultParam { first_default: ParamId, next_required: ParamId },
 
     /// When an argument is named but no parameter with that name exists.
-    ArgNameNotFoundInParams { arg: SomeArgId, params: ParamsId },
+    ArgNameNotFoundInParams { arg: ArgId, params: ParamsId },
 
     /// Two parameters have differing names at the same index.
     ParamNameMismatch { param_a: ParamId, param_b: ParamId },
 
     /// When a required parameter is not found in the arguments.
-    RequiredParamNotFoundInArgs { param: ParamId, args: SomeArgsId },
+    RequiredParamNotFoundInArgs { param: ParamId, args: ArgsId },
 
     /// When a spread is specified before a positional argument, which makes
     /// it impossible to determine which positional argument the spread should
     /// apply to.
-    SpreadBeforePositionalArg { next_positional: SomeArgId },
+    SpreadBeforePositionalArg { next_positional: ArgId },
 
     /// A collection of errors that occurred in a compound argument.
     Compound { errors: Vec<ParamError> },
@@ -149,7 +149,7 @@ impl ParamError {
             ParamError::ArgNameNotFoundInParams { arg, params } => {
                 let error = reporter.error().code(HashErrorCode::ParameterInUse).title(format!(
                     "received an argument named `{}` but no parameter with that name exists",
-                    arg.target()
+                    arg
                 ));
                 if let Some(location) = arg.span() {
                     error.add_labelled_span(location, "argument with this name");
@@ -188,10 +188,7 @@ impl ParamError {
                             pluralise!("this", args.len()),
                             pluralise!(args.len()),
                             SequenceDisplay::either(
-                                &args
-                                    .iter()
-                                    .map(|arg| format!("{}", arg.target()))
-                                    .collect::<Vec<_>>()
+                                &args.iter().map(|arg| format!("{}", arg)).collect::<Vec<_>>()
                             )
                         ),
                     );
@@ -284,7 +281,7 @@ pub fn validate_params(params_id: ParamsId) -> ParamResult<()> {
 /// `validate_and_reorder_args_against_params` performs additional
 /// validation of the argument names, reorders the arguments to match
 /// the parameters, and fills in default arguments.
-pub fn validate_args_against_params(args_id: SomeArgsId, params_id: ParamsId) -> ParamResult<()> {
+pub fn validate_args_against_params(args_id: ArgsId, params_id: ParamsId) -> ParamResult<()> {
     let mut error_state = ErrorState::new();
 
     // Check for too many arguments
@@ -296,8 +293,10 @@ pub fn validate_args_against_params(args_id: SomeArgsId, params_id: ParamsId) ->
     let mut found_named = None;
 
     for arg in args_id.iter() {
+        let target = arg.value().data.target;
+
         // Check for duplicate arguments
-        match arg.target() {
+        match target {
             ParamIndex::Name(arg_name) => {
                 if seen.contains(&arg_name) {
                     error_state.add_error(ParamError::DuplicateArg { first: arg, second: arg });
@@ -313,7 +312,7 @@ pub fn validate_args_against_params(args_id: SomeArgsId, params_id: ParamsId) ->
         // Ensure that named arguments follow positional arguments
         match found_named {
             Some(named_arg) => {
-                match arg.target() {
+                match target {
                     ParamIndex::Name(_) => {
                         // Named arguments, ok
                     }
@@ -326,7 +325,7 @@ pub fn validate_args_against_params(args_id: SomeArgsId, params_id: ParamsId) ->
                     }
                 }
             }
-            None => match arg.target() {
+            None => match target {
                 ParamIndex::Name(_) => {
                     // Found the first named argument
                     found_named = Some(arg);
@@ -341,20 +340,26 @@ pub fn validate_args_against_params(args_id: SomeArgsId, params_id: ParamsId) ->
     error_state.into_error(|| Ok(()))
 }
 
-/// Validate the given arguments against the given parameters and reorder
-/// the arguments to match the parameters.
+/// Validate the given arguments against the given parameters and
+/// reorder the arguments to match the parameters. Additionally, add
+/// wildcard members to the pattern arguments where appropriate if
+/// there is a spread.
 ///
 /// This does not modify the arguments or parameters, but instead returns a
 /// new argument list.
 ///
 /// *Invariant*: The parameters have already been validated through
 /// `validate_params`.
+///
+/// *Invariant*: The input arguments are *not* already validated/reordered.
 pub fn validate_and_reorder_args_against_params(
-    args_id: ArgsId,
+    args_id: PatArgsId,
     params_id: ParamsId,
-) -> ParamResult<ArgsId> {
+) -> ParamResult<PatArgsId> {
     // First validate the arguments
     validate_args_against_params(args_id.into(), params_id)?;
+
+    let spread = args_id.get_spread();
 
     let mut error_state = ErrorState::new();
     let mut result: Vec<Option<Node<Arg>>> = vec![None; params_id.len()];
@@ -370,10 +375,20 @@ pub fn validate_and_reorder_args_against_params(
             ParamIndex::Position(j_received) => {
                 assert!(j_received as usize == j);
 
+                // If the previous argument was a spread, this is an error
+                if let Some(spread) = spread
+                    && j != 0
+                    && spread.index == j - 1
+                {
+                    error_state.add_error(ParamError::SpreadBeforePositionalArg {
+                        next_positional: arg_id.into(),
+                    });
+                }
+
                 result[j] = Some(Node::at(
                     Arg {
                         // Add the name if present
-                        target: (ParamId::new(params_id.elements(), j).as_param_index()),
+                        target: (ParamId::new(params_id.elements(), j)).as_param_index(),
                         value: arg.value,
                     },
                     arg.origin,
@@ -383,7 +398,7 @@ pub fn validate_and_reorder_args_against_params(
                 // Find the position in the parameter list of the parameter with the
                 // same name as the argument
                 let maybe_param_index =
-                    params_id.iter().position(|param_id| match param_id.borrow().name_ident() {
+                    params_id.iter().position(|param_id| match (param_id).borrow().name_ident() {
                         Some(name) => name == arg_name,
                         None => false,
                     });
@@ -394,8 +409,8 @@ pub fn validate_and_reorder_args_against_params(
                             // Duplicate argument name, must be from positional
                             assert!(j != i);
                             error_state.add_error(ParamError::DuplicateArg {
-                                first: ArgId::new(args_id.elements(), i).into(),
-                                second: ArgId::new(args_id.elements(), j).into(),
+                                first: PatArgId::new(args_id.elements(), i).into(),
+                                second: PatArgId::new(args_id.elements(), j).into(),
                             });
                         } else {
                             // Found an uncrossed parameter, add it to the result
@@ -422,151 +437,15 @@ pub fn validate_and_reorder_args_against_params(
         return error_state.into_error(|| unreachable!());
     }
 
-    // Populate default values and catch missing arguments
-    for i in params_id.to_index_range() {
-        if result[i].is_none() {
-            let param_id = ParamId::new(params_id.elements(), i);
-            let param = param_id.borrow();
-            let default = param.default;
-
-            if let Some(default) = default {
-                // If there is a default value, add it to the result
-                result[i] = Some(Node::at(
-                    Arg { target: param_id.as_param_index(), value: default },
-                    param.origin,
-                ));
-            } else {
-                // No default value, and not present in the arguments, so
-                // this is an error
-                error_state.add_error(ParamError::RequiredParamNotFoundInArgs {
-                    param: param_id,
-                    args: args_id.into(),
-                });
-            }
-        }
-    }
-
-    // If there were any errors, return them
-    if error_state.has_errors() {
-        return error_state.into_error(|| unreachable!());
-    }
-
-    // Now, create the new argument list
-    // There should be no `None` elements at this point
-    let new_args_id = Node::create_at(
-        Node::<Arg>::seq(result.into_iter().map(|arg| arg.unwrap())),
-        args_id.origin(),
-    );
-
-    Ok(new_args_id)
-}
-
-/// Validate the given pattern arguments against the given parameters and
-/// reorder the arguments to match the parameters. Additionally, add
-/// `Captured` members to the pattern arguments where appropriate if
-/// there is a spread.
-///
-/// This does not modify the arguments or parameters, but instead returns a
-/// new argument list.
-///
-/// *Invariant*: The parameters have already been validated through
-/// `validate_params`.
-///
-/// *Invariant*: The input arguments are *not* already validated/reordered.
-/// Specifically, they do not contain any `Capture` members.
-pub fn validate_and_reorder_pat_args_against_params(
-    args_id: PatArgsId,
-    spread: Option<Spread>,
-    params_id: ParamsId,
-) -> ParamResult<PatArgsId> {
-    // First validate the arguments
-    validate_args_against_params(args_id.into(), params_id)?;
-
-    let mut error_state = ErrorState::new();
-    let mut result: Vec<Option<Node<PatArg>>> = vec![None; params_id.len()];
-
-    // Note: We have already validated that the number of arguments is less than
-    // or equal to the number of parameters
-
-    for (j, arg_id) in args_id.iter().enumerate() {
-        let arg = arg_id.value();
-
-        match arg.target {
-            // Invariant: all positional arguments are before named
-            ParamIndex::Position(j_received) => {
-                assert!(j_received as usize == j);
-
-                // If the previous argument was a spread, this is an error
-                if let Some(spread) = spread
-                    && j != 0
-                    && spread.index == j - 1
-                {
-                    error_state.add_error(ParamError::SpreadBeforePositionalArg {
-                        next_positional: arg_id.into(),
-                    });
-                }
-
-                result[j] = Some(Node::at(
-                    PatArg {
-                        // Add the name if present
-                        target: (ParamId::new(params_id.elements(), j)).as_param_index(),
-                        pat: arg.pat,
-                    },
-                    arg.origin,
-                ));
-            }
-            ParamIndex::Name(arg_name) => {
-                // Find the position in the parameter list of the parameter with the
-                // same name as the argument
-                let maybe_param_index =
-                    params_id.iter().position(|param_id| match (param_id).borrow().name_ident() {
-                        Some(name) => name == arg_name,
-                        None => false,
-                    });
-
-                match maybe_param_index {
-                    Some(i) => {
-                        if result[i].is_some() {
-                            // Duplicate argument name, must be from positional
-                            assert!(j != i);
-                            error_state.add_error(ParamError::DuplicateArg {
-                                first: PatArgId::new(args_id.elements(), i).into(),
-                                second: PatArgId::new(args_id.elements(), j).into(),
-                            });
-                        } else {
-                            // Found an uncrossed parameter, add it to the result
-                            result[i] = Some(Node::at(
-                                PatArg { target: arg.target, pat: arg.pat },
-                                arg.origin,
-                            ));
-                        }
-                    }
-                    None => {
-                        // No parameter with the same name as the argument
-                        error_state.add_error(ParamError::ArgNameNotFoundInParams {
-                            arg: arg_id.into(),
-                            params: params_id,
-                        });
-                    }
-                }
-            }
-        }
-    }
-
-    // If there were any errors, return them
-    if error_state.has_errors() {
-        return error_state.into_error(|| unreachable!());
-    }
-
-    // Populate missing arguments with captures
+    // Populate missing arguments with wildcards
     for i in params_id.to_index_range() {
         if result[i].is_none() {
             let param_id = ParamId::new(params_id.elements(), i);
             if spread.is_some() {
                 result[i] = Some(Node::at(
-                    PatArg {
+                    Arg {
                         target: param_id.as_param_index(),
-                        pat: PatOrCapture::Capture(Node::at((), param_id.origin())),
+                        value: Term::var(SymbolId::fresh(param_id.origin())),
                     },
                     param_id.origin(),
                 ));
@@ -589,7 +468,7 @@ pub fn validate_and_reorder_pat_args_against_params(
     // Now, create the new argument list
     // There should be no `None` elements at this point
     let new_args_id = Node::create_at(
-        Node::<PatArg>::seq(result.into_iter().map(|arg| arg.unwrap())),
+        Node::<Arg>::seq(result.into_iter().map(|arg| arg.unwrap())),
         args_id.origin(),
     );
 

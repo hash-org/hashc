@@ -41,6 +41,8 @@ pub use holes::*;
 pub use refs::*;
 pub use tuples::*;
 
+use super::Pat;
+
 /// A term that can contain unsafe operations.
 #[derive(Debug, Clone, Copy)]
 pub struct UnsafeTerm {
@@ -152,6 +154,9 @@ pub enum Term {
 
     /// Intrinsics
     Intrinsic(Intrinsic),
+
+    /// Patterns
+    Pat(Pat),
 }
 
 tir_node_single_store!(Term);
@@ -264,6 +269,19 @@ impl Term {
         let ty = Ty::hole(src.origin().inferred());
         Ty::expect_is(src, ty)
     }
+
+    /// Create a pattern term
+    pub fn pat(pat: impl Into<Pat>, origin: NodeOrigin) -> TermId {
+        Node::create_at(Term::Pat(pat.into()), origin)
+    }
+}
+
+impl TermId {
+    /// Use a pattern as a non-pattern term, if possible
+    pub fn use_as_non_pat(&self) -> Option<TermId> {
+        // @@Todo: handle
+        Some(*self)
+    }
 }
 
 impl From<SymbolId> for Term {
@@ -330,6 +348,7 @@ impl fmt::Display for Term {
             Ty::RefTy(ref_ty) => write!(f, "{}", ref_ty),
             Ty::DataTy(data_ty) => write!(f, "{}", data_ty),
             Ty::Universe(universe) => write!(f, "{}", universe),
+            Term::Pat(pat) => write!(f, "{}", pat),
         }
     }
 }

@@ -62,9 +62,7 @@ macro_rules! atom_info {
 // Each stored atom, its value and its type:
 atom_info! {
     terms: <TermId, TyId>,
-    pats: <PatId, TyId>,
     args: <ArgsId, ParamsId>,
-    pat_args: <PatArgsId, ParamsId>,
     fns: <FnDefId, FnTy>
 }
 

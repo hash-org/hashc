@@ -9,7 +9,7 @@ use hash_reporting::{
     reporter::{Reporter, Reports},
 };
 use hash_storage::store::SequenceStoreKey;
-use hash_tir::tir::{HasAstNodeId, NodeId, NodeOrigin, ParamError, SomeParamsOrArgsId};
+use hash_tir::tir::{HasAstNodeId, NodeId, NodeOrigin, ParamError, ParamsOrArgsId};
 
 use super::definitions::WrongTermKind;
 use crate::diagnostics::definitions::TcError;
@@ -269,9 +269,8 @@ impl TcReporter {
             }
             TcError::DifferentParamOrArgLengths { a, b } => {
                 let name_of_args = match a {
-                    SomeParamsOrArgsId::Params(_) => "parameters",
-                    SomeParamsOrArgsId::PatArgs(_) => "pattern arguments",
-                    SomeParamsOrArgsId::Args(_) => "arguments",
+                    ParamsOrArgsId::Params(_) => "parameters",
+                    ParamsOrArgsId::Args(_) => "arguments",
                 };
                 let error = reporter.error().code(HashErrorCode::TypeMismatch).title(format!(
                     "expected `{}` {name_of_args} but got `{}` {name_of_args} ",

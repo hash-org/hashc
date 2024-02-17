@@ -11,8 +11,7 @@ use hash_tir::{
     },
     tir::{
         ArgsId, ArrayPat, ArrayTerm, DataDefCtors, IndexTerm, Node, NodeId, NodeOrigin, NodesId,
-        ParamIndex, PatId, PatListId, PatOrCapture, PrimitiveCtorInfo, Term, TermId, TermListId,
-        Ty, TyId,
+        ParamIndex, PatId, PatListId, PrimitiveCtorInfo, Term, TermId, TermListId, Ty, TyId,
     },
     visitor::Map,
 };
@@ -79,22 +78,6 @@ impl<E: TcEnv> Tc<'_, E> {
         } else {
             Some(repeat)
         }
-    }
-
-    /// From the given arguments matching with the given parameters, extract the
-    /// arguments that are part of the given spread.
-    pub fn extract_spread_list(&self, array_term: ArrayTerm, array_pat: PatListId) -> TermListId {
-        // Create a new list term with the spread elements
-        let spread_term_list = array_pat
-            .borrow()
-            .iter()
-            .enumerate()
-            .filter_map(|(i, p)| match p {
-                PatOrCapture::Pat(_) => None,
-                PatOrCapture::Capture(_) => Some(array_term.element_at(i).unwrap()),
-            })
-            .collect_vec();
-        Node::create_at(TermId::seq(spread_term_list), array_term.length_origin().computed())
     }
 
     fn use_ty_as_array_ty(&self, annotation_ty: TyId) -> TcResult<Option<(TyId, Option<TermId>)>> {
@@ -221,62 +204,6 @@ impl<E: TcEnv> OperationsOn<ArrayTerm> for Tc<'_, E> {
         &self,
         _src: &mut ArrayTerm,
         _target: &mut ArrayTerm,
-        src_node: Self::Node,
-        _target_node: Self::Node,
-    ) -> TcResult<()> {
-        // @@Todo
-        Err(TcError::Blocked(src_node.origin()))
-    }
-}
-
-impl<E: TcEnv> OperationsOn<ArrayPat> for Tc<'_, E> {
-    type AnnotNode = TyId;
-    type Node = PatId;
-
-    fn check(
-        &self,
-        list_pat: &mut ArrayPat,
-        annotation_ty: Self::AnnotNode,
-        original_pat_id: Self::Node,
-    ) -> TcResult<()> {
-        self.normalise_and_check_ty(annotation_ty)?;
-        // @@Todo: `use_ty_as_array` instead of this manual match:
-        let list_annotation_inner_ty = match *annotation_ty.value() {
-            Ty::DataTy(data) if data.data_def == list_def() => {
-                // Type is already checked
-                assert!(data.args.len() == 1);
-                data.args.at(0).unwrap().borrow().value
-            }
-            Ty::Hole(_) => Ty::hole(list_pat.pats.origin()),
-            _ => {
-                return Err(TcError::MismatchingTypes {
-                    expected: annotation_ty,
-                    actual: list_ty(
-                        Ty::hole(NodeOrigin::Generated),
-                        original_pat_id.origin().inferred(),
-                    ),
-                });
-            }
-        };
-
-        self.check_unified_pat_list(list_pat.pats, list_annotation_inner_ty)?;
-        let list_ty = list_ty(list_annotation_inner_ty, NodeOrigin::Expected);
-        self.check_by_unify(list_ty, annotation_ty)?;
-        Ok(())
-    }
-
-    fn try_normalise(
-        &self,
-        _item: ArrayPat,
-        _item_node: Self::Node,
-    ) -> NormaliseResult<ControlFlow<PatId>> {
-        normalise_nested()
-    }
-
-    fn unify(
-        &self,
-        _src: &mut ArrayPat,
-        _target: &mut ArrayPat,
         src_node: Self::Node,
         _target_node: Self::Node,
     ) -> TcResult<()> {

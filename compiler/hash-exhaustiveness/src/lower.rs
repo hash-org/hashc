@@ -1,6 +1,6 @@
 //! Lowering utilities from a [Pat] into a [DeconstructedPat] and
 //! vice versa.
-use std::mem::size_of;
+use std::{iter::once, mem::size_of};
 
 use hash_ast::ast::RangeEnd;
 use hash_source::constant::InternedInt;
@@ -16,10 +16,10 @@ use hash_tir::{
     },
     term_as_variant,
     tir::{
-        pats::BindingPat, ArrayCtorInfo, ArrayPat, CharLit, CtorDefId, CtorPat, DataTy, IfPat,
-        IntLit, Lit, LitPat, Node, NodeOrigin, NodesId, OrPat, ParamId, ParamsId, Pat, PatArg,
-        PatArgsId, PatId, PatOrCapture, RangePat, Spread, StrLit, SymbolId, TuplePat, TupleTy, Ty,
-        TyId,
+        pats::BindingPat, Arg, ArrayCtorInfo, ArrayPat, ArrayTerm, CharLit, CtorDefId, CtorTerm,
+        DataTy, IfPat, IntLit, Lit, LitPat, Node, NodeOrigin, NodesId, OrPat, ParamId, ParamsId,
+        Pat, PatArgsId, PatId, RangePat, Spread, StrLit, SymbolId, Term, TermId, TupleTerm,
+        TupleTy, Ty, TyId,
     },
 };
 use hash_utils::{itertools::Itertools, smallvec::SmallVec};
@@ -37,9 +37,9 @@ use crate::{storage::DeconstructedPatId, usefulness::MatchArm, ExhaustivenessChe
 /// Expand an `or` pattern into a passed [Vec], whilst also
 /// applying the same operation on children patterns.
 fn expand_or_pat(id: PatId, vec: &mut Vec<PatId>) {
-    if let Pat::Or(OrPat { alternatives }) = *id.value() {
+    if let Term::Pat(Pat::Or(OrPat { alternatives })) = *id.value() {
         for alternative in alternatives.iter() {
-            expand_or_pat(alternative.assert_pat(), vec);
+            expand_or_pat(alternative, vec);
         }
     } else {
         vec.push(id)
@@ -78,7 +78,7 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
 
                 MatchArm {
                     deconstructed_pat: pat,
-                    has_guard: matches!(*id.value(), Pat::If(_)),
+                    has_guard: matches!(*id.value(), Term::Pat(Pat::If(_))),
                     id: *id,
                 }
             })
@@ -88,12 +88,12 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
     /// Convert a [Pat] into a [DeconstructedPat].
     pub(crate) fn deconstruct_pat(&mut self, ty_id: TyId, pat_id: PatId) -> DeconstructedPat {
         let (ctor, fields) = match *pat_id.value() {
-            Pat::Binding(_) => (DeconstructedCtor::Wildcard, vec![]),
-            Pat::Range(range) => {
+            Term::Pat(Pat::Binding(_)) => (DeconstructedCtor::Wildcard, vec![]),
+            Term::Pat(Pat::Range(range)) => {
                 let range = self.lower_pat_range(ty_id, range);
                 (DeconstructedCtor::IntRange(range), vec![])
             }
-            Pat::Lit(LitPat(lit)) => match *lit.value() {
+            Term::Lit(lit) => match *lit.value() {
                 Lit::Str(lit) => (DeconstructedCtor::Str(lit.interned_value()), vec![]),
                 Lit::Int(lit) => {
                     let value = Constant::from_int(lit.interned_value(), ty_id);
@@ -107,7 +107,7 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
                 }
                 _ => unreachable!(),
             },
-            Pat::Tuple(TuplePat { data, .. }) => {
+            Term::Tuple(TupleTerm { data, .. }) => {
                 // We need to read the tuple type from the ctx type and then create
                 // wildcard fields for all of the inner types
                 let tuple_ty = term_as_variant!(ty, ty_id.value(), TupleTy);
@@ -129,7 +129,7 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
 
                 (DeconstructedCtor::Single, wilds.to_vec())
             }
-            Pat::Ctor(CtorPat { ctor, ctor_pat_args: args, .. }) => {
+            Term::Ctor(CtorTerm { ctor, ctor_args: args, .. }) => {
                 let params = ctor.borrow().params;
 
                 // Lower the fields by resolving what positions the
@@ -160,9 +160,12 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
 
                 (ctor, wilds.to_vec())
             }
-            Pat::Array(ArrayPat { pats, spread }) => {
+            Term::Array(array_term) => {
                 let mut prefix = vec![];
                 let mut suffix = vec![];
+
+                let pats = array_term.elements_or_repeated().unwrap();
+                let spread = array_term.get_spread();
 
                 let Some(ArrayCtorInfo { element_ty, .. }) = try_use_ty_as_array_ty(ty_id) else {
                     panic!("Expected array type")
@@ -172,7 +175,7 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
                     if let Some(Spread { index, .. }) = spread { index as isize } else { -1 };
 
                 for (index, pat) in pats.borrow().iter().enumerate() {
-                    let deconstructed_pat = self.deconstruct_pat(element_ty, pat.assert_pat());
+                    let deconstructed_pat = self.deconstruct_pat(element_ty, pat);
 
                     // If the index is `-1`, this will always push to the prefix which
                     // is what should happen if no spread pattern is present.
@@ -196,7 +199,7 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
 
                 (ctor, fields)
             }
-            Pat::Or(_) => {
+            Term::Pat(Pat::Or(_)) => {
                 // here, we need to expand the or pattern, so that all of the
                 // children patterns of the `or` become fields of the
                 // deconstructed  pat.
@@ -209,12 +212,13 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
 
                 (DeconstructedCtor::Or, fields)
             }
-            Pat::If(IfPat { pat, .. }) => {
+            Term::Pat(Pat::If(IfPat { pat, .. })) => {
                 let pat = self.deconstruct_pat(ty_id, pat);
                 pat.has_guard.set(true);
 
                 return pat;
             }
+            _ => unreachable!(),
         };
 
         let ctor = self.make_ctor(ctor);
@@ -233,72 +237,85 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
         let DeconstructedPat { ty, fields, ctor, .. } = self.get_pat(pat);
 
         let ctor = self.get_ctor(*ctor);
+
         let pat = match ctor {
-                    DeconstructedCtor::Single | DeconstructedCtor::Variant(_) => {
-                        match *ty.value() {
-                            Ty::DataTy(DataTy { data_def, args }) => {
-                                let ctor_def_id = data_def.borrow().ctors.assert_defined();
+            DeconstructedCtor::Single | DeconstructedCtor::Variant(_) => {
+                match *ty.value() {
+                    Ty::DataTy(DataTy { data_def, args }) => {
+                        let ctor_def_id = data_def.borrow().ctors.assert_defined();
 
-                                // We need to reconstruct the ctor-def-id...
-                                let variant_idx = match ctor {
-                                    DeconstructedCtor::Single => 0,
-                                    DeconstructedCtor::Variant(idx) => *idx,
-                                    _ => unreachable!()
-                                };
-                                let ctor = CtorDefId::new(ctor_def_id.elements(), variant_idx);
-                                let (pats, spread) = self.construct_pat_args(fields, ctor.borrow().params);
-
-                                Pat::Ctor(CtorPat { ctor, ctor_pat_args: pats, ctor_pat_args_spread: spread, data_args: args })
-                            }
-                            Ty::TupleTy(TupleTy { data }) => {
-                                let (pats, spread) = self.construct_pat_args(fields, data);
-                                Pat::Tuple(TuplePat { data: pats, data_spread: spread })
-                            }
+                        // We need to reconstruct the ctor-def-id...
+                        let variant_idx = match ctor {
+                            DeconstructedCtor::Single => 0,
+                            DeconstructedCtor::Variant(idx) => *idx,
                             _ => unreachable!()
-                        }
-                    }
-                    DeconstructedCtor::IntRange(range) => self.construct_pat_from_range(*ty, *range),
-                    DeconstructedCtor::Str(str) => Pat::Lit(LitPat(Node::create_gen(Lit::Str(StrLit::from(*str))))),
-                    DeconstructedCtor::Array(Array { kind }) => {
-                        let children = fields.iter_patterns().map(|p| PatOrCapture::Pat(self.construct_pat(p))).collect_vec();
-                        let pats = Node::create_at(PatOrCapture::seq(children), NodeOrigin::Generated);
+                        };
+                        let ctor = CtorDefId::new(ctor_def_id.elements(), variant_idx);
+                        let pats = self.construct_pat_args(fields, ctor.borrow().params);
 
-                        match kind {
-                            ArrayKind::Fixed(_) => {
-                                Pat::Array(ArrayPat { pats, spread: None })
-                            }
-                            ArrayKind::Var(prefix, _) => {
-                                Pat::Array(ArrayPat { pats, spread: Some(Spread { name: SymbolId::fresh_underscore(NodeOrigin::Generated), index: *prefix }) })
-                            }
-                        }
+                        Term::Ctor(CtorTerm { ctor, ctor_args: pats, data_args: args })
                     }
-                    DeconstructedCtor::Wildcard | DeconstructedCtor::NonExhaustive => Pat::Binding(BindingPat { name: SymbolId::fresh_underscore(NodeOrigin::Generated), is_mutable: false }),
-                    DeconstructedCtor::Or => {
-                        panic!("cannot convert an `or` deconstructed pat back into pat")
+                    Ty::TupleTy(TupleTy { data }) => {
+                        let pats = self.construct_pat_args(fields, data);
+                        Term::Tuple(TupleTerm { data: pats })
                     }
-                    DeconstructedCtor::Missing => panic!(
-                        "trying to convert a `Missing` constructor into a `Pat`; this is probably a bug, `Missing` should have been processed in `apply_ctors`"
-                    ),
-                };
+                    _ => unreachable!()
+                }
+            }
+            DeconstructedCtor::IntRange(range) => self.construct_pat_from_range(*ty, *range),
+            DeconstructedCtor::Str(str) => Term::Lit(Node::create_gen(Lit::Str(StrLit::from(*str)))),
+            DeconstructedCtor::Array(Array { kind }) => {
+                let children = fields.iter_patterns().map(|p| self.construct_pat(p)).collect_vec();
+
+
+                match kind {
+                    ArrayKind::Fixed(_) => {
+                        let pats = Node::create_at(PatId::seq(children), NodeOrigin::Generated);
+                        Term::Array(ArrayTerm::Normal(pats))
+                    }
+                    ArrayKind::Var(prefix, suffix) => {
+                        let xs = &children[..*prefix];
+                        let ys = &children[*prefix..];
+                        let pats = Node::create_at(
+                            PatId::seq(
+                                xs
+                                   .iter()
+                                   .copied()
+                                   .chain(once(Term::pat(Spread {name: SymbolId::fresh(NodeOrigin::Generated), index: *prefix}, NodeOrigin::Generated)))
+                                   .chain(ys.iter().copied()).collect_vec()
+                            ),
+                            NodeOrigin::Generated
+                        );
+                        Term::Array(ArrayTerm::Normal(pats))
+                    }
+                }
+            }
+            DeconstructedCtor::Wildcard | DeconstructedCtor::NonExhaustive => Term::Pat(BindingPat { name: SymbolId::fresh_underscore(NodeOrigin::Generated), is_mutable: false }.into()),
+            DeconstructedCtor::Or => {
+                panic!("cannot convert an `or` deconstructed pat back into pat")
+            }
+            DeconstructedCtor::Missing => panic!(
+                "trying to convert a `Missing` constructor into a `Pat`; this is probably a bug, `Missing` should have been processed in `apply_ctors`"
+            ),
+        };
 
         // Now put the pat on the store and return it
         Node::create_at(pat, NodeOrigin::Generated)
     }
 
     /// Construct pattern arguments from provided [ParamsId].
-    fn construct_pat_args(&self, fields: &Fields, params: ParamsId) -> (PatArgsId, Option<Spread>) {
+    fn construct_pat_args(&self, fields: &Fields, params: ParamsId) -> PatArgsId {
         // Construct the inner arguments to the constructor by iterating over the
         // pattern fields within the pattern. If possible, lookup the name of the
         // field by using the nominal definition attached to the pattern.
         let fields = fields
             .iter_patterns()
             .enumerate()
-            .filter(|(_, p)| !self.get_pat_ctor(*p).is_wildcard())
             .map(|(index, p)| {
                 Node::at(
-                    PatArg {
+                    Arg {
                         target: ParamId::new(params.elements(), index).as_param_index(),
-                        pat: self.construct_pat(p).into(),
+                        value: self.construct_pat(p).into(),
                     },
                     NodeOrigin::Generated,
                 )
@@ -306,15 +323,12 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
             .collect_vec();
 
         let field_count = fields.len();
-        let args = Node::create_at(Node::<PatArg>::seq(fields), NodeOrigin::Generated);
+        let args = Node::create_at(Node::<Arg>::seq(fields), NodeOrigin::Generated);
 
         if field_count != params.len() {
-            (
-                args,
-                Some(Spread { name: SymbolId::fresh(NodeOrigin::Generated), index: field_count }),
-            )
+            args
         } else {
-            (args, None)
+            args
         }
     }
 
@@ -347,7 +361,7 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
 
     /// Convert [IntRange] into a [Pat] by judging the given
     /// type that is stored within the parent [DeconstructedPat].
-    pub fn construct_pat_from_range(&self, ty: TyId, range: IntRange) -> Pat {
+    pub fn construct_pat_from_range(&self, ty: TyId, range: IntRange) -> Term {
         if range.is_singleton() {
             // `ubig` and `ibig` won't appear here since the range will never become
             // a singleton, and in fact the range will never be constructed from a
@@ -360,17 +374,17 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
 
                     let ptr_size = self.target().ptr_size();
                     let val = InternedInt::from_u128(lo, int_ty.into(), ptr_size);
-                    Pat::Lit(LitPat(Node::create_gen(Lit::Int(IntLit::from(val)))))
+                    Term::Lit(Node::create_gen(Lit::Int(IntLit::from(val))))
                 }
                 LitTy::Char => {
                     let (lo, _) = range.boundaries();
                     let val = unsafe { char::from_u32_unchecked(lo as u32) };
-                    Pat::Lit(LitPat(Node::create_gen(Lit::Char(CharLit::from(val)))))
+                    Term::Lit(Node::create_gen(Lit::Char(CharLit::from(val))))
                 }
                 _ => unreachable!(),
             }
         } else {
-            Pat::Range(self.construct_range_pat(range, ty))
+            Term::Pat(Pat::Range(self.construct_range_pat(range, ty)))
         }
     }
 
@@ -443,7 +457,6 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
             .borrow()
             .iter()
             .enumerate()
-            .filter(|(_, arg)| matches!(arg.pat, PatOrCapture::Pat(_)))
             // This tries to resolve the `index` of the argument that is being passed
             // within the tuple field. If the tuple has named arguments, then we have
             // to use the parameter list in order to resolve the index. By now it should be
@@ -456,7 +469,7 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
                     index
                 };
 
-                FieldPat { index: field, pat: arg.pat.assert_pat() }
+                FieldPat { index: field, pat: arg.value }
             })
             .collect_vec()
     }

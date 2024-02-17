@@ -12,12 +12,12 @@ use hash_utils::derive_more::{From, TryInto};
 use crate::tir::{
     blocks::{BlockStatement, BlockStatementsId, BlockTerm, Decl},
     commands::AssignTerm,
-    AccessTerm, AnnotTerm, Arg, ArgsId, ArrayPat, ArrayTerm, CallTerm, CtorDefId, CtorPat,
-    CtorTerm, DataDefCtors, DataDefId, DataTy, DerefTerm, FnDef, FnDefId, FnTy, HasAstNodeId,
-    IfPat, IndexTerm, LitId, LoopTerm, MatchCase, MatchTerm, ModDefId, ModMemberId, ModMemberValue,
-    Node, NodeId, NodeOrigin, NodesId, OrPat, Param, ParamsId, Pat, PatArg, PatArgsId, PatId,
-    PatListId, PatOrCapture, PrimitiveCtorInfo, RefTerm, RefTy, ReturnTerm, Term, TermId,
-    TermListId, TuplePat, TupleTerm, TupleTy, Ty, TyId, TyOfTerm, UniverseTy, UnsafeTerm,
+    AccessTerm, AnnotTerm, Arg, ArgsId, ArrayPat, ArrayTerm, CallTerm, CtorDefId, CtorTerm,
+    DataDefCtors, DataDefId, DataTy, DerefTerm, FnDef, FnDefId, FnTy, HasAstNodeId, IfPat,
+    IndexTerm, LitId, LoopTerm, MatchCase, MatchTerm, ModDefId, ModMemberId, ModMemberValue, Node,
+    NodeId, NodeOrigin, NodesId, OrPat, Param, ParamsId, Pat, PatArgsId, PatId, PatListId,
+    PrimitiveCtorInfo, RefTerm, RefTy, ReturnTerm, Term, TermId, TermListId, TupleTerm, TupleTy,
+    Ty, TyId, TyOfTerm, UniverseTy, UnsafeTerm,
 };
 
 /// An atom in the TIR.
@@ -25,7 +25,6 @@ use crate::tir::{
 pub enum Atom {
     Term(TermId),
     FnDef(FnDefId), // @@Cleanup: remove this when functions are just normal terms
-    Pat(PatId),
     Lit(LitId),
 }
 
@@ -34,7 +33,6 @@ impl Atom {
         match self {
             Atom::Term(t) => t.origin(),
             Atom::FnDef(f) => f.origin(),
-            Atom::Pat(p) => p.origin(),
             Atom::Lit(l) => l.origin(),
         }
     }
@@ -68,14 +66,6 @@ impl Atom {
         }
     }
 
-    /// Normalise the given atom, and try to use it as a pattern.
-    pub fn maybe_to_pat(&self) -> Option<PatId> {
-        match *self {
-            Atom::Pat(pat) => Some(pat),
-            _ => None,
-        }
-    }
-
     /// Normalise the given atom, and try to use it as a term.
     pub fn to_term(&self) -> TermId {
         self.maybe_to_term().unwrap_or_else(|| panic!("Cannot convert {} to a term", *self))
@@ -90,11 +80,6 @@ impl Atom {
     pub fn to_ty(&self) -> TyId {
         self.maybe_to_ty().unwrap_or_else(|| panic!("Cannot convert {} to a type", *self))
     }
-
-    /// Try to use the given atom as a pattern.
-    pub fn to_pat(&self) -> PatId {
-        self.maybe_to_pat().unwrap_or_else(|| panic!("Cannot convert {} to a pattern", *self))
-    }
 }
 
 impl HasAstNodeId for Atom {
@@ -102,7 +87,6 @@ impl HasAstNodeId for Atom {
         match self {
             Atom::Term(t) => t.node_id(),
             Atom::FnDef(f) => f.node_id(),
-            Atom::Pat(p) => p.node_id(),
             Atom::Lit(l) => l.node_id(),
         }
     }
@@ -113,7 +97,6 @@ impl fmt::Display for Atom {
         match self {
             Atom::Term(term_id) => write!(f, "{}", term_id),
             Atom::FnDef(fn_def_id) => write!(f, "{}", fn_def_id),
-            Atom::Pat(pat_id) => write!(f, "{}", pat_id),
             Atom::Lit(lit_id) => write!(f, "{}", lit_id),
         }
     }
@@ -204,7 +187,6 @@ impl Visit<Atom> for Visitor {
         match atom {
             Atom::Term(term_id) => self.try_visit(term_id, f),
             Atom::FnDef(fn_def_id) => self.try_visit(fn_def_id, f),
-            Atom::Pat(pat_id) => self.try_visit(pat_id, f),
             Atom::Lit(lit_id) => self.try_visit(lit_id, f),
         }
     }
@@ -215,7 +197,6 @@ impl Map<Atom> for Visitor {
         match atom {
             Atom::Term(term_id) => Ok(Atom::Term(self.try_map(term_id, f)?)),
             Atom::FnDef(fn_def_id) => Ok(Atom::FnDef(self.try_map(fn_def_id, f)?)),
-            Atom::Pat(pat_id) => Ok(Atom::Pat(self.try_map(pat_id, f)?)),
             Atom::Lit(lit_id) => Ok(Atom::Lit(self.try_map(lit_id, f)?)),
         }
     }
@@ -287,6 +268,15 @@ impl Visit<TermId> for Visitor {
                 Ty::RefTy(ref_ty) => self.try_visit(ref_ty.ty, f),
                 Ty::DataTy(data_ty) => self.try_visit(data_ty.args, f),
                 Ty::Universe(_) => Ok(()),
+                Term::Pat(pat) => match pat {
+                    Pat::Binding(_) | Pat::Range(_) => Ok(()),
+                    Pat::Or(or_pat) => self.try_visit(or_pat.alternatives, f),
+                    Pat::If(if_pat) => {
+                        self.try_visit(if_pat.pat, f)?;
+                        self.try_visit(if_pat.condition, f)
+                    }
+                    Pat::Spread(_) => Ok(()),
+                },
             },
         }
     }
@@ -300,9 +290,6 @@ impl Map<TermId> for Visitor {
                 Atom::Term(t) => Ok(t),
                 Atom::FnDef(fn_def_id) => Ok(Node::create_at(Term::Fn(fn_def_id), origin)),
                 Atom::Lit(lit_id) => Ok(Node::create_at(Term::Lit(lit_id), origin)),
-                Atom::Pat(pat_id) => {
-                    Ok(pat_id.try_use_as_term().expect("cannot use this pattern as a term"))
-                }
             },
             ControlFlow::Continue(()) => match *term_id.value() {
                 Term::Tuple(tuple_term) => {
@@ -451,79 +438,20 @@ impl Map<TermId> for Visitor {
                     Ok(Ty::from(DataTy { args, data_def: data_ty.data_def }, origin))
                 }
                 Ty::Universe(_) => Ok(Ty::from(Ty::Universe(UniverseTy), origin)),
-            },
-        }?;
-
-        Ok(result)
-    }
-}
-
-impl Visit<PatId> for Visitor {
-    fn try_visit<E, F: TryVisitFn<E>>(&self, pat_id: PatId, f: &mut F) -> Result<(), E> {
-        match f(pat_id.into())? {
-            ControlFlow::Break(()) => Ok(()),
-            ControlFlow::Continue(()) => match *pat_id.value() {
-                Pat::Binding(_) | Pat::Range(_) | Pat::Lit(_) => Ok(()),
-                Pat::Tuple(tuple_pat) => self.try_visit(tuple_pat.data, f),
-                Pat::Array(list_pat) => self.try_visit(list_pat.pats, f),
-                Pat::Ctor(ctor_pat) => {
-                    self.try_visit(ctor_pat.data_args, f)?;
-                    self.try_visit(ctor_pat.ctor_pat_args, f)
-                }
-                Pat::Or(or_pat) => self.try_visit(or_pat.alternatives, f),
-                Pat::If(if_pat) => {
-                    self.try_visit(if_pat.pat, f)?;
-                    self.try_visit(if_pat.condition, f)
-                }
-            },
-        }
-    }
-}
-impl Map<PatId> for Visitor {
-    fn try_map<E, F: TryMapFn<E>>(&self, pat_id: PatId, f: F) -> Result<PatId, E> {
-        let origin = pat_id.origin();
-        let result = match f(pat_id.into())? {
-            ControlFlow::Break(pat) => Ok(PatId::try_from(pat).unwrap()),
-            ControlFlow::Continue(()) => match *pat_id.value() {
-                Pat::Binding(binding_pat) => Ok(Node::create_at(Pat::from(binding_pat), origin)),
-                Pat::Range(range_pat) => Ok(Node::create_at(Pat::from(range_pat), origin)),
-                Pat::Lit(lit_pat) => Ok(Node::create_at(Pat::from(lit_pat), origin)),
-                Pat::Tuple(tuple_pat) => {
-                    let data = self.try_map(tuple_pat.data, f)?;
-                    Ok(Node::create_at(
-                        Pat::from(TuplePat { data_spread: tuple_pat.data_spread, data }),
-                        origin,
-                    ))
-                }
-                Pat::Array(list_pat) => {
-                    let pats = self.try_map(list_pat.pats, f)?;
-                    Ok(Node::create_at(
-                        Pat::from(ArrayPat { spread: list_pat.spread, pats }),
-                        origin,
-                    ))
-                }
-                Pat::Ctor(ctor_pat) => {
-                    let data_args = self.try_map(ctor_pat.data_args, f)?;
-                    let ctor_pat_args = self.try_map(ctor_pat.ctor_pat_args, f)?;
-                    Ok(Node::create_at(
-                        Pat::from(CtorPat {
-                            data_args,
-                            ctor_pat_args,
-                            ctor: ctor_pat.ctor,
-                            ctor_pat_args_spread: ctor_pat.ctor_pat_args_spread,
-                        }),
-                        origin,
-                    ))
-                }
-                Pat::Or(or_pat) => {
-                    let alternatives = self.try_map(or_pat.alternatives, f)?;
-                    Ok(Node::create_at(Pat::from(OrPat { alternatives }), origin))
-                }
-                Pat::If(if_pat) => {
-                    let pat = self.try_map(if_pat.pat, f)?;
-                    let condition = self.try_map(if_pat.condition, f)?;
-                    Ok(Node::create_at(Pat::from(IfPat { pat, condition }), origin))
-                }
+                Term::Pat(pat) => match pat {
+                    Pat::Binding(binding_pat) => Ok(Term::from(pat, origin)),
+                    Pat::Range(range_pat) => Ok(Term::from(pat, origin)),
+                    Pat::Or(or_pat) => {
+                        let alternatives = self.try_map(or_pat.alternatives, f)?;
+                        Ok(Term::from(Term::Pat(OrPat { alternatives }.into()), origin))
+                    }
+                    Pat::If(if_pat) => {
+                        let pat = self.try_map(if_pat.pat, f)?;
+                        let condition = self.try_map(if_pat.condition, f)?;
+                        Ok(Term::from(Term::Pat(IfPat { pat, condition }.into()), origin))
+                    }
+                    Pat::Spread(spread) => Ok(Term::from(pat, origin)),
+                },
             },
         }?;
 
@@ -600,33 +528,6 @@ impl Map<TermListId> for Visitor {
     }
 }
 
-impl Visit<PatListId> for Visitor {
-    fn try_visit<E, F: TryVisitFn<E>>(&self, pat_list_id: PatListId, f: &mut F) -> Result<(), E> {
-        for pat in pat_list_id.elements().value() {
-            if let PatOrCapture::Pat(pat) = pat {
-                self.try_visit(pat, f)?;
-            }
-        }
-        Ok(())
-    }
-}
-impl Map<PatListId> for Visitor {
-    fn try_map<E, F: TryMapFn<E>>(&self, pat_list: PatListId, f: F) -> Result<PatListId, E> {
-        let mut new_list = Vec::with_capacity(pat_list.len());
-        for pat_id in pat_list.elements().value() {
-            match pat_id {
-                PatOrCapture::Pat(pat_id) => {
-                    new_list.push(PatOrCapture::Pat(self.try_map(pat_id, f)?));
-                }
-                PatOrCapture::Capture(node) => {
-                    new_list.push(PatOrCapture::Capture(node));
-                }
-            }
-        }
-        Ok(Node::create_at(PatOrCapture::seq(new_list), pat_list.origin()))
-    }
-}
-
 impl Visit<ParamsId> for Visitor {
     fn try_visit<E, F: TryVisitFn<E>>(&self, params_id: ParamsId, f: &mut F) -> Result<(), E> {
         for param in params_id.elements().value() {
@@ -681,41 +582,6 @@ impl Map<ArgsId> for Visitor {
         }
         let new_args_id = Node::create_at(Node::<Arg>::seq(new_args), args_id.origin());
         Ok(new_args_id)
-    }
-}
-
-impl Visit<PatArgsId> for Visitor {
-    fn try_visit<E, F: TryVisitFn<E>>(&self, pat_args_id: PatArgsId, f: &mut F) -> Result<(), E> {
-        for arg in pat_args_id.elements().value() {
-            if let PatOrCapture::Pat(pat) = arg.pat {
-                self.try_visit(pat, f)?;
-            }
-        }
-        Ok(())
-    }
-}
-impl Map<PatArgsId> for Visitor {
-    fn try_map<E, F: TryMapFn<E>>(&self, pat_args_id: PatArgsId, f: F) -> Result<PatArgsId, E> {
-        let new_pat_args = {
-            let mut new_args = Vec::with_capacity(pat_args_id.len());
-            for pat_arg in pat_args_id.elements().value() {
-                new_args.push(Node::at(
-                    PatArg {
-                        target: pat_arg.target,
-                        pat: match pat_arg.pat {
-                            PatOrCapture::Pat(pat_id) => {
-                                PatOrCapture::Pat(self.try_map(pat_id, f)?)
-                            }
-                            PatOrCapture::Capture(node) => PatOrCapture::Capture(node),
-                        },
-                    },
-                    pat_arg.origin,
-                ));
-            }
-            Ok(Node::create_at(Node::<PatArg>::seq(new_args), pat_args_id.origin()))
-        }?;
-
-        Ok(new_pat_args)
     }
 }
 

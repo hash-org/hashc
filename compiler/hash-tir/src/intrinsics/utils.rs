@@ -15,8 +15,8 @@ use super::{
 use crate::{
     context::HasContext,
     tir::{
-        Arg, ArrayCtorInfo, CharLit, CtorDefId, CtorPat, CtorTerm, DataDefCtors, IntLit, Lit, Node,
-        NodeOrigin, Pat, PatArg, PatId, PrimitiveCtorInfo, Term, TermId, Ty, TyId,
+        Arg, ArrayCtorInfo, CharLit, CtorDefId, CtorTerm, DataDefCtors, IntLit, Lit, Node,
+        NodeOrigin, Pat, PatId, PrimitiveCtorInfo, Term, TermId, Ty, TyId,
     },
 };
 
@@ -115,19 +115,6 @@ pub fn bool_term(value: bool, origin: NodeOrigin) -> TermId {
             ctor: get_bool_ctor(value),
             ctor_args: Node::create_at(Node::<Arg>::empty_seq(), origin),
             data_args: Node::create_at(Node::<Arg>::empty_seq(), origin),
-        }),
-        origin,
-    )
-}
-
-/// Create a boolean pattern of the given value.
-pub fn bool_pat(value: bool, origin: NodeOrigin) -> PatId {
-    Node::create_at(
-        Pat::Ctor(CtorPat {
-            ctor: get_bool_ctor(value),
-            ctor_pat_args: Node::create_at(Node::<PatArg>::empty_seq(), origin),
-            data_args: Node::create_at(Node::<Arg>::empty_seq(), origin),
-            ctor_pat_args_spread: None,
         }),
         origin,
     )

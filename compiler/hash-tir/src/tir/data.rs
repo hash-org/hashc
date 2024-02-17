@@ -83,21 +83,6 @@ pub struct CtorTerm {
     pub ctor_args: ArgsId,
 }
 
-/// A constructor pattern.
-///
-/// This is a pattern matching a constructor, for example `Some(_)`.
-#[derive(Debug, Clone, Copy)]
-pub struct CtorPat {
-    /// The constructor definition that this pattern references.
-    pub ctor: CtorDefId,
-    /// The pattern arguments to the constructor.
-    pub ctor_pat_args: PatArgsId,
-    /// The spread in the constructor members, if any.
-    pub ctor_pat_args_spread: Option<Spread>,
-    /// The data arguments to the constructor.
-    pub data_args: ArgsId,
-}
-
 /// The number of bits in a numeric constructor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum NumericCtorBits {
@@ -510,33 +495,6 @@ impl Display for CtorTerm {
         write!(f, "{}", ctor_name)?;
         if self.ctor_args.len() > 0 {
             write!(f, "({})", self.ctor_args)?;
-        }
-
-        Ok(())
-    }
-}
-
-impl Display for CtorPat {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let data_def_id = get!(self.ctor, data_def_id);
-        let data_def_name = get!(data_def_id, name);
-
-        if data_def_id.borrow().ctors.assert_defined().len() == 1 {
-            write!(f, "{data_def_name}")?;
-        } else {
-            let ctor_name = get!(self.ctor, name);
-            write!(f, "{data_def_name}::{}", ctor_name)?;
-        }
-
-        if self.ctor_pat_args.len() > 0 || self.ctor_pat_args_spread.is_some() {
-            write!(
-                f,
-                "({})",
-                PatArgsWithSpread {
-                    pat_args: self.ctor_pat_args,
-                    spread: self.ctor_pat_args_spread
-                }
-            )?;
         }
 
         Ok(())
