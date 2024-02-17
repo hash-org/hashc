@@ -94,8 +94,11 @@ impl Const {
     }
 
     /// Create a new allocated string constant, from a given [AllocId].
-    pub fn str(alloc: AllocId) -> Self {
-        Self::new(COMMON_REPR_TYS.str, ConstKind::Alloc { alloc, offset: Size::ZERO })
+    pub fn str<C: HasDataLayout>(data: AllocId, ctx: &C) -> Self {
+        Self::new(
+            COMMON_REPR_TYS.str,
+            ConstKind::Pair { data, len: Scalar::from_usize(data.value().len() as u64, ctx) },
+        )
     }
 
     /// Create a new scalar [Const] from a given type and [Scalar] value.

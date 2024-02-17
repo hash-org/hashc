@@ -21,12 +21,13 @@ use std::num;
 use hash_ast::ast::{self, AstNodeId, FloatLit, IntLit};
 use hash_layout::{
     constant::{Const, ConstKind},
-    ty::{ReprTyId, ToReprTy},
+    ty::{ReprTyId, ToReprTy, COMMON_REPR_TYS},
 };
 use hash_reporting::{hash_error_codes::error_codes::HashErrorCode, reporter::Reporter};
 use hash_source::constant::{
     AllocId, BigIntTy, FloatTy, IntTy, NormalisedIntTy, SIntTy, Scalar, Size, UIntTy,
 };
+use hash_storage::store::statics::StoreId;
 pub use hash_token::{FloatLitKind, IntLitKind};
 use hash_utils::num_bigint::BigInt;
 
@@ -248,7 +249,13 @@ pub trait LitHelpers {
 impl LitHelpers for ast::Lit {
     fn to_const(&self, expected_ty: Option<ReprTyId>, ptr_size: Size) -> LitParseResult<Const> {
         Ok(match self {
-            ast::Lit::Str(ast::StrLit { data }) => Const::str(*data),
+            ast::Lit::Str(ast::StrLit { data }) => Const::new(
+                COMMON_REPR_TYS.str,
+                ConstKind::Pair {
+                    data: *data,
+                    len: Scalar::try_from_uint((*data).borrow().len() as u64, ptr_size).unwrap(),
+                },
+            ),
             ast::Lit::Char(ast::CharLit { data }) => (*data).into(),
             ast::Lit::Int(int_lit) => {
                 let annotation = expected_ty.map(IntTy::from);
