@@ -443,7 +443,7 @@ impl<Buf: AllocBuf> Alloc<Buf> {
     ///
     ///##NOTE: If the bytes are not valid utf8 then this  method will panic.
     pub fn to_str(&self) -> String {
-        todo!() // @@Cowbunga
+        String::from_utf8_lossy(&self.buf).into_owned()
     }
 
     /// Create a new [Alloc]d [BigInt] value using the following structure
@@ -456,13 +456,13 @@ impl<Buf: AllocBuf> Alloc<Buf> {
     ///
     /// ##NOTE: the `bytes` are in big endian.
     pub fn big_int(value: BigInt) -> Self {
-        let (_, buf) = value.to_bytes_be();
+        let buf = value.to_signed_bytes_be();
         Self::from_bytes(buf, Alignment::ONE, Mutability::Immutable)
     }
 
     /// Attempt to convert a particular [AllocId] into a [BigInt] value.
-    pub fn to_big_int(&self, _signed: bool) -> BigInt {
-        todo!() // @@Cowbunga
+    pub fn to_big_int(&self) -> BigInt {
+        BigInt::from_signed_bytes_be(&self.buf)
     }
 
     /// Creates an [Alloc] initialized by the given bytes.
@@ -542,20 +542,24 @@ static_single_store!(
 );
 
 impl AllocId {
+    #[inline]
     pub fn str(value: String) -> Self {
         Alloc::create(Alloc::str(value))
     }
 
+    #[inline]
     pub fn to_str(&self) -> String {
         self.borrow().to_str()
     }
 
+    #[inline]
     pub fn big_int(value: BigInt) -> Self {
         Alloc::create(Alloc::big_int(value))
     }
 
-    pub fn to_big_int(&self, signed: bool) -> BigInt {
-        self.borrow().to_big_int(signed)
+    #[inline]
+    pub fn to_big_int(&self) -> BigInt {
+        self.borrow().to_big_int()
     }
 }
 
