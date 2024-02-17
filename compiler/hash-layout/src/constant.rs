@@ -132,6 +132,7 @@ impl Const {
     pub fn as_alloc(&self) -> AllocId {
         match self.kind {
             ConstKind::Alloc { alloc, .. } => alloc,
+            ConstKind::Pair { data, .. } => data,
             _ => panic!("Const is not an allocation"),
         }
     }
