@@ -25,8 +25,8 @@ pub fn pretty_print_const(
 ) -> io::Result<()> {
     match (constant.kind(), constant.ty().value()) {
         (ConstKind::Pair { data, .. }, ReprTy::Ref(inner, _, _)) => match inner.value() {
-            ReprTy::Str => write!(f, "{:?}", data.value()),
-            _ => Ok(()),
+            ReprTy::Str => write!(f, "{:?}", data.value().to_str()),
+            _ => write!(f, "{:?}", data.value()),
         },
 
         (ConstKind::Scalar(scalar), ty) => {
