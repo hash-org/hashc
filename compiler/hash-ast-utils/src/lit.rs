@@ -199,7 +199,7 @@ pub fn parse_int_const_from_lit(
         IntTy::Big(_) => {
             if allow_big {
                 let alloc = AllocId::big_int(BigInt::parse_bytes(hunk.as_bytes(), base).unwrap());
-                let constant = Const::alloc(alloc, ty.normalised.to_repr_ty());
+                let constant = Const::alloc(alloc, ty.original.to_repr_ty());
                 return Ok(constant);
             } else {
                 return Err(LitParseError::new(
@@ -211,7 +211,7 @@ pub fn parse_int_const_from_lit(
         }
     };
 
-    Ok(Const::scalar(lit, ty.normalised.to_repr_ty()))
+    Ok(Const::scalar(lit, ty.original.to_repr_ty()))
 }
 
 /// Parse a float literal from the given [Hunk]. The integer must be
