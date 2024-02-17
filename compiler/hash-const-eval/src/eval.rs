@@ -4,7 +4,7 @@
 
 use hash_layout::{
     compute::LayoutComputer,
-    constant::{Const, ConstKind, Ty},
+    constant::{Const, ConstKind},
     ty::{ReprTy, ReprTyId},
 };
 use hash_source::{constant::Scalar, FloatTy, Size};
@@ -95,18 +95,17 @@ impl<'ctx> ConstFolder<'ctx> {
 
     /// Perform an operation on two integer constants. This accepts the raw bits
     /// of the integer, and the size of the integer.
-    fn binary_int_op<T: Ty>(
+    fn binary_int_op(
         &self,
         bin_op: BinOp,
-        lhs_ty: T,
+        lhs_ty: ReprTyId,
         lhs: u128,
-        rhs_ty: T,
+        rhs_ty: ReprTyId,
         rhs: u128,
     ) -> Option<Const> {
         use crate::op::BinOp::*;
 
         debug_assert_eq!(lhs_ty, rhs_ty);
-        let lhs_ty: ReprTyId = lhs_ty.into();
         let size = self.lc.size_of_ty(lhs_ty).ok()?;
 
         // We have to handle `shl` and `shr` differently since they have different

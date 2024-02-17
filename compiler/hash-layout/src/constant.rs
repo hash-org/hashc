@@ -18,44 +18,6 @@ use paste::paste;
 
 use crate::ty::{ReprTyId, COMMON_REPR_TYS};
 
-pub trait Ty: Sized + Clone + Copy + PartialEq + Eq + Into<IntTy> + Into<ReprTyId> + Debug {
-    // const ZERO: Self;
-    // const BOOL: Self;
-    // const CHAR: Self;
-    // const STR: Self;
-
-    // const I8: Self;
-    // const I16: Self;
-    // const I32: Self;
-    // const I64: Self;
-    // const I128: Self;
-    // const ISIZE: Self;
-
-    // const U8: Self;
-    // const U16: Self;
-    // const U32: Self;
-    // const U64: Self;
-    // const U128: Self;
-    // const USIZE: Self;
-
-    // const F32: Self;
-    // const F64: Self;
-
-    // // @@Future: when we figure out how to make layout stuff
-    // // more agnostic, we can `layout_of` and `ty_info` here.
-    // // fn layout_of(&self) -> LayoutId;
-    // //
-    // // fn ty_info(&self) -> TyInfo<Ty> {
-    // //  TyInfo { ty: *self, layout: self.layout_of() }
-    // // }
-
-    // fn is_switchable(&self) -> bool;
-
-    // fn is_signed(&self) -> bool;
-}
-
-impl Ty for ReprTyId {}
-
 /// A [Const] represents a constant value within the Hash IR. This can
 /// be anything that can be represented as a constant, including ABI scalars,
 /// ADTs, slices, and arrays. This representation is intended to be used
