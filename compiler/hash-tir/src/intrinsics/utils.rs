@@ -242,17 +242,6 @@ impl From<Float> for f64 {
     }
 }
 
-/// Get the given term as a float literal if possible.
-// pub fn try_use_term_as_float_lit<L: From<Float>>(term: TermId) -> Option<L> {
-//     match *term.value() {
-//         Term::Lit(lit) => match *lit.value() {
-//             Lit::Const(i) => Some(L::from(Float::from(i))),
-//             _ => None,
-//         },
-//         _ => None,
-//     }
-// }
-
 /// Create a term from the given usize integer literal.
 pub fn create_term_from_usize_lit<C: HasDataLayout>(
     ctx: &C,

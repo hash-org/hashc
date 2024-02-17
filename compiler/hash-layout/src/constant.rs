@@ -222,18 +222,3 @@ pub enum ConstKind {
         alloc: AllocId,
     },
 }
-
-// impl ConstKind {
-//     /// Create a [ConstKind] from a TIR literal.
-//     pub fn from_lit<C: HasDataLayout>(lit: Lit, ctx: &C) -> Self {
-//         match lit {
-//             Lit::Int(int) => ConstKind::Scalar(Scalar::from(int.value())),
-//             Lit::Float(float) =>
-// ConstKind::Scalar(Scalar::from(float.value())),             Lit::Str(str) =>
-// {                 let data = str.interned_value();
-//                 ConstKind::Pair { data, len: Scalar::from_usize(data.len() as
-// u64, ctx) }             }
-//             Lit::Char(ch) => ConstKind::Scalar(Scalar::from(ch.value())),
-//         }
-//     }
-// }
