@@ -265,24 +265,6 @@ macro_rules! scalar_impl_from_sint_ty {
 }
 
 scalar_impl_from_sint_ty!(i8, i16, i32, i64, i128);
-// impl From<IntConstant> for Scalar {
-//     fn from(value: IntConstant) -> Self {
-//         let size = value.size();
-
-//         match value.value {
-//             IntConstantValue::I8(val) => Scalar::from_int(val, size),
-//             IntConstantValue::I16(val) => Scalar::from_int(val, size),
-//             IntConstantValue::I32(val) => Scalar::from_int(val, size),
-//             IntConstantValue::I64(val) => Scalar::from_int(val, size),
-//             IntConstantValue::I128(val) => Scalar::from_int(val, size),
-//             IntConstantValue::U8(val) => Scalar::from_uint(val, size),
-//             IntConstantValue::U16(val) => Scalar::from_uint(val, size),
-//             IntConstantValue::U32(val) => Scalar::from_uint(val, size),
-//             IntConstantValue::U64(val) => Scalar::from_uint(val, size),
-//             IntConstantValue::U128(val) => Scalar::from_uint(val, size),
-//         }
-//     }
-// }
 
 /// Read a unsigned integer from the given source buffer. This supports buffers
 /// of up to 16 bytes in length, and will automatically convert it into a
