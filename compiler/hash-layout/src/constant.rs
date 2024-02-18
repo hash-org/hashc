@@ -203,6 +203,10 @@ pub enum ConstKind {
     /// A pair is only used to represent `str` constants, which is the interned
     /// string allocation, and the length. It is equivalent to the `Abi::Pair`
     /// representation.
+    ///
+    ///
+    /// @@Todo: work a neat out a new way of combining this as
+    /// [`ConstKind::Alloc`] variant.
     Pair {
         /// The data pointer of the slice. This is represented as just
         /// being an
