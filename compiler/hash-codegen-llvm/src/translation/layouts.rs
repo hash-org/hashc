@@ -1,7 +1,7 @@
 //! Implements all of the required methods for computing the layouts of types.
 
 use hash_codegen::{
-    layout::{Layout, LayoutShape, TyInfo, Variants},
+    repr::{Layout, LayoutShape, TyInfo, Variants},
     target::abi::AbiRepresentation,
     traits::layout::LayoutMethods,
 };

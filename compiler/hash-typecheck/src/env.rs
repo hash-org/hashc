@@ -1,8 +1,8 @@
 use hash_exhaustiveness::diagnostics::{ExhaustivenessError, ExhaustivenessWarning};
 use hash_ir::HasIrCtx;
-use hash_layout::HasLayout;
 use hash_pipeline::settings::HasCompilerSettings;
 use hash_reporting::diagnostic::{Diagnostics, HasDiagnostics};
+use hash_repr::HasLayout;
 use hash_source::{entry_point::EntryPointState, SourceId};
 use hash_target::HasTarget;
 use hash_tir::{atom_info::HasAtomInfo, context::Context, tir::FnDefId};

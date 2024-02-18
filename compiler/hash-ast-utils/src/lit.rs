@@ -19,11 +19,11 @@
 use std::num;
 
 use hash_ast::ast::{self, AstNodeId, FloatLit, IntLit};
-use hash_layout::{
+use hash_reporting::{hash_error_codes::error_codes::HashErrorCode, reporter::Reporter};
+use hash_repr::{
     constant::{Const, ConstKind},
     ty::{ReprTyId, ToReprTy, COMMON_REPR_TYS},
 };
-use hash_reporting::{hash_error_codes::error_codes::HashErrorCode, reporter::Reporter};
 use hash_source::constant::{
     AllocId, BigIntTy, FloatTy, IntTy, NormalisedIntTy, SIntTy, Scalar, Size, UIntTy,
 };

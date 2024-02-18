@@ -6,12 +6,12 @@
 //! processed [Workspace].
 
 use hash_ir::IrStorage;
-use hash_layout::LayoutStorage;
 use hash_pipeline::{
     interface::{CompilerOutputStream, CompilerResult},
     settings::CompilerSettings,
     workspace::Workspace,
 };
+use hash_repr::LayoutStorage;
 use hash_utils::rayon;
 
 use crate::traits::abi::FnAbiStore;

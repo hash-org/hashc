@@ -1,6 +1,6 @@
 use std::ops::Deref;
 
-use hash_layout::{
+use hash_repr::{
     compute::LayoutComputer,
     constant::{Const, ConstKind},
     ty::{ReprTy, ToReprTy, VariantIdx},

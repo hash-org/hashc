@@ -1,7 +1,7 @@
 //! Various utilities that are used within the IR lowering logic
 //! to help with code generation.
 
-use hash_layout::TyInfo;
+use hash_repr::TyInfo;
 use hash_target::alignment::Alignment;
 
 use crate::{

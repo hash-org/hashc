@@ -13,7 +13,7 @@ fixedbitset = "0.4.2"
 hash-abi = {path = "../hash-abi" }
 hash-attrs = { path = "../hash-attrs" }
 hash-ir = {path = "../hash-ir" }
-hash-layout = {path = "../hash-layout" }
+hash-repr = {path = "../hash-repr" }
 hash-pipeline = { path = "../hash-pipeline" }
 hash-reporting = { path = "../hash-reporting" }
 hash-source = {path = "../hash-source" }

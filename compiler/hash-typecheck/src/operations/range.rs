@@ -2,7 +2,7 @@ use std::ops::ControlFlow;
 
 use hash_ast::ast::RangeEnd;
 use hash_const_eval::{eval::ConstFolder, op::BinOp};
-use hash_layout::constant::Const;
+use hash_repr::constant::Const;
 use hash_source::constant::Scalar;
 use hash_tir::tir::{PatId, RangePat, TyId};
 

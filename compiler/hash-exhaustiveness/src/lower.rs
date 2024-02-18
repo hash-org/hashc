@@ -3,7 +3,7 @@
 use std::mem::size_of;
 
 use hash_ast::ast::RangeEnd;
-use hash_layout::{
+use hash_repr::{
     constant::Const,
     ty::{ReprTy, ReprTyId, COMMON_REPR_TYS},
 };

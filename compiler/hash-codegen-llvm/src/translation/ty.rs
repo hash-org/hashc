@@ -6,7 +6,7 @@ use core::panic;
 use hash_codegen::{
     abi::FnAbi,
     common::TypeKind,
-    layout::{Layout, LayoutShape, TyInfo, Variants},
+    repr::{Layout, LayoutShape, TyInfo, Variants},
     target::{
         abi::{AbiRepresentation, AddressSpace, Integer, Scalar, ScalarKind},
         alignment::Alignment,

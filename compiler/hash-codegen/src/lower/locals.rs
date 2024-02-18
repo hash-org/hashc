@@ -11,7 +11,7 @@ use hash_ir::{
     traversal,
     visitor::{ImmutablePlaceCtx, IrVisitorCtx, IrVisitorMut, MutablePlaceCtx, PlaceCtx},
 };
-use hash_layout::TyInfo;
+use hash_repr::TyInfo;
 use hash_storage::store::SequenceStoreKey;
 use hash_utils::{graph::dominators::Dominators, index_vec::IndexVec};
 

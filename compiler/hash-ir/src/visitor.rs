@@ -13,7 +13,7 @@
 //!
 //! 3. The ability to hide away the boilerplate of the visitor and walking code
 //!    for nodes that don't need to be dealt with.
-use hash_layout::constant::Const;
+use hash_repr::constant::Const;
 
 use crate::{
     ir::{

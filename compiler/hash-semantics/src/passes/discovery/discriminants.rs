@@ -6,7 +6,7 @@ use hash_attrs::{
     builtin::attrs,
 };
 use hash_const_eval::Const;
-use hash_layout::ty::ToReprTy;
+use hash_repr::ty::ToReprTy;
 use hash_target::{
     abi::Integer,
     discriminant::{Discriminant, DiscriminantKind},

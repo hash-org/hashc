@@ -13,7 +13,7 @@ paste = "1.0.14"
 hash-ast = { path = "../hash-ast" }
 hash-ast-utils = { path = "../hash-ast-utils" }
 hash-error-codes = { path = "../hash-error-codes" }
-hash-layout = { path = "../hash-layout" }
+hash-repr = {path = "../hash-repr" }
 hash-reporting = { path = "../hash-reporting" }
 hash-source = { path = "../hash-source" }
 hash-storage = { path = "../hash-storage" }

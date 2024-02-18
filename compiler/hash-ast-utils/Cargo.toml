@@ -14,5 +14,5 @@ hash-token = { path = "../hash-token" }
 hash-utils = { path = "../hash-utils" }
 hash-reporting = { path = "../hash-reporting" }
 hash-const-eval = { path = "../hash-const-eval" }
-hash-layout = { path = "../hash-layout" }
+hash-repr = {path = "../hash-repr" }
 hash-storage = { path = "../hash-storage" }

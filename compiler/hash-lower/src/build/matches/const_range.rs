@@ -9,7 +9,7 @@ use hash_ir::{
     ir::{self, Const, ConstKind},
     ty::{ReprTy, ReprTyId},
 };
-use hash_layout::compute::LayoutComputer;
+use hash_repr::compute::LayoutComputer;
 use hash_storage::store::statics::StoreId;
 use hash_target::{data_layout::HasDataLayout, primitives::FloatTy};
 use hash_tir::tir::RangePat;

@@ -1,8 +1,8 @@
 use hash_ast::node_map::HasNodeMap;
 use hash_ir::HasIrCtx;
-use hash_layout::HasLayout;
 use hash_pipeline::settings::HasCompilerSettings;
 use hash_reporting::diagnostic::{Diagnostics, HasDiagnostics};
+use hash_repr::HasLayout;
 use hash_source::entry_point::EntryPointState;
 use hash_target::HasTarget;
 use hash_tir::tir::{FnDefId, ModDefId};

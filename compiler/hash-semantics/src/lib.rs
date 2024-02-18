@@ -12,13 +12,13 @@ use diagnostics::{
 use env::{HasSemanticDiagnostics, SemanticEnv};
 use hash_ast::node_map::{HasNodeMap, NodeMap};
 use hash_ir::{HasIrCtx, IrCtx};
-use hash_layout::{compute::LayoutComputer, HasLayout, LayoutStorage};
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerResult, CompilerStage},
     settings::{CompilerSettings, CompilerStageKind, HasCompilerSettings},
     workspace::Workspace,
 };
 use hash_reporting::diagnostic::{DiagnosticCellStore, Diagnostics, HasDiagnostics};
+use hash_repr::{compute::LayoutComputer, HasLayout, LayoutStorage};
 use hash_source::SourceId;
 use hash_target::{HasTarget, Target};
 use hash_tir_utils::lower::{HasTyCache, TyCache};

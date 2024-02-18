@@ -8,7 +8,7 @@ use std::{
 
 use hash_ast::ast::AstNodeId;
 pub use hash_const_eval::op::*;
-pub use hash_layout::constant::{Const, ConstKind};
+pub use hash_repr::constant::{Const, ConstKind};
 pub use hash_source::constant::{AllocId, Scalar};
 use hash_source::{identifier::Identifier, location::Span, SourceId};
 use hash_storage::{

@@ -1,8 +1,8 @@
 //! Wrapper around the typechecker to provide an interface to
 //! intrinsic functions.
 
-use hash_layout::{compute::LayoutComputer, HasLayout};
 use hash_reporting::diagnostic::Diagnostics;
+use hash_repr::{compute::LayoutComputer, HasLayout};
 use hash_source::identifier::Identifier;
 use hash_target::{HasTarget, Target};
 use hash_tir::{

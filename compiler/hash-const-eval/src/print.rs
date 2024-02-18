@@ -3,7 +3,7 @@ use std::{
     iter,
 };
 
-use hash_layout::{
+use hash_repr::{
     compute::LayoutComputer,
     constant::{Const, ConstKind},
     ty::{AdtFlags, ReprTy, VariantIdx, COMMON_REPR_TYS},

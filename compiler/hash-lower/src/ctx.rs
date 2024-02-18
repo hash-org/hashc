@@ -3,12 +3,12 @@
 //! other operations.
 
 use hash_ir::{ty::ReprTyId, HasIrCtx, IrCtx};
-use hash_layout::{
+use hash_pipeline::{interface::CompilerOutputStream, settings::CompilerSettings};
+use hash_repr::{
     compute::{LayoutComputer, LayoutError},
     write::{LayoutWriter, LayoutWriterConfig},
     LayoutId, LayoutStorage, TyInfo,
 };
-use hash_pipeline::{interface::CompilerOutputStream, settings::CompilerSettings};
 use hash_storage::store::statics::SequenceStoreValue;
 use hash_target::{HasTarget, Target};
 use hash_tir::{
