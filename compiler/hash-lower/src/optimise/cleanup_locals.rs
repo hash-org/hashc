@@ -29,7 +29,7 @@ pub struct CleanupLocalPass;
 
 impl IrOptimisationPass for CleanupLocalPass {
     fn name(&self) -> &'static str {
-        "cleanup_locals"
+        "optimise::cleanup_locals"
     }
 
     /// Pass [CleanupLocalPass] is always enabled since it performs

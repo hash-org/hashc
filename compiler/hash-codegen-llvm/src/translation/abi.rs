@@ -54,10 +54,6 @@ impl<'b, 'm> AbiBuilderMethods<'b> for LLVMBuilder<'_, 'b, 'm> {
 }
 
 pub trait ExtendedArgAbiMethods<'m> {
-    /// Get the type of the memory location that is backing
-    /// the given [ArgAbi].
-    fn get_memory_ty(&self, ctx: &CodeGenCtx<'_, 'm>) -> AnyTypeEnum<'m>;
-
     /// Store the given [AnyValueEnum] into the given [PlaceRef].
     fn store(
         &self,
@@ -119,10 +115,6 @@ impl<'m> ExtendedArgAbiMethods<'m> for ArgAbi {
                 self.store(builder, arg, destination)
             }
         }
-    }
-
-    fn get_memory_ty(&self, ctx: &CodeGenCtx<'_, 'm>) -> AnyTypeEnum<'m> {
-        self.info.llvm_ty(ctx)
     }
 }
 
