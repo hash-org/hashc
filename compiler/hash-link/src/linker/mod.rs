@@ -1,6 +1,7 @@
 //! Defines a generic linker interface and functions that create
 //! an instance of a [Linker] with the provided compiler settings
 //! and target options.
+#![allow(dead_code)] // @@Temporary: remove when all linker methods are used.
 
 use std::{
     ffi::{OsStr, OsString},
