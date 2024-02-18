@@ -192,33 +192,33 @@
   | union_type
   | ref_type
 
-tuple_type = ( &quot;(&quot; ( type &quot;,&quot; )* &quot;)&quot; ) | ( &quot;(&quot; ( type &quot;,&quot; )+ type &quot;)&quot; )
+tuple_type = ( "(" ( type "," )* ")" ) | ( "(" ( type "," )+ type ")" )
 
-list_type = &quot;[&quot; type &quot;]&quot;
+list_type = "[" type "]"
 
-map_type = &quot;{&quot; type &quot;:&quot; type &quot;}&quot;
+map_type = "{" type ":" type "}"
 
-set_type = &quot;{&quot; type &quot;}&quot;
+set_type = "{" type "}"
 
-grouped_type = &quot;(&quot; type &quot;)&quot;
+grouped_type = "(" type ")"
 
 named_type = access_name
 
-function_type_param = type | ( ident &quot;:&quot; type )
+function_type_param = type | ( ident ":" type )
 
-function_type = &quot;(&quot; ( function_type_param &quot;,&quot; )* function_type_param? &quot;)&quot; &quot;-&gt;&quot; type
+function_type = "(" ( function_type_param "," )* function_type_param? ")" "-&gt;" type
 
-type_function_call_arg = type | ( ident &quot;=&quot; type )
-type_function_call = ( grouped_type | named_type ) &quot;&lt;&quot; ( type_function_call_arg &quot;,&quot; )* type_function_call_arg? &quot;&gt;&quot;
+type_function_call_arg = type | ( ident "=" type )
+type_function_call = ( grouped_type | named_type ) "&lt;" ( type_function_call_arg "," )* type_function_call_arg? "&gt;"
 
-type_function_param = ident ( &quot;:&quot; type )? ( &quot;=&quot; type )?
+type_function_param = ident ( ":" type )? ( "=" type )?
 
-type_function = &quot;&lt;&quot; ( type_function_param &quot;,&quot; )* type_function_param? &quot;&gt;&quot; &quot;-&gt;&quot; type
+type_function = "&lt;" ( type_function_param "," )* type_function_param? "&gt;" "-&gt;" type
 
-merge_type = ( type &quot;~&quot; )+ type
-union_type = ( type &quot;|&quot; )+ type
+merge_type = ( type "~" )+ type
+union_type = ( type "|" )+ type
 
-ref_type = &quot;&amp;&quot; ( &quot;raw&quot; )? ( &quot;mut&quot; )? type
+ref_type = "&amp;" ( "raw" )? ( "mut" )? type
 </code></pre>
 
                     </main>

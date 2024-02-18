@@ -196,18 +196,18 @@ The special type <code>Self</code> denotes the type for which the trait is imple
 
 Dog ~= Printable {
   // `Self = Dog` inferred
-  print = (self) =&gt; io::printf(f&quot;Doge with name {self.name} and age {self.age}&quot;);
+  print = (self) =&gt; io::printf(f"Doge with name {self.name} and age {self.age}");
 };
 </code></pre>
 <p>Now a <code>Dog</code> is assignable to any type that has bound <code>Printable</code>.</p>
-<p>The <code>~=</code> operator is the combination of <code>~</code> and <code>=</code> operators, and it is equivalent to </p>
+<p>The <code>~=</code> operator is the combination of <code>~</code> and <code>=</code> operators, and it is equivalent to</p>
 <pre><code class="language-rs">Dog = Dog ~ Printable { ... };
 </code></pre>
-<p>The <code>~</code> operator means &quot;attach&quot;, and it is used to attach implementations of traits to structs and enums.</p>
+<p>The <code>~</code> operator means "attach", and it is used to attach implementations of traits to structs and enums.</p>
 <p>Trait implementations can be created without having to attach them to a specific type:</p>
 <pre><code class="language-rs">DogPrintable := Printable {
   Self = Dog, // Self can no longer be inferred, it needs to be explicitly specified.
-  print = (self) =&gt; io.printf(f&quot;Doge with name {self.name} and age {self.age}&quot;);
+  print = (self) =&gt; io.printf(f"Doge with name {self.name} and age {self.age}");
 };
 
 doge := Dog(..);
@@ -294,13 +294,13 @@ print(Vector3(1, 2, 3).cross(Vector3(4, 5, 6)));
 <p>By default, members of <code>impl</code> blocks are public, but <code>priv</code> can be written to make them private.</p>
 <h2 id="grammar"><a class="header" href="#grammar">Grammar</a></h2>
 <p>The grammar for trait definitions is as follows:</p>
-<pre><code>trait_def = &quot;trait&quot; &quot;{&quot; ( expr &quot;;&quot; )* &quot;}&quot;
+<pre><code>trait_def = "trait" "{" ( expr ";" )* "}"
 </code></pre>
 <p>The grammar for trait implementations is as follows:</p>
-<pre><code>trait_impl = ident &quot;{&quot; ( expr &quot;;&quot; )* &quot;}&quot;
+<pre><code>trait_impl = ident "{" ( expr ";" )* "}"
 </code></pre>
 <p>The grammar for standalone <code>impl</code> blocks is as follows:</p>
-<pre><code>impl_block = &quot;impl&quot; &quot;{&quot; ( expr &quot;;&quot; )* &quot;}&quot;
+<pre><code>impl_block = "impl" "{" ( expr ";" )* "}"
 </code></pre>
 
                     </main>

@@ -180,12 +180,12 @@
 <h2 id="current-backend"><a class="header" href="#current-backend">Current backend</a></h2>
 <p>The current backend uses a Bytecode representation of the program which will run in a Virtual
 machine that implements garbage collection. This is similar to Python's approach to running
-programs, but however as we all know, Python is incredibly terrible for performant code 
+programs, but however as we all know, Python is incredibly terrible for performant code
 (unless using C bindings).</p>
 <p>We want to move away from using a Virtual machine as the main backend and actually provide
 executables that can be run on <code>x86_64</code> backend using either a native (naive) backend, and
 LLVM.</p>
-<p>However, there are advantages to having a VM implementation for the language, which are 
+<p>However, there are advantages to having a VM implementation for the language, which are
 primarily:</p>
 <ul>
 <li>We can have an interactive mode, execute code on the fly (with a minor performance hit)</li>

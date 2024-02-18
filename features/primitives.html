@@ -223,15 +223,15 @@ w: [u64] = [];
 //  type
 </code></pre>
 <p>Grammar for lists:</p>
-<pre><code>list_literal = &quot;[&quot; ( expr &quot;,&quot; )* expr? &quot;]&quot;
-list_type = &quot;[&quot; type &quot;]&quot;
+<pre><code>list_literal = "[" ( expr "," )* expr? "]"
+list_type = "[" type "]"
 </code></pre>
 <h2 id="tuples"><a class="header" href="#tuples">Tuples</a></h2>
 <p>Tuples have a familiar syntax with many other languages:</p>
 <ul>
 <li>Empty tuples: <code>(,)</code> or <code>()</code></li>
 <li>Singleton tuple : <code>(A,)</code></li>
-<li>Many membered tuple: <code>(A, B, C)</code> or <code>(A, B, C,)</code> </li>
+<li>Many membered tuple: <code>(A, B, C)</code> or <code>(A, B, C,)</code></li>
 </ul>
 <p>Examples:</p>
 <pre><code class="language-rs">empty_tuple: (,) = (,);
@@ -242,7 +242,7 @@ empty_tuple: () = ();
 //           ^^
 //          type
 
-some_tuple: (str, u32) = (&quot;string&quot;, 12);
+some_tuple: (str, u32) = ("string", 12);
 //          ^^^^^^^^^^
 //             type
 
@@ -252,7 +252,7 @@ Although, they are intended to be used mostly for pattern matching, you can acce
 If this is the case, you should consider using a structural data type which will allow you to do the same thing, and name the fields.
 Read more about patterns <a href="patterns.html">here</a>.</p>
 <p>Grammar for tuples:</p>
-<pre><code>tuple_literal = ( &quot;(&quot; ( expr &quot;,&quot; )* &quot;)&quot; ) | ( &quot;(&quot; ( expr &quot;,&quot; )* expr &quot;)&quot; )
+<pre><code>tuple_literal = ( "(" ( expr "," )* ")" ) | ( "(" ( expr "," )* expr ")" )
 </code></pre>
 <h3 id="named-tuples"><a class="header" href="#named-tuples">Named tuples</a></h3>
 <p>Named tuples are tuples that specify field names for each field within the tuple.
@@ -270,13 +270,13 @@ For example:</p>
 </code></pre>
 <p>Then, you can create a <code>Comment</code> instance and then access its fields like so:</p>
 <pre><code class="language-rs">comment := Comment(
-    contents = &quot;Hello, world&quot;,
+    contents = "Hello, world",
     anchor = (
         start = 2,
         end = 4
     ),
     edited = false,
-    author_id = &quot;f9erf8g43&quot;
+    author_id = "f9erf8g43"
 );
 
 print(abs(comment.anchor.start - comment.anchor.end));
@@ -287,7 +287,7 @@ print(abs(comment.anchor.start - comment.anchor.end));
 // This can also be done like so (but shouldn't be used):
 anchor: (start: u32, end: u32) = (1, 2); // Warning: assigning unnamed tuple to named tuple.
 </code></pre>
-<p>Named tuples can be coerced into <em>unnamed</em> tuples if the type layout of both tuples matches. 
+<p>Named tuples can be coerced into <em>unnamed</em> tuples if the type layout of both tuples matches.
 However, this is not recommended because specifically naming tuples implies that the type
 cares about the names of the fields rather than simply being a positionally structural type.</p>
 <h2 id="sets"><a class="header" href="#sets">Sets</a></h2>
@@ -299,7 +299,7 @@ The syntax for sets is as follows:</p>
 <li>Many membered set: <code>{A, B, C}</code> or <code>{A, B, C,}</code>.</li>
 <li>Set type: <code>{A}</code>, for example <code>foo: {i32} = {1, 2, 3}</code>.</li>
 </ul>
-<pre><code>set_literal = ( &quot;{&quot; &quot;,&quot; &quot;}&quot; ) | ( &quot;{&quot; ( expr &quot;,&quot; )+ &quot;}&quot; ) | ( &quot;{&quot; ( expr &quot;,&quot; )* expr &quot;}&quot; )
+<pre><code>set_literal = ( "{" "," "}" ) | ( "{" ( expr "," )+ "}" ) | ( "{" ( expr "," )* expr "}" )
 </code></pre>
 <h3 id="map"><a class="header" href="#map">Map</a></h3>
 <p>Maps in Hash represent collections of key-value pairs.
@@ -309,9 +309,9 @@ The syntax for maps is as follows:</p>
 <li>Empty map: <code>{:}</code>.</li>
 <li>Singleton map : <code>{A:1}</code> or <code>{A:1,}</code>.</li>
 <li>Many membered map: <code>{A: 1, B: 2, C: 3}</code> or <code>{A: 1, B: 2, C: 3,}</code> .</li>
-<li>Map type: <code>{K:V}</code>, for example <code>names: {str:str} = {&quot;thom&quot;:&quot;yorke&quot;, &quot;jonny&quot;:&quot;greenwood&quot;}</code>.</li>
+<li>Map type: <code>{K:V}</code>, for example <code>names: {str:str} = {"thom":"yorke", "jonny":"greenwood"}</code>.</li>
 </ul>
-<pre><code>map_literal = ( &quot;{&quot; &quot;:&quot; &quot;}&quot; ) | ( &quot;{&quot; ( expr &quot;:&quot; expr &quot;,&quot; )* ( expr &quot;:&quot; expr )? &quot;}&quot; )
+<pre><code>map_literal = ( "{" ":" "}" ) | ( "{" ( expr ":" expr "," )* ( expr ":" expr )? "}" )
 </code></pre>
 <p><strong>Note</strong>: the grammar for literal types can be found in the <a href="./types.html">Types</a> section.</p>
 

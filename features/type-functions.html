@@ -216,7 +216,7 @@ make_ref_counted := &lt;Inner: Sized&gt; =&gt; (value: Inner) -&gt; RefCounted&l
   )
 };
 
-my_ref_counted_string = make_ref_counted(&quot;Bilbo bing bong&quot;); // `Inner = str` inferred
+my_ref_counted_string = make_ref_counted("Bilbo bing bong"); // `Inner = str` inferred
 </code></pre>
 <p>In order to explicitly infer specific arguments, you can use the <code>_</code> sigil:</p>
 <pre><code class="language-rs">Convert := &lt;I, O&gt; =&gt; trait {

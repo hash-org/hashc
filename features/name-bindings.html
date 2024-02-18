@@ -178,16 +178,16 @@
                     <main>
                         <h1 id="name-bindings"><a class="header" href="#name-bindings">Name bindings</a></h1>
 <h2 id="basics"><a class="header" href="#basics">Basics</a></h2>
-<p>Name bindings are made of three distinct components. The name, the type and the 
+<p>Name bindings are made of three distinct components. The name, the type and the
 value that is assigned to the name.</p>
 <p>Declaration of variables happens using the <code>:</code> and <code>=</code> symbols:</p>
 <pre><code class="language-rs">x: i32 = 3;
 </code></pre>
 <p>The <code>:</code> symbol is used to denote the type of a variable, and the <code>=</code> symbol is used to assign a value to it.
 The type can be omitted, in which case it is inferred:</p>
-<pre><code class="language-rs">x := &quot;Terence Tao&quot;; // `x: str` inferred
-x: str = &quot;Terence Tao&quot;; // same thing
-x: i32 = &quot;Terence Tao&quot;; // Compile error: `str` is not assignable to `i32`.
+<pre><code class="language-rs">x := "Terence Tao"; // `x: str` inferred
+x: str = "Terence Tao"; // same thing
+x: i32 = "Terence Tao"; // Compile error: `str` is not assignable to `i32`.
 </code></pre>
 <p>Declaration and assignment can happen separately:</p>
 <pre><code class="language-rs">x: i32:
@@ -198,12 +198,12 @@ print(x); // Ok
 <p>A variable declaration is an expression like any other, and returns the value of the variable.
 This means that you can write something like:</p>
 <pre><code class="language-rs">while (bytes_read := read_file(&amp;buffer)) != 0 {
-  print(&quot;Read some bytes!&quot;);
+  print("Read some bytes!");
 }
 </code></pre>
 <p>Hash is statically typed, which means that variables cannot change types:</p>
-<pre><code>x := &quot;Ha!&quot;;
-x = Some(&quot;Baaa&quot;); // Compile error: `Option&lt;str&gt;` is not assignable to `str`.
+<pre><code>x := "Ha!";
+x = Some("Baaa"); // Compile error: `Option&lt;str&gt;` is not assignable to `str`.
 </code></pre>
 <h2 id="mutability"><a class="header" href="#mutability">Mutability</a></h2>
 <p>By default, all bindings in Hash are constant.
@@ -237,12 +237,12 @@ Foo := trait {
 <h2 id="grammar"><a class="header" href="#grammar">Grammar</a></h2>
 <p>The grammar for name bindings (and partial name bindings/reassignments) is as follows:</p>
 <pre><code>pattern = pattern_binding | ...(other patterns)
-pattern_binding = ( &quot;pub&quot; | &quot;priv&quot; )? &quot;mut&quot;? identifier
+pattern_binding = ( "pub" | "priv" )? "mut"? identifier
 
 name_binding =
-  | ( pattern &quot;:=&quot; expr )  // Declaration and assignment, infer type
-  | ( pattern ( &quot;:&quot; type )? &quot;=&quot; expr  ) // Assignment
-  | ( pattern ( &quot;:&quot; type )  ) // Declaration
+  | ( pattern ":=" expr )  // Declaration and assignment, infer type
+  | ( pattern ( ":" type )? "=" expr  ) // Assignment
+  | ( pattern ( ":" type )  ) // Declaration
 </code></pre>
 
                     </main>

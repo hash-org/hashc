@@ -190,29 +190,29 @@ For example, consider the following snippet of code:</p>
 </span>foo := get_foo(); // foo: i32
 
 match foo {
-    1 =&gt; print(&quot;Got one&quot;);
-    2 =&gt; print(&quot;Got two&quot;);
-    3 =&gt; print(&quot;Got three&quot;);
-    _ =&gt; print(&quot;Got something else&quot;);
+    1 =&gt; print("Got one");
+    2 =&gt; print("Got two");
+    3 =&gt; print("Got three");
+    _ =&gt; print("Got something else");
 }
 <span class="boring">}</span></code></pre></pre>
 <p>On the left-hand side of the match cases there are the literal patterns <code>1</code>, <code>2</code> and <code>3</code>.
 These perform <code>foo == 1</code>, <code>foo == 2</code> and <code>foo == 3</code> in sequence, and the code follows the branch which succeeds first.
-If no branch succeeds, the <code>_</code> branch is followed, which means &quot;match anything&quot;.
+If no branch succeeds, the <code>_</code> branch is followed, which means "match anything".
 Literals can be integer literals for integer types (signed or unsigned), string literals for the <code>str</code> type, or character literals for the <code>char</code> type:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>match my_char {
-    'A' =&gt; print(&quot;First letter&quot;);
-    'B' =&gt; print(&quot;Second letter&quot;);
-    x =&gt; print(&quot;Letter is: &quot; + conv(x));
+    'A' =&gt; print("First letter");
+    'B' =&gt; print("Second letter");
+    x =&gt; print("Letter is: " + conv(x));
 }
 
 match my_str {
-    &quot;fizz&quot; =&gt; print(&quot;Multiple of 3&quot;);
-    &quot;buzz&quot; =&gt; print(&quot;Multiple of 5&quot;);
-    &quot;fizzbuzz&quot; =&gt; print(&quot;Multiple of 15&quot;);
-    _ =&gt; print(&quot;Not a multiple of 3 or 5&quot;);
+    "fizz" =&gt; print("Multiple of 3");
+    "buzz" =&gt; print("Multiple of 5");
+    "fizzbuzz" =&gt; print("Multiple of 15");
+    _ =&gt; print("Not a multiple of 3 or 5");
 }
 <span class="boring">}</span></code></pre></pre>
 <h2 id="binding-patterns"><a class="header" href="#binding-patterns">Binding patterns</a></h2>
@@ -221,8 +221,8 @@ A binding pattern is any valid Hash identifier:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>match fallible_operation() { // fallible_operation: () -&gt; Result&lt;f32, i32&gt;
-    Ok(success) =&gt; print(&quot;Got success &quot; + conv(result)); // success: f32
-    Err(failure) =&gt; print(&quot;Got failure &quot; + conv(failure)); // failure: i32
+    Ok(success) =&gt; print("Got success " + conv(result)); // success: f32
+    Err(failure) =&gt; print("Got failure " + conv(failure)); // failure: i32
 }
 <span class="boring">}</span></code></pre></pre>
 <h2 id="tuple-patterns"><a class="header" href="#tuple-patterns">Tuple patterns</a></h2>
@@ -233,12 +233,12 @@ They are irrefutable if their inner patterns are irrefutable, so they can be use
 </span>Cat := struct(name: str);
 
 // Creating a tuple:
-my_val := (Cat(&quot;Bob&quot;), [1, 2, 3]); // my_val: (Cat, [i32])
+my_val := (Cat("Bob"), [1, 2, 3]); // my_val: (Cat, [i32])
 
 // Tuple pattern:
 (Cat(name), elements) := my_val;
 
-assert(name == &quot;Bob&quot;);
+assert(name == "Bob");
 assert(elements == [1, 2, 3]);
 <span class="boring">}</span></code></pre></pre>
 <h2 id="constructor-patterns"><a class="header" href="#constructor-patterns">Constructor patterns</a></h2>
@@ -250,11 +250,11 @@ For example:</p>
 </span><span class="boring">fn main() {
 </span>Option := &lt;T&gt; =&gt; enum(Some(value: T), None);
 
-my_val := Some(&quot;haha&quot;);
+my_val := Some("haha");
 
 match my_val {
     // Matching the Some(..) constructor
-    Some(inner) =&gt; assert(inner == &quot;haha&quot;); // inner: str
+    Some(inner) =&gt; assert(inner == "haha"); // inner: str
     // Matching the None constructor
     None =&gt; assert(false);
 }
@@ -265,14 +265,14 @@ match my_val {
 </span>Dog := struct(name: str, breed: str);
 
 Dog(breed = dog_breed, name = dog_name) = Dog(
-    name = &quot;Bob&quot;,
-    breed = &quot;Husky&quot;
+    name = "Bob",
+    breed = "Husky"
 ) // dog_breed: str, dog_name: str
 
 // Same as:
 Dog(name, breed) = Dog(
-    name = &quot;Bob&quot;,
-    breed = &quot;Husky&quot;
+    name = "Bob",
+    breed = "Husky"
 ) // breed: str, name: str
 <span class="boring">}</span></code></pre></pre>
 <h2 id="list-patterns"><a class="header" href="#list-patterns">List patterns</a></h2>
@@ -280,25 +280,25 @@ Dog(name, breed) = Dog(
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>match arr {
-    [a, b] =&gt; print(conv(a) + &quot; &quot; + conv(b));
-    _ =&gt; print(&quot;Other&quot;); // Matches everything other than [X, Y] for some X and Y
+    [a, b] =&gt; print(conv(a) + " " + conv(b));
+    _ =&gt; print("Other"); // Matches everything other than [X, Y] for some X and Y
 }
 <span class="boring">}</span></code></pre></pre>
 <p>The <code>...</code> spread operator can be used to capture or ignore the rest of the elements of the list at some position:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>match arr {
-    [a, b, ...] =&gt; print(conv(a) + &quot; &quot; + conv(b));
-    _ =&gt; print(&quot;Other&quot;); // Only matches [] and [X] for some X
+    [a, b, ...] =&gt; print(conv(a) + " " + conv(b));
+    _ =&gt; print("Other"); // Only matches [] and [X] for some X
 }
 <span class="boring">}</span></code></pre></pre>
 <p>If you want to match the remaining elements with some pattern, you can specify a pattern after the <code>spread</code> operator like so:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>match arr {
-    [a, b, ...rest] =&gt; print(conv(a) + &quot; &quot; + conv(b) + &quot; &quot; + conv(rest));
+    [a, b, ...rest] =&gt; print(conv(a) + " " + conv(b) + " " + conv(rest));
     [...rest, c] =&gt; print(conv(c)); // Only matches [X] for some X, rest is always []
-    _ =&gt; print(&quot;Other&quot;); // Only matches []
+    _ =&gt; print("Other"); // Only matches []
 }
 <span class="boring">}</span></code></pre></pre>
 <p>One obvious limitation of the <code>spread</code> operator is that you can only use it once in the list pattern.
@@ -322,10 +322,10 @@ They follow a simple syntax:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// imports only a and b from the module
-{a, b} := import(&quot;./my_lib&quot;);
+{a, b} := import("./my_lib");
 
 // imports c as my_c, and d from the module.
-{c as my_c, d} := import(&quot;./other_lib&quot;); 
+{c as my_c, d} := import("./other_lib"); 
 
 // imports Cat from the nested module as NestedCat
 {Cat as NestedCat} := mod {
@@ -339,7 +339,7 @@ To read more about modules, you can click <a href="./modules.html">here</a>.</p>
 For example:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>symmetric_result: Result&lt;str, str&gt; := Ok(&quot;bilbobaggins&quot;);
+</span>symmetric_result: Result&lt;str, str&gt; := Ok("bilbobaggins");
 
 (Ok(inner) | Err(inner)) := symmetric_result; // inner: str
 <span class="boring">}</span></code></pre></pre>
@@ -350,9 +350,9 @@ Another use-case of or-patterns is to collapse match cases:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>match color {
-    Red | Blue | Green =&gt; print(&quot;Primary additive&quot;);
-    Cyan | Magenta | Yellow =&gt; print(&quot;Primary subtractive&quot;);
-    _ =&gt; print(&quot;Unimportant color&quot;);
+    Red | Blue | Green =&gt; print("Primary additive");
+    Cyan | Magenta | Yellow =&gt; print("Primary subtractive");
+    _ =&gt; print("Unimportant color");
 }
 <span class="boring">}</span></code></pre></pre>
 <h2 id="conditional-patterns"><a class="header" href="#conditional-patterns">Conditional patterns</a></h2>
@@ -361,16 +361,16 @@ Another use-case of or-patterns is to collapse match cases:</p>
 </span><span class="boring">fn main() {
 </span>match my_result {
     Ok(inner) if inner &gt; threshold * 2.0 =&gt; {
-        print(&quot;Phew, above twice the threshold&quot;);
+        print("Phew, above twice the threshold");
     };
     Ok(inner) if inner &gt; threshold =&gt; {
-        print(&quot;Phew, above the threshold but cutting it close!&quot;);
+        print("Phew, above the threshold but cutting it close!");
     };
     Ok(inner) =&gt; {
-        print(&quot;The result was successful but the value was below the threshold&quot;);
+        print("The result was successful but the value was below the threshold");
     };
     Err(_) =&gt; {
-        print(&quot;The result was unsuccessful... Commencing auto-destruct sequence.&quot;);
+        print("The result was unsuccessful... Commencing auto-destruct sequence.");
         auto_destruct();
     };
 }
@@ -401,27 +401,27 @@ single_pattern =
     | literal_pattern
     | list_pattern
 
-or_pattern = ( single_pattern &quot;|&quot; )+ single_pattern
+or_pattern = ( single_pattern "|" )+ single_pattern
 
 binding_pattern = identifier
 
-tuple_pattern_member = identifier | ( identifier &quot;=&quot; single_pattern )
+tuple_pattern_member = identifier | ( identifier "=" single_pattern )
 
-constructor_pattern = access_name ( &quot;(&quot; ( tuple_pattern_member &quot;,&quot; )* tuple_pattern_member? &quot;)&quot; )?
+constructor_pattern = access_name ( "(" ( tuple_pattern_member "," )* tuple_pattern_member? ")" )?
 
 tuple_pattern = 
-    | ( &quot;(&quot; ( tuple_pattern_member &quot;,&quot; )+ tuple_pattern_member? &quot;)&quot; ) 
-    | ( &quot;(&quot; tuple_pattern_member &quot;,&quot; &quot;)&quot; )
+    | ( "(" ( tuple_pattern_member "," )+ tuple_pattern_member? ")" ) 
+    | ( "(" tuple_pattern_member "," ")" )
 
-module_pattern_member = identifier ( &quot;as&quot; single_pattern )?
+module_pattern_member = identifier ( "as" single_pattern )?
 
-module_pattern = &quot;{&quot; ( module_pattern_member &quot;,&quot; )* module_pattern_member? &quot;}&quot;
+module_pattern = "{" ( module_pattern_member "," )* module_pattern_member? "}"
 
 literal_pattern = integer_literal | string_literal | character_literal | float_literal
 
-list_pattern_member = pattern | ( &quot;...&quot; identifier? )
+list_pattern_member = pattern | ( "..." identifier? )
 
-list_pattern = &quot;[&quot; ( list_pattern_member &quot;,&quot; )* list_pattern_member? &quot;]&quot;
+list_pattern = "[" ( list_pattern_member "," )* list_pattern_member? "]"
 </code></pre>
 
                     </main>

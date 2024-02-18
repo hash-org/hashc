@@ -178,7 +178,7 @@
                     <main>
                         <h1 id="if-statement-transpilation"><a class="header" href="#if-statement-transpilation">If Statement transpilation</a></h1>
 <p>As mentioned at the start of the conditionals section in the basics chapter, if statements can be
-represented as <code>match</code> statements. This is especially advised when you have many <code>if</code> branched and 
+represented as <code>match</code> statements. This is especially advised when you have many <code>if</code> branched and
 more complicated branch conditions.</p>
 <p>Internally, the compiler will convert <code>if</code> statements into match cases so that it has to do
 less work in the following stages of compilation.</p>
@@ -206,19 +206,19 @@ match true {
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>if conditionA {
-  print(&quot;conditionA&quot;)
+  print("conditionA")
 } else if conditionB {
-  print(&quot;conditionB&quot;)
+  print("conditionB")
 } else {
-  print(&quot;Neither&quot;)
+  print("Neither")
 }
 
 // Internally, this becomes:
 
 match true {
-  _ if conditionA =&gt; { print(&quot;conditionA&quot;) };
-  _ if conditionB =&gt; { print(&quot;conditionB&quot;) };
-  _ =&gt; { print(&quot;Neither&quot;) };
+  _ if conditionA =&gt; { print("conditionA") };
+  _ if conditionB =&gt; { print("conditionB") };
+  _ =&gt; { print("Neither") };
 }
 <span class="boring">}</span></code></pre></pre>
 <p>However, this representation is not entirely accurate because the compiler will optimise out some components
@@ -232,16 +232,16 @@ statements because the <code>else</code> branch will have an assigned empty expr
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>if conditionA {
-  print(&quot;conditionA&quot;)
+  print("conditionA")
 } else if conditionB {
-  print(&quot;conditionB&quot;)
+  print("conditionB")
 }
 
 // Internally, this becomes:
 
 match true {
-  _ if conditionA =&gt; { print(&quot;conditionA&quot;) };
-  _ if conditionB =&gt; { print(&quot;conditionB&quot;) };
+  _ if conditionA =&gt; { print("conditionA") };
+  _ if conditionB =&gt; { print("conditionB") };
   _ =&gt; { };
 }
 <span class="boring">}</span></code></pre></pre>

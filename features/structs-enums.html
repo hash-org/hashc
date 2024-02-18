@@ -197,9 +197,9 @@ Default values can be omitted, but can also be overridden.</p>
    name: str,
 );
 
-d := Dog(name = &quot;Bob&quot;);
+d := Dog(name = "Bob");
 
-print(d); // Dog(name = &quot;Bob&quot;, age = 42)
+print(d); // Dog(name = "Bob", age = 42)
 <span class="boring">}</span></code></pre></pre>
 <p>Structs are nominal types.
 An argument of type <code>Dog</code> can only be fulfilled by an instance of <code>Dog</code>, and you can't pass in a struct that has the same fields but is of a different named type.</p>
@@ -212,8 +212,8 @@ FakeDog := struct(
    name: str,
 );
 
-print(dog_name(d)); // &quot;Bob&quot;
-print(dog_name(FakeDog(age = 1, name = &quot;Max&quot;))); // Error: Type mismatch: was expecting `Dog`, got `FakeDog`.
+print(dog_name(d)); // "Bob"
+print(dog_name(FakeDog(age = 1, name = "Max"))); // Error: Type mismatch: was expecting `Dog`, got `FakeDog`.
 <span class="boring">}</span></code></pre></pre>
 <h1 id="enum-types"><a class="header" href="#enum-types">Enum types</a></h1>
 <p>Hash enums are similar to Rust enums or Haskell data types.
@@ -231,15 +231,15 @@ These are also known as <em>algebraic data types</em>, or <em>tagged unions</em>
 Each variant can be paired with some data, in the form of a comma-separated list of types.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>err := NetworkError::Unexpected(&quot;something went terribly wrong&quot;, 32);
+</span>err := NetworkError::Unexpected("something went terribly wrong", 32);
 <span class="boring">}</span></code></pre></pre>
 <p>They can be <code>match</code>ed to discover what they contain:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>handle_error := (error: NetworkError) =&gt; match error {
-   NoBytesReceived =&gt; print(&quot;No bytes received, stopping&quot;);
-   ConnectionTerminated =&gt; print(&quot;Connection was terminated&quot;);
-   Unexpected(message, code) =&gt; print(&quot;An unexpected error occurred: &quot; + err + &quot; (&quot; + conv(code) + &quot;) &quot;);
+   NoBytesReceived =&gt; print("No bytes received, stopping");
+   ConnectionTerminated =&gt; print("Connection was terminated");
+   Unexpected(message, code) =&gt; print("An unexpected error occurred: " + err + " (" + conv(code) + ") ");
 };
 <span class="boring">}</span></code></pre></pre>
 <p>Like structs, enums are nominal types, rather than structural.
@@ -263,18 +263,18 @@ For more information, see <a href="./type-functions.html">type functions</a>.</p
 <h2 id="grammar"><a class="header" href="#grammar">Grammar</a></h2>
 <p>The grammar for struct definitions is as follows:</p>
 <pre><code>struct_member =
-  | ( ident &quot;:=&quot; expr )  // Declaration and assignment, infer type
-  | ( ident ( &quot;:&quot; type )? &quot;=&quot; expr  ) // Assignment
-  | ( ident ( &quot;:&quot; type )  ) // Declaration
+  | ( ident ":=" expr )  // Declaration and assignment, infer type
+  | ( ident ( ":" type )? "=" expr  ) // Assignment
+  | ( ident ( ":" type )  ) // Declaration
 
-struct_def := &quot;struct&quot; &quot;(&quot; struct_member* &quot;)&quot;
+struct_def := "struct" "(" struct_member* ")"
 </code></pre>
 <p>The grammar for enum definitions is as follows:</p>
 <pre><code>enum_member =
   | ident // No fields
-  | ident &quot;(&quot; struct_member* &quot;)&quot; // With fields
+  | ident "(" struct_member* ")" // With fields
 
-enum_def := &quot;enum&quot; &quot;(&quot; enum_member* &quot;)&quot;
+enum_def := "enum" "(" enum_member* ")"
 </code></pre>
 
                     </main>

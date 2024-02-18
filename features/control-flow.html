@@ -177,16 +177,16 @@
                 <div id="content" class="content">
                     <main>
                         <h2 id="conditional-statements"><a class="header" href="#conditional-statements">Conditional statements</a></h2>
-<p>Conditional statements in the <code>Hash</code> programming language are very similar to other languages such as Python, Javascript, C and Rust. However, there is one subtle <strong>difference</strong>, which is that the statement provided to a conditional statement must always evaluate to an explicit boolean value. </p>
+<p>Conditional statements in the <code>Hash</code> programming language are very similar to other languages such as Python, Javascript, C and Rust. However, there is one subtle <strong>difference</strong>, which is that the statement provided to a conditional statement must always evaluate to an explicit boolean value.</p>
 <h2 id="if-else-statements"><a class="header" href="#if-else-statements">If-else statements</a></h2>
 <p>If statements are very basic constructs in Hash. An example of a basic <code>if-else</code> statement is as follows:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// checking if the value 'a' evaluates to being 'true'
-if a { print(&quot;a&quot;); } else { print(&quot;b&quot;); }
+if a { print("a"); } else { print("b"); }
 
 // using a comparison operator
-if b == 2 { print(&quot;b is &quot; + b); } else { print (&quot;b is not &quot; + conv(b)); }
+if b == 2 { print("b is " + b); } else { print ("b is not " + conv(b)); }
 <span class="boring">}</span></code></pre></pre>
 <p>Obviously, this checks if the evaluation of <code>a</code> returns a boolean value. If it does not
 evaluate to something to be considered as true, then the block expression defined
@@ -196,31 +196,31 @@ conditional statements. To use the <code>else-if</code> syntax, you do so like t
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>if b == 2 {
-     print(&quot;b is 2&quot;)
+     print("b is 2")
 } else if b == 3 {
-     print(&quot;b is 3&quot;)
+     print("b is 3")
 } else {
-    print(&quot;b isn't 2 or 3 &quot;)
+    print("b isn't 2 or 3 ")
 }
 <span class="boring">}</span></code></pre></pre>
-<p>As mentioned in the introduction, a conditional statement must evaluate an explicit boolean value. The <code>if</code> statement syntax will not infer a boolean value from a statement within <code>Hash</code>. This design feature is motivated by the fact that in many languages, common bugs and mistakes occur with the automatic inference of conditional statements. </p>
+<p>As mentioned in the introduction, a conditional statement must evaluate an explicit boolean value. The <code>if</code> statement syntax will not infer a boolean value from a statement within <code>Hash</code>. This design feature is motivated by the fact that in many languages, common bugs and mistakes occur with the automatic inference of conditional statements.</p>
 <p>An example of an invalid program is:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>a: u8 = 12;
 
-if a { print(&quot;a&quot;) }
+if a { print("a") }
 <span class="boring">}</span></code></pre></pre>
 <h3 id="additional-syntax"><a class="header" href="#additional-syntax">Additional syntax</a></h3>
 <p>Furthermore, if you do not want an else statement you can do:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>if a { print(&quot;a&quot;) }  // if a is true, then execute
+</span>if a { print("a") }  // if a is true, then execute
 <span class="boring">}</span></code></pre></pre>
 <p>which is syntactic sugar for:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>if a { print(&quot;a&quot;) } else {}
+</span>if a { print("a") } else {}
 <span class="boring">}</span></code></pre></pre>
 <p>Additionally, since the <code>if</code> statement body's are also equivalent to functional bodies, you
 can also specifically return a type as you would normally do within a function body:</p>
@@ -253,16 +253,16 @@ of what should happen for the <code>else</code> case.</p>
 result: Result&lt;u16, str&gt; = Ok(12);
 
 if let Ok(value) = result  { 
-  print(&quot;Got '&quot; + conv(value) + &quot;' from operation&quot;) 
+  print("Got '" + conv(value) + "' from operation") 
 } else let Err(e) = result {
-  panic(&quot;Failed to get result: &quot; + e);
+  panic("Failed to get result: " + e);
 }
 <span class="boring">}</span></code></pre></pre>
 <p>Furthermore, for more complicated conditional statements, you can include an expression
 block which is essentially treated as if it was a functional body, like so:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>f: str = &quot;file.txt&quot;;
+</span>f: str = "file.txt";
 
 if { a = open(f); is_ok(a) } {
     // run if is_ok(a) returns true
@@ -290,17 +290,17 @@ of <code>a</code> within the <code>if</code> statement body or later on in the p
 </span>a := input&lt;u8&gt;();
 
 m2 := match a {
-  1 =&gt; &quot;one&quot;;
-  2 =&gt; &quot;two&quot;;
-  _ =&gt; &quot;not one or two&quot;;
+  1 =&gt; "one";
+  2 =&gt; "two";
+  _ =&gt; "not one or two";
 }
 
 // Or as a function
 
 convert: (x: u8) =&gt; str = (x) =&gt; match x {
-  1 =&gt; &quot;one&quot;;
-  2 =&gt; &quot;two&quot;;
-  _ =&gt; &quot;not one or two&quot;;
+  1 =&gt; "one";
+  2 =&gt; "two";
+  _ =&gt; "not one or two";
 }
 
 m := convert(input&lt;u8&gt;());
@@ -310,8 +310,8 @@ the default case:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>match x {
-  1 =&gt; &quot;one&quot;;
-  2 =&gt; &quot;two&quot;;
+  1 =&gt; "one";
+  2 =&gt; "two";
   _ =&gt; unreachable(); // we know that 'x' should never be 1 or 2.
 }
 <span class="boring">}</span></code></pre></pre>
@@ -320,13 +320,13 @@ the default case:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>convert: (x: u8) =&gt; str = (x) =&gt; match x {
-  _ =&gt; &quot;not one or two&quot;;
-  1 =&gt; &quot;one&quot;;
-  2 =&gt; &quot;two&quot;;
+  _ =&gt; "not one or two";
+  1 =&gt; "one";
+  2 =&gt; "two";
 }
 <span class="boring">}</span></code></pre></pre>
-<p>The value of <code>m</code> will always evaluate as <code>&quot;not one or two&quot;</code> since the wildcard matches any condition.</p>
-<p>Match statements are also really good for destructing enum types in Hash. 
+<p>The value of <code>m</code> will always evaluate as <code>"not one or two"</code> since the wildcard matches any condition.</p>
+<p>Match statements are also really good for destructing enum types in Hash.
 For example,</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -341,8 +341,8 @@ For example,</p>
 result: Result&lt;u16, str&gt; = Ok(12);
 
 match result {
-  Ok(value) =&gt; print(&quot;Got '&quot; + conv(value) + &quot;' from operation&quot;);
-  Err(e)    =&gt; panic(&quot;Failed to get result: &quot; + e);
+  Ok(value) =&gt; print("Got '" + conv(value) + "' from operation");
+  Err(e)    =&gt; panic("Failed to get result: " + e);
 }
 <span class="boring">}</span></code></pre></pre>
 <p>To specify multiple conditions for a single case within a <code>match</code> statement, you can do so by
@@ -352,9 +352,9 @@ writing the following syntax:</p>
 </span>x: u32 = input&lt;u32&gt;();
 
 match x {
-  1 | 2 | 3       =&gt; print(&quot;x is 1, 2, or 3&quot;);
-  4 | 5 | {2 | 4} =&gt; print(&quot;x is either 4, 5 or 6&quot;); // using bitwise or operator
-  _               =&gt; print(&quot;x is something else&quot;);
+  1 | 2 | 3       =&gt; print("x is 1, 2, or 3");
+  4 | 5 | {2 | 4} =&gt; print("x is either 4, 5 or 6"); // using bitwise or operator
+  _               =&gt; print("x is something else");
 }
 <span class="boring">}</span></code></pre></pre>
 <p>To specify more complex conditional statements like and within the match case, you
@@ -365,10 +365,10 @@ can do so using the <code>match-if</code> syntax, like so:</p>
 y: bool = true;
 
 match x {
-  1 | 2 | 3 if y =&gt; print(&quot;x is 1, 2, or 3 when y is true&quot;);
-  {4 if y} | y   =&gt; print(&quot;x is 4 and y is true, or  x is equal to y&quot;); // using bitwise or operator
-  {2 | 4 if y}   =&gt; print(&quot;x is 6 and y is true&quot;);
-  _              =&gt; print(&quot;x is something else&quot;);
+  1 | 2 | 3 if y =&gt; print("x is 1, 2, or 3 when y is true");
+  {4 if y} | y   =&gt; print("x is 4 and y is true, or  x is equal to y"); // using bitwise or operator
+  {2 | 4 if y}   =&gt; print("x is 6 and y is true");
+  _              =&gt; print("x is something else");
 }
 <span class="boring">}</span></code></pre></pre>
 <h1 id="loop-constructs"><a class="header" href="#loop-constructs">Loop constructs</a></h1>
@@ -386,7 +386,7 @@ remain, <code>continue</code> behaves just like <code>break</code>.</p>
 <h2 id="for-loop"><a class="header" href="#for-loop">For loop</a></h2>
 <h3 id="basics"><a class="header" href="#basics">Basics</a></h3>
 <p>For loops are special loop control statements that are designed to be used
-with iterators. </p>
+with iterators.</p>
 <p>For loops can be defined as:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -394,7 +394,7 @@ with iterators. </p>
     print(i);
 }
 <span class="boring">}</span></code></pre></pre>
-<p>Iterating over lists is also quite simple using the <code>iter</code> function to 
+<p>Iterating over lists is also quite simple using the <code>iter</code> function to
 convert the list into an iterator:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -412,7 +412,7 @@ for num in iter(nums) {
 <span class="boring">}</span></code></pre></pre>
 <h3 id="iterators"><a class="header" href="#iterators">iterators</a></h3>
 <p>Iterators ship with the standard library, but you can define your own iterators via the Hash generic typing system.</p>
-<p>An iterator <code>I</code> of <code>T</code> it means to have an implementation <code>next&lt;I, T&gt;</code> in scope the current scope. 
+<p>An iterator <code>I</code> of <code>T</code> it means to have an implementation <code>next&lt;I, T&gt;</code> in scope the current scope.
 So, for the example above, the <code>range</code> function is essentially a <code>RangeIterator</code> of the <code>u8</code>, <code>u16</code>, <code>u32</code>, <code>...</code> types.</p>
 <p>More details about generics are <a href="./generics-polymorphism.html">here</a>.</p>
 <h2 id="while-loop"><a class="header" href="#while-loop">While loop</a></h2>
@@ -470,7 +470,7 @@ before the final expression. For example:</p>
     print(i);
 }
 <span class="boring">}</span></code></pre></pre>
-<p>It is worth noting that the looping expression whether block or not must explicitly have the 
+<p>It is worth noting that the looping expression whether block or not must explicitly have the
 <code>boolean</code> return type. For example, the code below will fail typechecking:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -498,7 +498,7 @@ while c -= 1 {
 </span>c: u64 = 1;
 
 loop {
-    print(&quot;I looped &quot; + c + &quot; times!&quot;);
+    print("I looped " + c + " times!");
     c += 1;
 }
 <span class="boring">}</span></code></pre></pre>
@@ -511,7 +511,7 @@ loop {
 loop {
     if c == 10 { break }
 
-    print(&quot;I looped &quot; + c + &quot; times!&quot;);
+    print("I looped " + c + " times!");
     c += 1;
 } // this will loop 10 times, and print all 10 times
 <span class="boring">}</span></code></pre></pre>
@@ -523,7 +523,7 @@ loop {
     c += 1;
     if c % 2 != 0 { continue };
 
-    print(&quot;I loop and I print when I get a  &quot; + c);
+    print("I loop and I print when I get a  " + c);
 } // this will loop 10 times, and print only when c is even
 <span class="boring">}</span></code></pre></pre>
 

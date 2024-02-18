@@ -178,8 +178,8 @@
                     <main>
                         <h1 id="loop-transpilation"><a class="header" href="#loop-transpilation">Loop transpilation</a></h1>
 <p>As mentioned at the start of the <a href="./../basics/loops.html">loops</a> section in the <a href="./../basics/intro.html">basics</a> chapter, the <code>loop</code> control flow keyword
-is the most universal control flow since to you can use <code>loop</code> to represent 
-both the <code>for</code> and <code>while</code> loops. </p>
+is the most universal control flow since to you can use <code>loop</code> to represent
+both the <code>for</code> and <code>while</code> loops.</p>
 <h3 id="for-loop-transpilation"><a class="header" href="#for-loop-transpilation">for loop transpilation</a></h3>
 <p>Since <code>for</code> loops are used for iterators in hash, we transpile the construct into
 a primitive loop. An iterator can be traversed by calling the <code>next</code> function on the
@@ -206,7 +206,7 @@ loop {
 </span>i := [1,2,3,5].into_iter();
 
 for x in i {
-    print(&quot;x is &quot; + x);
+    print("x is " + x);
 }
 
 
@@ -215,13 +215,13 @@ i := [1,2,3,5].into_iter();
 
 loop {
   match next(i) {
-    Some(x) =&gt; {print(&quot;x is &quot; + x)};
+    Some(x) =&gt; {print("x is " + x)};
     None =&gt; break;
   }
 }
 <span class="boring">}</span></code></pre></pre>
 <h3 id="while-loop-internal-representation"><a class="header" href="#while-loop-internal-representation">While loop internal representation</a></h3>
-<p>In general, a while loop transpilation process occurs by transferring the looping 
+<p>In general, a while loop transpilation process occurs by transferring the looping
 condition into a match block, which compares a boolean condition. If the boolean
 condition evaluates to <code>false</code>, the loop will immediately <code>break</code>. Otherwise
 the body expression is expected. A rough outline of what the transpilation process for a <code>while</code> loop looks like:</p>

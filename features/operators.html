@@ -239,13 +239,13 @@ a specific group of operations or are used to convey meaning within the language
 <h2 id="basics"><a class="header" href="#basics">Basics</a></h2>
 <p>As in many other languages, the programmer can specify the type of a variable or
 a literal by using some special syntax. For example, in languages such as typescript,
-you can say that: </p>
+you can say that:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>some_value as str
 <span class="boring">}</span></code></pre></pre>
 <p>which implies that you are asserting that <code>some_value</code> is a string, this is essentially a way to avoid explicitly stating that type of a variable every
-single time and telling the compiler &quot;Trust me <code>some_value</code> is a <code>string</code>&quot;. </p>
+single time and telling the compiler "Trust me <code>some_value</code> is a <code>string</code>".</p>
 <p>The principle is somewhat similar in <code>Hash</code>, but it is more strictly enforced.
 For example, within the statement <code>x := 37;</code>, the type of <code>x</code> can be any of the
 integer types. This might lead to unexpected behaviour in future statements, where
@@ -253,37 +253,37 @@ the compiler has decided the type of <code>x</code> (it might not be what you in
 <p>So, you can either declare <code>x</code> to be some integer type explicitly like so:</p>
 <pre><code class="language-rs">x: u32 = 37;
 </code></pre>
-<p>Or you can, use <code>as</code> to imply a type for a variable, which the compiler will assume 
+<p>Or you can, use <code>as</code> to imply a type for a variable, which the compiler will assume
 to be true, like so:</p>
 <pre><code class="language-rs">x := 37 as u32;
 </code></pre>
 <h2 id="failing-type-assertions"><a class="header" href="#failing-type-assertions">Failing type assertions</a></h2>
 <p>If you specify a type assertion, the compiler will either attempt to infer this information from the left-hand side of the <code>as</code> operator
-to the right. If the inference results in a different type to the right-hand side, this will raise a typechecking failure. </p>
+to the right. If the inference results in a different type to the right-hand side, this will raise a typechecking failure.</p>
 <p>For example, if you were to specify the expression:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>&quot;A&quot; as char
+</span>"A" as char
 <span class="boring">}</span></code></pre></pre>
 <p>The compiler will report this error as:</p>
 <pre><code>error[0001]: Types mismatch, got a `str`, but wanted a `char`.
  --&gt; &lt;interactive&gt;:1:8
-1 |   &quot;A&quot; as char
+1 |   "A" as char
   |          ^^^^ This specifies that the expression should be of type `char`
 
  --&gt; &lt;interactive&gt;:1:1
-1 |   &quot;A&quot; as char
+1 |   "A" as char
   |   ^^^ Found this to be of type `str`
 
 </code></pre>
 <h2 id="usefulness"><a class="header" href="#usefulness">Usefulness</a></h2>
 <p>Why are type assertions when there is already type inference within the language? Well, sometimes the type inference
-system does not have enough information to infer the types of variables and declarations. 
+system does not have enough information to infer the types of variables and declarations.
 Type inference may not have enough information when dealing with functions that are generic, so it can sometimes
-be useful to assert to the compiler that a given variable is a certain type. </p>
+be useful to assert to the compiler that a given variable is a certain type.</p>
 <p>Additionally, whilst the language is in an early stage of maturity and some things that are quirky or broken, type
 assertions can come to the rescue and help the compiler to understand your program.</p>
-<p>In general, type assertions should be used when the compiler cannot infer the type of some expression with 
+<p>In general, type assertions should be used when the compiler cannot infer the type of some expression with
 the given information and needs assistance. You shouldn't need to use type assertions often.</p>
 
                     </main>

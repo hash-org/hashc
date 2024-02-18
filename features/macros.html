@@ -177,29 +177,29 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="macros"><a class="header" href="#macros">Macros</a></h1>
-<p>This section describes the syntax for macros in Hash. Macros are a way to write code that writes other code. There are two kind of macro invocations: one macro works on AST items, and the other works on 
+<p>This section describes the syntax for macros in Hash. Macros are a way to write code that writes other code. There are two kind of macro invocations: one macro works on AST items, and the other works on
 tokens.</p>
 <h2 id="ast-macros"><a class="header" href="#ast-macros">AST macros</a></h2>
 <p>AST-level macros are written with the syntax <code>#macro_name &lt;subject&gt;</code>
-or <code>#[macro_name(macro_arg)] &lt;subject&gt;</code>. The first form is a used as a shorthand 
-for macros that don't have any additional arguments to the macro itself. </p>
-<p>For example, the <code>#dump_ast</code> macro will accept any AST item as the subject and print the parsed AST to the console. </p>
+or <code>#[macro_name(macro_arg)] &lt;subject&gt;</code>. The first form is a used as a shorthand
+for macros that don't have any additional arguments to the macro itself.</p>
+<p>For example, the <code>#dump_ast</code> macro will accept any AST item as the subject and print the parsed AST to the console.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span><span class="boring">dump_ast main := () =&gt; {
-</span>    println(&quot;Hello, world!&quot;);
+</span>    println("Hello, world!");
 }
 <span class="boring">}</span></code></pre></pre>
 <p>An example of an AST macro being used to set some attributes on a function:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[attr(foreign(c), no_mangle, link_name = &quot;jpeg_read_header&quot;)]
+</span>#[attr(foreign(c), no_mangle, link_name = "jpeg_read_header")]
 jpeg_read_header := (&amp;raw cinfo, bool require_image) -&gt; i32;
 <span class="boring">}</span></code></pre></pre>
 <h2 id="token-macros"><a class="header" href="#token-macros">Token macros</a></h2>
-<p>Token macros follow a similar syntax to AST macros, but instead of working on AST items, they work on tokens. The syntax for token macros is <code>@macro_name &lt;subject&gt;</code> or <code>@[macro_name(macro_arg)] &lt;subject&gt;</code>. The first form is a used as a shorthand for token macros that have no arguments. However, one significant difference between token macros and AST macros is that the token macro only accepts a token tree 
-as the subject. A token tree is a sequence of tokens that are 
-enclosed in a pair of delimiters. Token trees are either <code>[...]</code>, <code>{...}</code> or <code>(...)</code>. It is then up to the macro to define various 
+<p>Token macros follow a similar syntax to AST macros, but instead of working on AST items, they work on tokens. The syntax for token macros is <code>@macro_name &lt;subject&gt;</code> or <code>@[macro_name(macro_arg)] &lt;subject&gt;</code>. The first form is a used as a shorthand for token macros that have no arguments. However, one significant difference between token macros and AST macros is that the token macro only accepts a token tree
+as the subject. A token tree is a sequence of tokens that are
+enclosed in a pair of delimiters. Token trees are either <code>[...]</code>, <code>{...}</code> or <code>(...)</code>. It is then up to the macro to define various
 rules for accepting the token tree:</p>
 <p>An example of using <code>min</code> and <code>max</code> macros:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -209,9 +209,9 @@ rules for accepting the token tree:</p>
     max := @max {1 + 2, 3 * 4, 7 - 6 + 1 };
 
     if max - min == 0 {
-        println(&quot;min and max are equal&quot;)
+        println("min and max are equal")
     } else {
-        println(&quot;min and max are not equal&quot;)
+        println("min and max are not equal")
     }
 }
 <span class="boring">}</span></code></pre></pre>
@@ -276,15 +276,15 @@ bing := (#param x: i32) -&gt; #ty i32 =&gt; {
 <span class="boring">}</span></code></pre></pre>
 <h3 id="grammar"><a class="header" href="#grammar">Grammar</a></h3>
 <p>Formally, the macro syntax invocation can be written as follows:</p>
-<pre><code class="language-bnf">token_macro_invocation ::= &quot;@&quot; ( macro_name | macro_args ) token_tree;
+<pre><code class="language-bnf">token_macro_invocation ::= "@" ( macro_name | macro_args ) token_tree;
 
-token_tree ::= &quot;{&quot; any &quot;}&quot; 
-             | &quot;[&quot; any &quot;]&quot; 
-             | &quot;(&quot; any &quot;)&quot;;
+token_tree ::= "{" any "}" 
+             | "[" any "]" 
+             | "(" any ")";
 
 ast_macro_invocation ::= '#' (macro_name | macro_args ) macro_subject;
 
-module_macro_invocation ::= &quot;#!&quot; macro_args;
+module_macro_invocation ::= "#!" macro_args;
 
 macro_subject ::= expr 
                   | type 
@@ -296,9 +296,9 @@ macro_subject ::= expr
                   | match_case 
                   | enum_variant;  
 
-macro_args ::= &quot;[&quot; ( ∅ | macro_invocation (&quot;,&quot; macro_invocation)* &quot;,&quot;? ) &quot;]&quot;;
+macro_args ::= "[" ( ∅ | macro_invocation ("," macro_invocation)* ","? ) "]";
 
-macro_invocation ::= macro_name ( &quot;(&quot;  ∅ | expr (&quot;,&quot; expr )* &quot;,&quot;?  &quot;)&quot; )?;
+macro_invocation ::= macro_name ( "("  ∅ | expr ("," expr )* ","?  ")" )?;
 
 macro_name ::= access_name;
 </code></pre>

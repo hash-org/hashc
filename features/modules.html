@@ -190,17 +190,17 @@ Each <code>.hash</code> source file is a module, and inline modules can also be 
 └── main.hash
 </code></pre>
 <p>Modules in hash allow for a source to be split up into smaller code fragments, allowing for better source code organisation and maintenance.</p>
-<p>You can import modules by specifying the path relative to the current path. </p>
+<p>You can import modules by specifying the path relative to the current path.</p>
 <p>For example, if you wanted to include the modules <code>a</code>, <code>b</code>, and or <code>c</code> within your main file</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// main.hash
-a := import(&quot;lib/a&quot;);
-b := import(&quot;lib/b&quot;);
-c := import(&quot;lib/sub/c&quot;);
+a := import("lib/a");
+b := import("lib/b");
+c := import("lib/sub/c");
 <span class="boring">}</span></code></pre></pre>
 <p>By doing so, you are placing everything that is defined within each of those modules under
-the namespace. </p>
+the namespace.</p>
 <h2 id="exporting"><a class="header" href="#exporting">Exporting</a></h2>
 <p>In order to export items from a module, use the <code>pub</code> keyword.
 For example:</p>
@@ -218,9 +218,9 @@ b := 1;
 priv c := 1;
 
 /// b.hash
-{ a } := import(&quot;a.hash&quot;); // Ok
-{ b } := import(&quot;a.hash&quot;); // Error: b is private
-{ c } := import(&quot;a.hash&quot;); // Error: c is private.
+{ a } := import("a.hash"); // Ok
+{ b } := import("a.hash"); // Error: b is private
+{ c } := import("a.hash"); // Error: c is private.
 <span class="boring">}</span></code></pre></pre>
 <h2 id="referencing-exports"><a class="header" href="#referencing-exports">Referencing exports</a></h2>
 <p>Furthermore, if the <code>a</code> module contained a public structure definition like <code>Point</code>:</p>
@@ -236,7 +236,7 @@ pub Point := struct(
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// main.hash
-a := import(&quot;lib/a&quot;);
+a := import("lib/a");
 
 p1 := a::Point(
     x = 2,
@@ -252,7 +252,7 @@ print(p1.y); // 3
 follows:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>{ Point } := import(&quot;lib/a&quot;);
+</span>{ Point } := import("lib/a");
 
 p1 := Point(x=2, y=3);
 <span class="boring">}</span></code></pre></pre>
@@ -260,7 +260,7 @@ p1 := Point(x=2, y=3);
 can rename the exported members to your liking using the <code>as</code> pattern operator:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>{ Point as LibPoint } = import(&quot;lib/a&quot;);
+</span>{ Point as LibPoint } = import("lib/a");
 
 p1 := LibPoint(x=2, y=3);
 <span class="boring">}</span></code></pre></pre>
@@ -276,17 +276,17 @@ pub nested := mod {
 };
 
 // b.hash
-a := import(&quot;a.hash&quot;);
+a := import("a.hash");
 red := a::nested::Colour::Red;
 <span class="boring">}</span></code></pre></pre>
 <p>These follow the same conventions as <code>.hash</code> files, and members need to be exported with <code>pub</code> in order to be visible from the outside.
 However, the external module items are always visible from within a <code>mod</code> block, so in the above example, <code>bar</code> can be used from within <code>nested</code>.</p>
 <h2 id="grammar"><a class="header" href="#grammar">Grammar</a></h2>
 <p>The grammar for file modules is as follows:</p>
-<pre><code>file_module = ( expr &quot;;&quot; )*
+<pre><code>file_module = ( expr ";" )*
 </code></pre>
 <p>The grammar for <code>mod</code> blocks (which are expressions) is as follows:</p>
-<pre><code>mod_block = &quot;mod&quot; &quot;{&quot; ( expr &quot;;&quot; )* &quot;}&quot;
+<pre><code>mod_block = "mod" "{" ( expr ";" )* "}"
 </code></pre>
 
                     </main>
