@@ -94,7 +94,7 @@ pub struct SimplifyGraphPass;
 
 impl IrOptimisationPass for SimplifyGraphPass {
     fn name(&self) -> &'static str {
-        "simplify-graph"
+        "optimise::simplify_graph"
     }
 
     fn enabled(&self, settings: &CompilerSettings) -> bool {
