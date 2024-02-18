@@ -204,7 +204,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
         let bodies = &mut icx.bodies;
         let body_data = &icx.ctx;
 
-        self.time_item("optimise", |_| {
+        self.time_item("optimise", |this| {
             // @@Todo: think about making optimisation passes in parallel...
             // pool.scope(|scope| {
             //     for body in &mut icx.generated_bodies {
@@ -218,6 +218,10 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
             for body in bodies.iter_mut() {
                 let optimiser = Optimiser::new(body_data, settings);
                 optimiser.optimise(body);
+
+                // Collect metrics on the stages.
+                let metrics = optimiser.into_metrics().into();
+                this.metrics().merge(&metrics);
             }
         });
 
