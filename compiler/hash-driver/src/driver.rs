@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     env::{self, current_dir},
     fs::File,
     io::Write,
@@ -7,7 +6,6 @@ use std::{
     path::Path,
     process::{self, Command, Stdio},
     thread,
-    time::Duration,
 };
 
 use hash_pipeline::{
@@ -17,7 +15,14 @@ use hash_pipeline::{
 };
 use hash_reporting::reporter::Reporter;
 use hash_source::{ModuleKind, SourceId};
-use hash_utils::{log, stream_writeln, timing::timed};
+use hash_utils::{
+    indexmap::IndexMap,
+    log,
+    profiling::{get_resident_set_size, timed, MetricEntry, StageMetrics},
+    stream_writeln,
+};
+
+use crate::metrics::{MetricReporter, Metrics, StageMetricEntry};
 
 /// The Hash Compiler interface. This interface allows a caller to create a
 /// [Driver] with a `compiler` and a collection of stages which will access
@@ -36,7 +41,7 @@ pub struct Driver<I: CompilerInterface> {
     stages: Vec<Box<dyn CompilerStage<I>>>,
 
     /// A record of all of the stage metrics
-    metrics: HashMap<CompilerStageKind, Duration>,
+    metrics: IndexMap<CompilerStageKind, StageMetricEntry>,
 
     /// Whether the pipeline is currently bootstrapping, i.e. when
     /// it is running the prelude module in order to place everything
@@ -72,102 +77,22 @@ impl<I: CompilerInterface> Driver<I> {
         // stage.
         assert!(stages.windows(2).all(|w| w[0].kind() <= w[1].kind()));
 
-        Self { compiler, stages, metrics: HashMap::new(), bootstrapping: false }
+        Self { compiler, stages, metrics: Metrics::new(), bootstrapping: false }
     }
 
     /// Function to report the collected metrics on the stages within the
     /// compiler.
     fn report_metrics(&self) {
-        let mut total = Duration::new(0, 0);
-
-        log::info!("compiler pipeline timings:");
-        let mut stderr = self.compiler.error_stream();
-
-        // Get the longest key in the stages
-        let longest_key = self
-            .stages
-            .iter()
-            .map(|stage| {
-                let label_size = stage.kind().as_str().len();
-                stage
-                    .metrics()
-                    .iter()
-                    .map(|(item, _)| label_size + item.len() + 2)
-                    .max()
-                    .unwrap_or(label_size)
-            })
-            .max()
-            .unwrap_or(0);
-
-        let report_stage_metrics = |stage: &dyn CompilerStage<I>| {
-            let mut stderr = self.compiler.error_stream();
-            let kind = stage.kind();
-
-            for (item, duration) in stage.metrics().iter() {
-                stream_writeln!(
-                    stderr,
-                    "{: <width$}: {duration:?}",
-                    format!("{kind}::{item}"),
-                    width = longest_key
-                );
-            }
-        };
-
-        let mut stages = self.stages.iter().peekable();
-        let Some(mut kind) = stages.peek().map(|stage| stage.kind()) else { return };
-
-        let mut stage_count = 0;
-
-        // Iterate over each stage and print out the timings.
-        for stage in stages {
-            // This shouldn't occur as we don't record this metric in this way
-            if kind >= CompilerStageKind::Build {
-                continue;
-            }
-
-            if stage.kind() == kind {
-                // Query if this particular stage has any additional metrics that
-                // should be added under this stage, and then skip reporting the
-                // sub metrics.
-                if stage_count != 0 {
-                    stage_count = 1;
-                    report_stage_metrics(&**stage);
-                    continue;
-                }
-
-                stage_count += 1;
-            } else {
-                stage_count = 1;
-                kind = stage.kind();
-            }
-
-            let Some(duration) = self.metrics.get(&kind).copied() else {
-                continue;
-            };
-
-            total += duration;
-
-            stream_writeln!(
-                stderr,
-                "{: <width$}: {duration:?}",
-                format!("{kind}"),
-                width = longest_key
-            );
-            report_stage_metrics(&**stage);
-        }
-
-        // Now print the total
-        stream_writeln!(
-            stderr,
-            "{: <width$}: {total:?}\n",
-            format!("{}", CompilerStageKind::Build),
-            width = longest_key
-        );
+        log::info!("compiler pipeline metrics:");
+        let metrics = MetricReporter::new(&self.metrics);
+        let mut stdout = self.compiler.output_stream();
+        metrics.report(&mut stdout);
     }
 
     fn run_stage(&mut self, entry_point: SourceId, index: usize) -> CompilerResult<()> {
         let stage = &mut self.stages[index];
         let stage_kind = stage.kind();
+        let start_rss = get_resident_set_size();
 
         timed(
             || stage.run(entry_point, &mut self.compiler),
@@ -176,11 +101,21 @@ impl<I: CompilerInterface> Driver<I> {
                 self.metrics
                     .entry(stage_kind)
                     .and_modify(|prev_time| {
-                        *prev_time += time;
+                        prev_time.total.duration += time;
+                        prev_time.total.end_rss = get_resident_set_size();
                     })
-                    .or_insert(time);
+                    .or_insert_with(|| StageMetricEntry {
+                        total: MetricEntry {
+                            duration: time,
+                            start_rss,
+                            end_rss: get_resident_set_size(),
+                        },
+                        children: StageMetrics::default(),
+                    });
             },
         )?;
+
+        self.metrics.entry(stage_kind).and_modify(|entry| entry.children.merge(&stage.metrics()));
 
         // If we are bootstrapping, we don't need to run the cleanup
         // function since it will be invoked by the the second run of
