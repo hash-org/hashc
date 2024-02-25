@@ -10,12 +10,25 @@ use std::fmt;
 #[macro_export]
 macro_rules! stream_writeln {
     ($stream:expr, $($arg:tt)*) => {
-        use std::io::Write;
         writeln!($stream, $($arg)*).unwrap()
     };
     ($stream:expr) => {
-        use std::io::Write;
         writeln!($stream).unwrap()
+    };
+
+}
+
+/// This is used a wrapper around [`write!`] which integrates writing
+/// to a specified stream.
+///
+/// This macro conveniently unwraps the result of the write operation.
+#[macro_export]
+macro_rules! stream_write {
+    ($stream:expr, $($arg:tt)*) => {
+        write!($stream, $($arg)*).unwrap()
+    };
+    ($stream:expr) => {
+        write!($stream).unwrap()
     };
 
 }

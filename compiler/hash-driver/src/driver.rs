@@ -2,6 +2,7 @@ use std::{
     collections::HashMap,
     env::{self, current_dir},
     fs::File,
+    io::Write,
     ops::{Deref, DerefMut},
     path::Path,
     process::{self, Command, Stdio},

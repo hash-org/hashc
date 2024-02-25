@@ -88,6 +88,8 @@ impl CompilerBuilder {
 }
 
 pub mod utils {
+    use std::io::Write;
+
     use hash_pipeline::interface::CompilerOutputStream;
     use hash_reporting::report::Report;
     use hash_utils::stream_writeln;

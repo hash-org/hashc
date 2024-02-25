@@ -13,6 +13,8 @@ mod fmt;
 pub mod misc;
 mod translation;
 
+use std::io::Write;
+
 use ctx::CodeGenCtx;
 use error::{CodeGenError, CodegenResult};
 use hash_attrs::builtin::attrs;

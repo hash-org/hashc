@@ -1,6 +1,7 @@
 //! Defines the [BuilderCtx] which is a collection of all the
 //! information required to lower all the TIR into IR, among
 //! other operations.
+use std::io::Write;
 
 use hash_ir::{ty::ReprTyId, IrCtx};
 use hash_layout::{
