@@ -54,7 +54,7 @@ impl<E: TcEnv> OperationsOn<BlockTerm> for Tc<'_, E> {
                         // Check that the binding pattern of the declaration is irrefutable.
                         let mut eck = self.exhaustiveness_checker(decl.bind_pat);
 
-                        self.env.time_item("exhaustiveness", |_| {
+                        self.env.record("exhaustiveness", |_| {
                             eck.is_pat_irrefutable(&[decl.bind_pat], decl.ty, None)
                         });
                         self.append_exhaustiveness_diagnostics(eck);

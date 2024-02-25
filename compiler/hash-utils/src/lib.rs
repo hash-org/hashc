@@ -22,7 +22,6 @@ pub mod range_map;
 pub mod scoping;
 pub mod stack;
 pub mod state;
-pub mod timing;
 pub mod tree_writing;
 
 // Re-export commonly used packages
