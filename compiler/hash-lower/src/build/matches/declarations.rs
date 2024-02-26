@@ -88,6 +88,8 @@ impl<'tcx> BodyBuilder<'tcx> {
                     self.visit_primary_pattern_bindings(field.value, f);
                 });
 
+                // @@Todo: bring back spread pats for constructors and tuples
+                //
                 // if let Some(spread_pat) = spread {
                 //     //@@Todo: we need to get the type of the spread.
                 //     let ty = self.ty_id_from_tir_pat(pat);
@@ -95,7 +97,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 //     f(
                 //         self,
                 //         // @@Todo: it should be possible to make this a
-                // mutable         // pattern reference, for now
+                // mutable pattern reference,         // for now
                 // we assume it is always immutable.
                 //         Mutability::Immutable,
                 //         spread_pat.name,
@@ -104,46 +106,45 @@ impl<'tcx> BodyBuilder<'tcx> {
                 //     )
                 // }
             }
-            Term::Array(ArrayTerm::Normal(_)) => {
-                // // @@Todo
-                todo!()
-                // if let Some(spread_pat) = spread {
-                //     let index = spread_pat.index;
+            Term::Array(ArrayTerm::Normal(array_pat)) => {
+                let (prefix, suffix, spread) = array_pat.into_pat_parts();
+                let mut pats = prefix;
+                pats.extend(suffix);
 
-                //     // Create the fields into an iterator, and only take the
-                // `prefix`     // amount     // of fields to
-                // iterate     let pats = pats.value();
+                if let Some(spread_pat) = spread {
+                    let index = spread_pat.index;
 
-                //     let prefix_fields = pats.iter().take(index);
-                //     for field in prefix_fields {
-                //         self.visit_primary_pattern_bindings(field.
-                // assert_pat(), f);     }
+                    // Create the fields into an iterator, and only take the `prefix` amount
+                    // of fields to iterate
+                    let prefix_fields = pats.iter().take(index);
+                    for field in prefix_fields {
+                        self.visit_primary_pattern_bindings(*field, f);
+                    }
 
-                //     //@@TodoTIR: we need to get the type of the spread.
-                //     let ty = self.ty_id_from_tir_pat(pat);
+                    //@@TodoTIR: we need to get the type of the spread.
+                    let ty = self.ty_id_from_tir_pat(pat);
 
-                //     f(
-                //         self,
-                //         // @@Todo: it should be possible to make this a
-                // mutable         // pattern         //
-                // reference, for now we assume it is always immutable.
-                //         Mutability::Immutable,
-                //         spread_pat.name,
-                //         span,
-                //         ty,
-                //     );
+                    f(
+                        self,
+                        // @@Todo: it should be possible to make this a mutable pattern
+                        // reference, for now we assume it is always immutable.
+                        Mutability::Immutable,
+                        spread_pat.name,
+                        span,
+                        ty,
+                    );
 
-                //     // Now deal with the suffix fields.
-                //     let suffix_fields = pats.iter().skip(index);
+                    // Now deal with the suffix fields.
+                    let suffix_fields = pats.iter().skip(index);
 
-                //     for field in suffix_fields {
-                //         self.visit_primary_pattern_bindings(field.
-                // assert_pat(), f);     }
-                // } else {
-                //     pats.borrow().iter().for_each(|pat| {
-                //         self.visit_primary_pattern_bindings(pat.assert_pat(),
-                // f);     });
-                // }
+                    for field in suffix_fields {
+                        self.visit_primary_pattern_bindings(*field, f);
+                    }
+                } else {
+                    pats.iter().for_each(|pat| {
+                        self.visit_primary_pattern_bindings(*pat, f);
+                    });
+                }
             }
             Term::Pat(Pat::Or(OrPat { alternatives })) => {
                 // We only need to visit the first variant since we already
