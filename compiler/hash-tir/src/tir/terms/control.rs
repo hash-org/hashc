@@ -10,7 +10,7 @@ use textwrap::indent;
 use crate::{
     stack::StackId,
     stores::tir_stores,
-    tir::{PatId, PatListId, TermId},
+    tir::{ArgsId, PatId, TermId},
     tir_node_sequence_store_direct,
 };
 
@@ -66,7 +66,7 @@ pub struct IfPat {
 #[derive(Copy, Clone, Debug)]
 pub struct OrPat {
     /// The sequence of alternative patterns.
-    pub alternatives: PatListId,
+    pub alternatives: ArgsId,
 }
 
 impl fmt::Display for MatchTerm {

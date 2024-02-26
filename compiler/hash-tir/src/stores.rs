@@ -12,8 +12,7 @@ use crate::{
         blocks::{BlockStatementsSeqStore, BlockStatementsStore},
         ArgsSeqStore, ArgsStore, CtorDefsSeqStore, CtorDefsStore, DataDefStore, FnDefStore,
         LitStore, MatchCasesSeqStore, MatchCasesStore, ModDefStore, ModMembersSeqStore,
-        ModMembersStore, ParamsSeqStore, ParamsStore, SymbolStore, TermListSeqStore, TermListStore,
-        TermStore,
+        ModMembersStore, ParamsSeqStore, ParamsStore, SymbolStore, TermStore,
     },
 };
 
@@ -38,8 +37,6 @@ stores! {
     stack: StackStore,
     symbol: SymbolStore,
     term: TermStore,
-    term_list: TermListStore,
-    term_list_seq: TermListSeqStore,
     match_cases: MatchCasesStore,
     match_cases_seq: MatchCasesSeqStore,
     block_statements: BlockStatementsStore,

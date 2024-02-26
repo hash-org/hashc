@@ -38,7 +38,7 @@ use crate::{storage::DeconstructedPatId, usefulness::MatchArm, ExhaustivenessChe
 fn expand_or_pat(id: PatId, vec: &mut Vec<PatId>) {
     if let Term::Pat(Pat::Or(OrPat { alternatives })) = *id.value() {
         for alternative in alternatives.iter() {
-            expand_or_pat(alternative, vec);
+            expand_or_pat(alternative.borrow().value, vec);
         }
     } else {
         vec.push(id)
@@ -174,7 +174,7 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
                     if let Some(Spread { index, .. }) = spread { index as isize } else { -1 };
 
                 for (index, pat) in pats.borrow().iter().enumerate() {
-                    let deconstructed_pat = self.deconstruct_pat(element_ty, pat);
+                    let deconstructed_pat = self.deconstruct_pat(element_ty, pat.borrow().value);
 
                     // If the index is `-1`, this will always push to the prefix which
                     // is what should happen if no spread pattern is present.
@@ -266,24 +266,24 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
             DeconstructedCtor::Array(Array { kind }) => {
                 let children = fields.iter_patterns().map(|p| self.construct_pat(p)).collect_vec();
 
-
                 match kind {
                     ArrayKind::Fixed(_) => {
-                        let pats = Node::create_at(PatId::seq(children), NodeOrigin::Generated);
+                        let pats = Arg::seq_positional(children, NodeOrigin::Generated);
                         Term::Array(ArrayTerm::Normal(pats))
                     }
                     ArrayKind::Var(prefix, _suffix) => {
                         let xs = &children[..*prefix];
                         let ys = &children[*prefix..];
-                        let pats = Node::create_at(
-                            PatId::seq(
-                                xs
-                                   .iter()
-                                   .copied()
-                                   .chain(once(Term::pat(Spread {name: SymbolId::fresh(NodeOrigin::Generated), index: *prefix}, NodeOrigin::Generated)))
-                                   .chain(ys.iter().copied()).collect_vec()
-                            ),
-                            NodeOrigin::Generated
+                        let pats = Arg::seq_positional(
+                            xs.iter()
+                                .copied()
+                                .chain(once(Term::pat(
+                                    Spread { name: SymbolId::fresh(NodeOrigin::Generated), index: *prefix },
+                                    NodeOrigin::Generated,
+                                )))
+                                .chain(ys.iter().copied())
+                                .collect_vec(),
+                            NodeOrigin::Generated,
                         );
                         Term::Array(ArrayTerm::Normal(pats))
                     }

@@ -23,8 +23,8 @@ use hash_target::{size::Size, HasTarget};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     tir::{
-        BindingPat, CtorTerm, IfPat, MatchCase, ParamIndex, Pat, PatArgsId, PatId, RangePat,
-        SymbolId, Term, TupleTerm,
+        ArrayTerm, BindingPat, CtorTerm, IfPat, MatchCase, ParamIndex, Pat, PatArgsId, PatId,
+        RangePat, SymbolId, Term, TupleTerm,
     },
 };
 use hash_utils::{
@@ -203,7 +203,12 @@ impl<'tcx> BodyBuilder<'tcx> {
                     mem::swap(&mut candidate.bindings, &mut existing_bindings);
 
                     // @@Temporary: We need to load in the alternatives for the or pat...
-                    let sub_pats = sub_pats.alternatives.borrow().iter().collect_vec();
+                    let sub_pats = sub_pats
+                        .alternatives
+                        .value()
+                        .iter()
+                        .map(|x| x.borrow().value)
+                        .collect_vec();
 
                     candidate.sub_candidates =
                         self.create_sub_candidates(&pair.place, candidate, &sub_pats);
@@ -373,29 +378,27 @@ impl<'tcx> BodyBuilder<'tcx> {
             }
             // The simplification that can occur here is if both the prefix and the
             // suffix are empty, then we can perform some simplifications.
-            Term::Array(_array_pat) => {
-                // @@Todo
-                todo!()
-                // let (prefix, suffix, rest) = array_pat.into_parts();
+            Term::Array(ArrayTerm::Normal(array_pat)) => {
+                let (prefix, suffix, rest) = array_pat.into_pat_parts();
 
-                // if prefix.is_empty() && suffix.is_empty() && rest.is_some() {
-                //     let ty = self.ty_id_from_tir_pat(pair.pat);
+                if prefix.is_empty() && suffix.is_empty() && rest.is_some() {
+                    let ty = self.ty_id_from_tir_pat(pair.pat);
 
-                //     // This means that this is irrefutable since we will
-                // always match this     // pattern.
-                //     self.adjust_list_pat_candidates(
-                //         ty,
-                //         &mut candidate.pairs,
-                //         &pair.place,
-                //         &prefix,
-                //         rest,
-                //         &suffix,
-                //     );
+                    // This means that this is irrefutable since we will always
+                    // match this pattern.
+                    self.adjust_list_pat_candidates(
+                        ty,
+                        &mut candidate.pairs,
+                        &pair.place,
+                        &prefix,
+                        rest,
+                        &suffix,
+                    );
 
-                //     Ok(())
-                // } else {
-                //     Err(pair)
-                // }
+                    Ok(())
+                } else {
+                    Err(pair)
+                }
             }
 
             // Look at the pattern located within the if-pat

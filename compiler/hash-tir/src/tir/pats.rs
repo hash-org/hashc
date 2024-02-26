@@ -10,7 +10,7 @@ use hash_storage::{
 };
 use hash_utils::derive_more::From;
 
-use super::{NodeOrigin, TermId, TermListId};
+use super::{NodeOrigin, TermId};
 use crate::tir::{IfPat, LitPat, OrPat, PatArgsId, SymbolId, Term};
 
 /// A binding pattern, which is essentially a declaration left-hand side.
@@ -80,7 +80,6 @@ pub enum Pat {
 }
 
 pub type PatId = TermId;
-pub type PatListId = TermListId;
 
 impl Pat {
     /// Check if the pattern is a [`Pat::Or`].

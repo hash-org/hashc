@@ -12,9 +12,9 @@ use hash_storage::store::{statics::SequenceStoreValue, SequenceStoreKey};
 use hash_tir::{
     intrinsics::utils::bool_term,
     tir::{
-        pats::BindingPat, Arg, ArrayTerm, CharLit, CtorTerm, IfPat, Lit, LitPat, Node, NodeId,
-        NodeOrigin, OrPat, ParamIndex, Pat, PatArgsId, PatId, PatListId, RangePat, Spread, StrLit,
-        SymbolId, Term, TermId, TupleTerm,
+        pats::BindingPat, Arg, ArgsId, ArrayTerm, CharLit, CtorTerm, IfPat, Lit, LitPat, Node,
+        NodeId, NodeOrigin, OrPat, ParamIndex, Pat, PatArgsId, PatId, RangePat, Spread, StrLit,
+        SymbolId, Term, TupleTerm,
     },
 };
 
@@ -60,12 +60,12 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
     fn make_pat_list_from_ast_pats(
         &self,
         pats: &ast::AstNodes<ast::Pat>,
-    ) -> SemanticResult<PatListId> {
+    ) -> SemanticResult<ArgsId> {
         let created_pats = pats
             .iter()
             .map(|pat| self.make_pat_from_ast_pat(pat.ast_ref()))
             .collect::<SemanticResult<Vec<_>>>()?;
-        Ok(Node::create_at(TermId::seq(created_pats), NodeOrigin::Given(pats.id())))
+        Ok(Arg::seq_positional(created_pats, NodeOrigin::Given(pats.id())))
     }
 
     /// Create a [`Spread`] from the given [`ast::SpreadPat`].

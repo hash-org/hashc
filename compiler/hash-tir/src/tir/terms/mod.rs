@@ -15,7 +15,7 @@ use crate::{
     tir::{
         Arg, ArgsId, CtorTerm, DataDefId, DataTy, LitId, Node, NodeId, NodeOrigin, Param, SymbolId,
     },
-    tir_node_sequence_store_indirect, tir_node_single_store,
+    tir_node_single_store,
     visitor::Atom,
 };
 
@@ -41,7 +41,7 @@ pub use holes::*;
 pub use refs::*;
 pub use tuples::*;
 
-use super::{Pat, Spread};
+use super::Pat;
 
 /// A term that can contain unsafe operations.
 #[derive(Debug, Clone, Copy)]
@@ -160,11 +160,9 @@ pub enum Term {
 }
 
 tir_node_single_store!(Term);
-tir_node_sequence_store_indirect!(TermList[TermId]);
 
 pub type Ty = Term;
 pub type TyId = TermId;
-pub type TyListId = TermListId;
 
 /// Assert that the given term is of the given variant, and return it.
 #[macro_export]
@@ -284,35 +282,6 @@ impl TermId {
     }
 }
 
-impl TermListId {
-    /// Split the pattern list into the `prefix`, `suffix` and an optional;
-    /// `rest` pattern.
-    pub fn into_pat_parts(&self) -> (Vec<TermId>, Vec<TermId>, Option<Spread>) {
-        let mut prefix = vec![];
-        let mut suffix = vec![];
-        let mut spread = None;
-
-        for pat in self.iter() {
-            match (pat.borrow().data, spread.is_some()) {
-                (Term::Pat(Pat::Spread(s)), false) => {
-                    spread = Some(s);
-                }
-                (Term::Pat(Pat::Spread(_)), true) => {
-                    panic!("Multiple spreads in a pattern list")
-                }
-                (_, false) => {
-                    prefix.push(pat);
-                }
-                (_, true) => {
-                    suffix.push(pat);
-                }
-            }
-        }
-
-        (prefix, suffix, spread)
-    }
-}
-
 impl From<SymbolId> for Term {
     fn from(symbol: SymbolId) -> Self {
         Term::Var(VarTerm { symbol })
@@ -391,18 +360,6 @@ impl fmt::Display for UniverseTy {
 impl fmt::Display for TermId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", *self.value())
-    }
-}
-
-impl fmt::Display for TermListId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (i, term) in self.iter().enumerate() {
-            if i > 0 {
-                write!(f, ", ")?;
-            }
-            write!(f, "{}", term)?;
-        }
-        Ok(())
     }
 }
 

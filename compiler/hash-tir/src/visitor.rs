@@ -16,8 +16,7 @@ use crate::tir::{
     DataDefId, DataTy, DerefTerm, FnDef, FnDefId, FnTy, HasAstNodeId, IfPat, IndexTerm, LitId,
     LoopTerm, MatchCase, MatchTerm, ModDefId, ModMemberId, ModMemberValue, Node, NodeId,
     NodeOrigin, NodesId, OrPat, Param, ParamsId, Pat, PrimitiveCtorInfo, RefTerm, RefTy,
-    ReturnTerm, Term, TermId, TermListId, TupleTerm, TupleTy, Ty, TyId, TyOfTerm, UniverseTy,
-    UnsafeTerm,
+    ReturnTerm, Term, TermId, TupleTerm, TupleTy, Ty, TyId, TyOfTerm, UniverseTy, UnsafeTerm,
 };
 
 /// An atom in the TIR.
@@ -507,24 +506,6 @@ impl Map<BlockStatementsId> for Visitor {
             }
         }
         Ok(Node::create_at(Node::seq(new_list), block_statements.origin()))
-    }
-}
-
-impl Visit<TermListId> for Visitor {
-    fn try_visit<E, F: TryVisitFn<E>>(&self, term_list_id: TermListId, f: &mut F) -> Result<(), E> {
-        for term in term_list_id.elements().value() {
-            self.try_visit(term, f)?;
-        }
-        Ok(())
-    }
-}
-impl Map<TermListId> for Visitor {
-    fn try_map<E, F: TryMapFn<E>>(&self, term_list: TermListId, f: F) -> Result<TermListId, E> {
-        let mut new_list = Vec::with_capacity(term_list.len());
-        for term_id in term_list.elements().value() {
-            new_list.push(self.try_map(term_id, f)?);
-        }
-        Ok(Node::create_at(TermId::seq(new_list), term_list.origin()))
     }
 }
 

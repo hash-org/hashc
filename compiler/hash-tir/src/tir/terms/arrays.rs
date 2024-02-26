@@ -1,10 +1,9 @@
 use core::fmt;
-use std::fmt::Display;
+use std::{borrow::Borrow, fmt::Display};
 
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 
-use super::Term;
-use crate::tir::{NodeId, NodeOrigin, NodesId, Pat, Spread, TermId, TermListId};
+use crate::tir::{ArgsId, NodeId, NodeOrigin, NodesId, Spread, TermId};
 
 /// A term that is used as an index into an array.
 #[derive(Debug, Clone, Copy)]
@@ -21,7 +20,7 @@ pub struct IndexTerm {
 #[derive(Copy, Clone, Debug)]
 pub enum ArrayTerm {
     /// When an array is written as a normal variant, i.e. `[x, y, z]`.
-    Normal(TermListId),
+    Normal(ArgsId),
 
     /// When an array is written as a repeated variant, i.e. `[x; 5]`. The
     /// second term must be a constant integer.
@@ -35,7 +34,7 @@ impl ArrayTerm {
     /// regardless of the index.
     pub fn element_at(&self, index: usize) -> Option<TermId> {
         match self {
-            ArrayTerm::Normal(elements) => elements.elements().at(index),
+            ArrayTerm::Normal(elements) => Some(elements.elements().at(index)?.borrow().value),
             ArrayTerm::Repeated(element, _) => Some(*element),
         }
     }
@@ -67,20 +66,13 @@ impl ArrayTerm {
     /// Get the first spread argument, if any.
     pub fn get_spread(&self) -> Option<Spread> {
         match self {
-            ArrayTerm::Normal(array) => {
-                for term in array.iter() {
-                    if let Term::Pat(Pat::Spread(spread)) = term.value().data {
-                        return Some(spread);
-                    }
-                }
-                None
-            }
+            ArrayTerm::Normal(array) => array.get_spread(),
             ArrayTerm::Repeated(_, _) => None,
         }
     }
 
     /// Get the length of the array.
-    pub fn elements_or_repeated(&self) -> Option<TermListId> {
+    pub fn elements_or_repeated(&self) -> Option<ArgsId> {
         match self {
             ArrayTerm::Normal(elements) => Some(*elements),
             ArrayTerm::Repeated(_, _) => None,

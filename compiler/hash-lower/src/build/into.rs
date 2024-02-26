@@ -88,7 +88,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                         .iter()
                         .copied()
                         .enumerate()
-                        .map(|(index, element)| (Identifier::num(index), element))
+                        .map(|(index, element)| (Identifier::num(index), element.data.value))
                         .collect_vec(),
                     ArrayTerm::Repeated(operand, repeat) => {
                         // @@Semantics: When we need to deal with data drops, what do we do in the

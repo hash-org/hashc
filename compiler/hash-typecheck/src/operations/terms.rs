@@ -3,7 +3,7 @@ use std::ops::ControlFlow;
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    tir::{NodesId, Pat, Term, TermId, TermListId, Ty, TyId},
+    tir::{ArgsId, NodesId, Pat, Term, TermId, Ty, TyId},
 };
 
 use crate::{
@@ -16,16 +16,12 @@ use crate::{
 };
 
 impl<E: TcEnv> Tc<'_, E> {
-    /// Infer the given term list as one type.
+    /// Infer the given arguments as one type.
     ///
     /// Returns the inferred list, and its inferred type.
-    pub fn check_unified_term_list(
-        &self,
-        term_list_id: TermListId,
-        element_annotation_ty: TyId,
-    ) -> TcResult<()> {
-        for item in term_list_id.elements().value() {
-            self.check_node(item, element_annotation_ty)?;
+    pub fn check_unified_args(&self, args: ArgsId, element_annotation_ty: TyId) -> TcResult<()> {
+        for item in args.elements().value() {
+            self.check_node(item.data.value, element_annotation_ty)?;
         }
         Ok(())
     }

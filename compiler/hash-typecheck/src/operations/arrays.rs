@@ -1,4 +1,4 @@
-use std::ops::ControlFlow;
+use std::{borrow::Borrow, ops::ControlFlow};
 
 use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
@@ -8,7 +8,7 @@ use hash_tir::{
     },
     tir::{
         ArgsId, ArrayTerm, DataDefCtors, IndexTerm, NodeId, NodeOrigin, NodesId, ParamIndex,
-        PrimitiveCtorInfo, Term, TermId, TermListId, Ty, TyId,
+        PrimitiveCtorInfo, Term, TermId, Ty, TyId,
     },
     visitor::Map,
 };
@@ -47,12 +47,17 @@ impl<E: TcEnv> Tc<'_, E> {
         panic!("Out of bounds index for access: {}", target)
     }
 
-    /// Get the term at the given index in the given term list.
+    /// Get the term at the given index in the given arguments.
     ///
     /// Assumes that the index is normalised.
-    pub fn get_index_in_array(&self, elements: TermListId, index: TermId) -> Option<TermId> {
-        try_use_term_as_integer_lit::<_, usize>(self, index)
-            .map(|idx| elements.elements().at(idx).unwrap())
+    pub fn get_index_in_args(&self, elements: ArgsId, index: TermId) -> Option<TermId> {
+        Some(
+            try_use_term_as_integer_lit::<_, usize>(self, index)
+                .map(|idx| elements.elements().at(idx).unwrap())?
+                .borrow()
+                .data
+                .value,
+        )
     }
 
     /// Get the term at the given index in the given repeated array. If the
@@ -149,7 +154,7 @@ impl<E: TcEnv> OperationsOn<ArrayTerm> for Tc<'_, E> {
         // annotation type.
         let inferred_len_term = match *array_term {
             ArrayTerm::Normal(elements) => {
-                self.check_unified_term_list(elements, inner_ty)?;
+                self.check_unified_args(elements, inner_ty)?;
                 create_term_from_usize_lit(self.target(), elements.len(), array_len_origin)
             }
             ArrayTerm::Repeated(term, repeat) => {
@@ -270,7 +275,7 @@ impl<E: TcEnv> OperationsOn<IndexTerm> for Tc<'_, E> {
 
         if let Term::Array(array_term) = *index_term.subject.value() {
             let result = match array_term {
-                ArrayTerm::Normal(elements) => self.get_index_in_array(elements, index_term.index),
+                ArrayTerm::Normal(elements) => self.get_index_in_args(elements, index_term.index),
                 ArrayTerm::Repeated(subject, count) => {
                     // Evaluate the count, and the index terms to integers:
                     self.get_index_in_repeat(subject, count, index_term.index)

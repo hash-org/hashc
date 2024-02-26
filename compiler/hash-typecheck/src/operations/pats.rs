@@ -67,7 +67,7 @@ impl<E: TcEnv> OperationsOn<OrPat> for Tc<'_, E> {
         annotation_ty: Self::AnnotNode,
         _: Self::Node,
     ) -> crate::diagnostics::TcResult<()> {
-        self.check_unified_term_list(pat.alternatives, annotation_ty)?;
+        self.check_unified_args(pat.alternatives, annotation_ty)?;
         Ok(())
     }
 

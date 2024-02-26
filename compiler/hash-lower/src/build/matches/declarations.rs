@@ -8,8 +8,8 @@ use hash_ir::{
 };
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::tir::{
-    blocks::Decl, BindingPat, CtorTerm, IfPat, NodesId, OrPat, Pat, PatId, SymbolId, Term, TermId,
-    TupleTerm,
+    blocks::Decl, ArrayTerm, BindingPat, CtorTerm, IfPat, NodesId, OrPat, Pat, PatId, SymbolId,
+    Term, TermId, TupleTerm,
 };
 
 use super::{candidate::Candidate, BlockAnd, BodyBuilder};
@@ -104,15 +104,15 @@ impl<'tcx> BodyBuilder<'tcx> {
                 //     )
                 // }
             }
-            Term::Array(_array) => {
-                // @@Todo
+            Term::Array(ArrayTerm::Normal(_)) => {
+                // // @@Todo
                 todo!()
                 // if let Some(spread_pat) = spread {
                 //     let index = spread_pat.index;
 
                 //     // Create the fields into an iterator, and only take the
-                // `prefix`     // amount of fields to iterate
-                //     let pats = pats.value();
+                // `prefix`     // amount     // of fields to
+                // iterate     let pats = pats.value();
 
                 //     let prefix_fields = pats.iter().take(index);
                 //     for field in prefix_fields {
@@ -125,8 +125,8 @@ impl<'tcx> BodyBuilder<'tcx> {
                 //     f(
                 //         self,
                 //         // @@Todo: it should be possible to make this a
-                // mutable         // pattern reference, for now
-                // we assume it is always immutable.
+                // mutable         // pattern         //
+                // reference, for now we assume it is always immutable.
                 //         Mutability::Immutable,
                 //         spread_pat.name,
                 //         span,
@@ -149,7 +149,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // We only need to visit the first variant since we already
                 // check that the variant bindings are all the same.
                 if let Some(pat) = alternatives.at(0) {
-                    self.visit_primary_pattern_bindings(pat, f);
+                    self.visit_primary_pattern_bindings(pat.borrow().value, f);
                 }
             }
             Term::Pat(Pat::If(IfPat { pat, .. })) => {

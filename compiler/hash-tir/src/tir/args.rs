@@ -123,6 +123,34 @@ impl ArgsId {
         }
         None
     }
+
+    /// Given that this `ArgsId` represents a pattern, separate the pattern list
+    /// into the `prefix`, `suffix` and an optional; `rest` pattern.
+    pub fn into_pat_parts(&self) -> (Vec<TermId>, Vec<TermId>, Option<Spread>) {
+        let mut prefix = vec![];
+        let mut suffix = vec![];
+        let mut spread = None;
+
+        for arg in self.iter() {
+            let pat = arg.borrow().data.value;
+            match (pat.borrow().data, spread.is_some()) {
+                (Term::Pat(Pat::Spread(s)), false) => {
+                    spread = Some(s);
+                }
+                (Term::Pat(Pat::Spread(_)), true) => {
+                    panic!("Multiple spreads in a pattern list")
+                }
+                (_, false) => {
+                    prefix.push(pat);
+                }
+                (_, true) => {
+                    suffix.push(pat);
+                }
+            }
+        }
+
+        (prefix, suffix, spread)
+    }
 }
 
 impl fmt::Display for Arg {

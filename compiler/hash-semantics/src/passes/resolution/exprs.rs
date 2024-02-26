@@ -155,8 +155,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                     .ast_ref_iter()
                     .map(|element| self.make_term_from_ast_expr(element))
                     .collect::<SemanticResult<_>>()?;
-                let elements =
-                    Node::create_at(TermId::seq(element_vec), NodeOrigin::Given(node.id()));
+                let elements = Arg::seq_positional(element_vec, NodeOrigin::Given(node.id()));
                 Term::from(Term::Array(ArrayTerm::Normal(elements)), NodeOrigin::Given(node.id()))
             }
             ast::Expr::Cast(cast_expr) => {

@@ -394,7 +394,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 unreachable!("`or` pattern expected after candidate sorting")
             };
 
-            let pats = pats.alternatives.elements().borrow().iter().copied().collect_vec();
+            let pats = pats.alternatives.elements().value().iter().map(|x| x.value).collect_vec();
 
             first.visit_leaves(|leaf| {
                 self.test_or_pat(leaf, &mut otherwise, &pair.place, &pats, or_span);
