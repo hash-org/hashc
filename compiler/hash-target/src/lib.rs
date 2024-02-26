@@ -1,5 +1,5 @@
 //! Definitions to describe the target of Hash compilation.
-#![feature(decl_macro)]
+#![feature(decl_macro, min_specialization)]
 
 pub mod abi;
 pub mod alignment;
@@ -17,7 +17,7 @@ use std::{
 };
 
 use abi::{Abi, Integer};
-use data_layout::{Endian, TargetDataLayout, TargetDataLayoutParseError};
+use data_layout::{Endian, HasDataLayout, TargetDataLayout, TargetDataLayoutParseError};
 use link::{
     link_env, Cc, CodeModel, FramePointer, LinkEnv, LinkageArgs, LinkerFlavour, Lld,
     RelocationModel,
@@ -257,15 +257,6 @@ impl Target {
         load_target(triple)
     }
 
-    /// Get the [TargetDataLayout] that is associated with this [Target], if
-    /// there exists one.
-    ///
-    /// @@Ugh: this is a shit API, we need to figure out how to unify a the
-    /// target and target data layout items.
-    pub fn data_layout(&self) -> &TargetDataLayout {
-        &self.target_data_layout
-    }
-
     /// Set the [TargetDataLayout] for the [Target].Ì
     pub fn set_data_layout(&mut self, dl: TargetDataLayout) {
         self.target_data_layout = dl;
@@ -404,5 +395,12 @@ impl HasTarget for Target {
     #[inline]
     fn target(&self) -> &Target {
         self
+    }
+}
+
+impl<T: HasTarget> HasDataLayout for T {
+    #[inline]
+    fn data_layout(&self) -> &TargetDataLayout {
+        &self.target().target_data_layout
     }
 }

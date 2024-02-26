@@ -11,6 +11,7 @@ doctest = false
 hash-ast = { path = "../hash-ast" }
 hash-ast-utils = { path = "../hash-ast-utils" }
 hash-attrs = { path = "../hash-attrs" }
+hash-layout = { path = "../hash-layout" }
 hash-pipeline = { path = "../hash-pipeline" }
 hash-reporting = { path = "../hash-reporting" }
 hash-source = { path = "../hash-source" }

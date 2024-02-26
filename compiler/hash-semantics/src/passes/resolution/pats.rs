@@ -7,14 +7,16 @@
 use std::iter::empty;
 
 use hash_ast::ast::{self, AstNodeId, AstNodeRef};
+use hash_const_eval::Const;
 use hash_reporting::macros::panic_on_span;
 use hash_storage::store::{statics::SequenceStoreValue, SequenceStoreKey};
+use hash_target::data_layout::HasDataLayout;
 use hash_tir::{
     intrinsics::utils::bool_pat,
     tir::{
-        pats::BindingPat, ArrayPat, CharLit, CtorPat, IfPat, Lit, LitPat, Node, NodeId, NodeOrigin,
-        OrPat, ParamIndex, Pat, PatArg, PatArgsId, PatId, PatListId, PatOrCapture, RangePat,
-        Spread, StrLit, SymbolId, TuplePat,
+        pats::BindingPat, ArrayPat, CtorPat, IfPat, Lit, LitPat, Node, NodeId, NodeOrigin, OrPat,
+        ParamIndex, Pat, PatArg, PatArgsId, PatId, PatListId, PatOrCapture, RangePat, Spread,
+        SymbolId, TuplePat,
     },
 };
 
@@ -256,24 +258,21 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
         match lit_pat.body() {
             ast::Lit::Str(str_lit) => Node::create_at(
                 Pat::Lit(LitPat(Node::create_at(
-                    Lit::Str(StrLit { underlying: *str_lit }),
+                    Lit::Const(Const::str(str_lit.data, self.data_layout())),
                     origin,
                 ))),
                 origin,
             ),
             ast::Lit::Char(char_lit) => Node::create_at(
-                Pat::Lit(LitPat(Node::create_at(
-                    Lit::Char(CharLit { underlying: *char_lit }),
-                    origin,
-                ))),
+                Pat::Lit(LitPat(Node::create_at(Lit::Const(char_lit.data.into()), origin))),
                 origin,
             ),
             ast::Lit::Int(int_lit) => Node::create_at(
-                Pat::Lit(LitPat(Node::create_at(Lit::Int((*int_lit).into()), origin))),
+                Pat::Lit(LitPat(Node::create_at(Lit::Int(*int_lit), origin))),
                 origin,
             ),
             ast::Lit::Byte(byte_lit) => Node::create_at(
-                Pat::Lit(LitPat(Node::create_at(Lit::Int((*byte_lit).into()), origin))),
+                Pat::Lit(LitPat(Node::create_at(Lit::Const(byte_lit.data.into()), origin))),
                 origin,
             ),
             ast::Lit::Bool(bool_lit) => bool_pat(bool_lit.data, NodeOrigin::Given(lit_pat.id())),
@@ -290,17 +289,21 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
     fn make_lit_pat_from_non_bool_ast_lit(&self, lit_pat: AstNodeRef<ast::Lit>) -> LitPat {
         let origin = NodeOrigin::Given(lit_pat.id());
         match lit_pat.body() {
-            ast::Lit::Str(str_lit) => {
-                LitPat(Node::create_at(Lit::Str(StrLit { underlying: *str_lit }), origin))
-            }
+            ast::Lit::Str(str_lit) => LitPat(Node::create_at(
+                Lit::Const(Const::str(str_lit.data, self.data_layout())),
+                origin,
+            )),
             ast::Lit::Char(char_lit) => {
-                LitPat(Node::create_at(Lit::Char(CharLit { underlying: *char_lit }), origin))
+                LitPat(Node::create_at(Lit::Const(char_lit.data.into()), origin))
             }
             ast::Lit::Byte(byte_lit) => {
-                LitPat(Node::create_at(Lit::Int((*byte_lit).into()), origin))
+                LitPat(Node::create_at(Lit::Const(byte_lit.data.into()), origin))
             }
-            ast::Lit::Int(int_lit) => LitPat(Node::create_at(Lit::Int((*int_lit).into()), origin)),
-            ast::Lit::Bool(_) | ast::Lit::Float(_) => {
+            ast::Lit::Int(int_lit) => LitPat(Node::create_at(Lit::Int(*int_lit), origin)),
+            ast::Lit::Bool(_) => {
+                panic!("Found bool literal in non-bool literal handling")
+            }
+            ast::Lit::Float(_) => {
                 panic!("Found invalid literal in pattern")
             }
         }

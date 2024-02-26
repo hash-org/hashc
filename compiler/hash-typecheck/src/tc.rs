@@ -1,10 +1,12 @@
 //! Contains the main typechecker structure, which holds the state of the
 //! typechecker and is what all other `Operations` are implemented on.
+use hash_ir::{HasIrCtx, IrCtx};
 use hash_target::HasTarget;
 use hash_tir::{
     context::{Context, HasContext},
     visitor::Visitor,
 };
+use hash_tir_utils::lower::{HasTyCache, TyCache, TyLowerEnv};
 use hash_utils::{derive_more::Deref, state::LightState};
 
 use crate::{
@@ -69,8 +71,22 @@ impl<E: TcEnv> HasContext for Tc<'_, E> {
     }
 }
 
+impl<E: TcEnv> HasIrCtx for Tc<'_, E> {
+    fn ir_ctx(&self) -> &IrCtx {
+        self.env.ir_ctx()
+    }
+}
+
+impl<E: TcEnv> HasTyCache for Tc<'_, E> {
+    fn repr_ty_cache(&self) -> &TyCache {
+        self.env.repr_ty_cache()
+    }
+}
+
 impl<E: TcEnv> HasTarget for Tc<'_, E> {
     fn target(&self) -> &hash_target::Target {
         self.env.target()
     }
 }
+
+impl<T: TcEnv> TyLowerEnv for Tc<'_, T> {}

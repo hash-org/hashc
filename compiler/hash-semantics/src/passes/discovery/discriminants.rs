@@ -5,7 +5,8 @@ use hash_attrs::{
     attr::{attr_store, ReprAttr},
     builtin::attrs,
 };
-use hash_source::constant::IntConstant;
+use hash_const_eval::Const;
+use hash_layout::ty::ToReprTy;
 use hash_target::{
     abi::Integer,
     discriminant::{Discriminant, DiscriminantKind},
@@ -13,10 +14,10 @@ use hash_target::{
     size::Size,
 };
 use hash_tir::{
-    intrinsics::utils::create_term_from_integer_lit,
+    intrinsics::utils::create_term_from_const,
     tir::{HasAstNodeId, Node, NodeOrigin, TermId},
 };
-use num_bigint::BigInt;
+use hash_utils::num_bigint::BigInt;
 
 use super::DiscoveryPass;
 use crate::{
@@ -67,7 +68,7 @@ impl<'env, E: SemanticEnv> DiscoveryPass<'env, E> {
 
         for variant in def.entries.iter() {
             if let Some(discr_annot) = attr_store().get_attr(variant.id(), attrs::DISCRIMINANT) {
-                let discr = discr_annot.get_arg(0).unwrap().as_int().big_value();
+                let discr = discr_annot.get_arg(0).unwrap().as_big_int();
                 has_discriminant_attr = true;
                 is_signed |= discr < BigInt::from(0);
 
@@ -161,10 +162,10 @@ impl<'env, E: SemanticEnv> DiscoveryPass<'env, E> {
             let origin = NodeOrigin::Given(discr_annot.origin);
             let arg = discr_annot.get_arg(0).unwrap();
 
-            let const_val = arg.as_int().value().value;
-            let raw_val = const_val.as_u128();
+            let scalar = arg.value.as_scalar();
+            let value = scalar.to_bits(scalar.size()).unwrap();
             let mut next_discr =
-                Discriminant { value: raw_val, ty: *discr_ty, kind: DiscriminantKind::Explicit };
+                Discriminant { value, ty: *discr_ty, kind: DiscriminantKind::Explicit };
 
             if next_discr.has_overflowed(self.env) {
                 return Err(SemanticError::EnumDiscriminantOverflow {
@@ -178,12 +179,12 @@ impl<'env, E: SemanticEnv> DiscoveryPass<'env, E> {
                 // or not. However, we should remove this when we can use
                 // the `Const` format in the TIR which will automatically perform
                 // the truncation.
-                next_discr.value = discr_ty.size(self.target().ptr_size()).sign_extend(raw_val);
+                next_discr.value = discr_ty.size(self.target().ptr_size()).sign_extend(value);
             }
 
             *prev_discr = Some(next_discr);
             discrs.push(Node::at(next_discr, origin));
-            Ok(create_term_from_integer_lit(const_val, origin))
+            Ok(create_term_from_const(arg.value, origin))
         } else {
             let origin = NodeOrigin::Given(variant.id());
 
@@ -196,11 +197,11 @@ impl<'env, E: SemanticEnv> DiscoveryPass<'env, E> {
             // with the given discriminant type, later this should be
             // replaced by the new constant representation.
             let constant =
-                IntConstant::from_scalar(next_discr.value, *discr_ty, self.target().ptr_size());
+                Const::from_scalar_like(next_discr.value, (*discr_ty).to_repr_ty(), self.target());
 
             *prev_discr = Some(next_discr);
             discrs.push(Node::at(next_discr, origin));
-            Ok(create_term_from_integer_lit(constant.value, origin))
+            Ok(create_term_from_const(constant, origin))
         }
     }
 }

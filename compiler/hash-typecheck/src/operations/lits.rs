@@ -1,15 +1,17 @@
 use std::ops::ControlFlow;
 
+use hash_ast_utils::lit::{FloatLitKind, IntLitKind};
 use hash_storage::store::statics::StoreId;
 use hash_target::primitives::{BigIntTy, FloatTy, IntTy, SIntTy, UIntTy};
 use hash_tir::{
     intrinsics::{
-        definitions::{char_def, f32_def, f64_def, i32_def, str_def, Primitive},
+        definitions::{f32_def, f64_def, i32_def, Primitive},
         make::IsPrimitive,
         utils::{try_use_ty_as_float_ty, try_use_ty_as_int_ty},
     },
     tir::{DataDefCtors, Lit, LitId, NodeId, PrimitiveCtorInfo, Ty, TyId},
 };
+use hash_tir_utils::upcast::TyUpCast;
 
 use crate::{
     diagnostics::TcResult,
@@ -30,36 +32,26 @@ impl<E: TcEnv> Tc<'_, E> {
     /// we can then adjust the underlying constant to match the true type.
     fn bake_lit_repr(&self, lit: LitId, inferred_ty: TyId) -> TcResult<()> {
         match *lit.value() {
-            Lit::Float(float_lit) => {
-                // If the float is already baked, then we don't do anything.
-                if float_lit.has_value() {
-                    return Ok(());
-                }
-
+            Lit::Float(_) => {
                 if let Some(float_ty) = try_use_ty_as_float_ty(inferred_ty) {
                     lit.modify(|float| match &mut float.data {
-                        Lit::Float(fl) => fl.bake(float_ty),
+                        Lit::Float(_) => float.bake_float(float_ty),
                         _ => unreachable!(),
                     })?;
                 }
                 // @@Incomplete: it is possible that exotic literal
                 // types are defined, what happens then?
             }
-            Lit::Int(int_lit) => {
-                // If the float is already baked, then we don't do anything.
-                if int_lit.has_value() {
-                    return Ok(());
-                }
-
+            Lit::Int(_) => {
                 if let Some(int_ty) = try_use_ty_as_int_ty(inferred_ty) {
                     lit.modify(|int| match &mut int.data {
-                        Lit::Int(fl) => fl.bake(self.target(), int_ty),
+                        Lit::Int(_) => int.bake_int(self.target(), int_ty),
                         _ => unreachable!(),
                     })?;
                 }
                 // @@Incomplete: as above
             }
-            _ => {}
+            _ => {} // Already baked.
         }
         Ok(())
     }
@@ -82,8 +74,8 @@ impl<E: TcEnv> OperationsOnNode<LitId> for Tc<'_, E> {
         let inferred_ty = Ty::data_ty(
             match *lit.value() {
                 Lit::Int(int_lit) => {
-                    match int_lit.kind() {
-                        Some(ty) => match ty {
+                    match int_lit.kind {
+                        IntLitKind::Suffixed(ty) => match ty {
                             IntTy::Int(s_int_ty) => match s_int_ty {
                                 SIntTy::I8 => Primitive::I8,
                                 SIntTy::I16 => Primitive::I16,
@@ -106,7 +98,7 @@ impl<E: TcEnv> OperationsOnNode<LitId> for Tc<'_, E> {
                             },
                         }
                         .def(),
-                        None => {
+                        _ => {
                             (match *annotation_ty.value() {
                                 Ty::DataTy(data_ty) => match data_ty.data_def.value().ctors {
                                     DataDefCtors::Primitive(primitive_ctors) => {
@@ -135,14 +127,12 @@ impl<E: TcEnv> OperationsOnNode<LitId> for Tc<'_, E> {
                         }
                     }
                 }
-                Lit::Str(_) => str_def(),
-                Lit::Char(_) => char_def(),
-                Lit::Float(float_lit) => match float_lit.kind() {
-                    Some(ty) => match ty {
+                Lit::Float(float_lit) => match float_lit.kind {
+                    FloatLitKind::Suffixed(ty) => match ty {
                         FloatTy::F32 => f32_def(),
                         FloatTy::F64 => f64_def(),
                     },
-                    None => {
+                    _ => {
                         (match *annotation_ty.value() {
                             Ty::DataTy(data_ty) => match data_ty.data_def.value().ctors {
                                 DataDefCtors::Primitive(primitive_ctors) => match primitive_ctors {
@@ -165,6 +155,12 @@ impl<E: TcEnv> OperationsOnNode<LitId> for Tc<'_, E> {
                         .unwrap_or_else(f64_def)
                     }
                 },
+                Lit::Const(constant) => {
+                    let upcast = TyUpCast::new(self);
+                    upcast
+                        .data_def_from_repr_ty(constant.ty())
+                        .expect("constant type is not primitive")
+                }
             },
             lit.origin(),
         );
@@ -181,10 +177,9 @@ impl<E: TcEnv> OperationsOnNode<LitId> for Tc<'_, E> {
     fn unify_nodes(&self, src: LitId, target: LitId) -> TcResult<()> {
         self.unification_ok_or_mismatching_atoms(
             match (*src.value(), *target.value()) {
-                (Lit::Int(i1), Lit::Int(i2)) => i1.value() == i2.value(),
-                (Lit::Str(s1), Lit::Str(s2)) => s1.value() == s2.value(),
-                (Lit::Char(c1), Lit::Char(c2)) => c1.value() == c2.value(),
-                (Lit::Float(f1), Lit::Float(f2)) => f1.value() == f2.value(),
+                (Lit::Int(i1), Lit::Int(i2)) => i1 == i2,
+                (Lit::Float(f1), Lit::Float(f2)) => f1 == f2,
+                (Lit::Const(c1), Lit::Const(c2)) => c1 == c2,
                 _ => false,
             },
             src,

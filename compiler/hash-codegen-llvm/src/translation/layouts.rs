@@ -2,10 +2,7 @@
 
 use hash_codegen::{
     layout::{Layout, LayoutShape, TyInfo, Variants},
-    target::{
-        abi::AbiRepresentation,
-        data_layout::{HasDataLayout, TargetDataLayout},
-    },
+    target::abi::AbiRepresentation,
     traits::layout::LayoutMethods,
 };
 use hash_ir::ty::ReprTyId;
@@ -28,12 +25,6 @@ impl<'b> LayoutMethods<'b> for CodeGenCtx<'b, '_> {
     }
 }
 
-impl HasDataLayout for CodeGenCtx<'_, '_> {
-    fn data_layout(&self) -> &TargetDataLayout {
-        &self.layouts.data_layout
-    }
-}
-
 impl<'b, 'm> LayoutMethods<'b> for LLVMBuilder<'_, 'b, 'm> {
     fn backend_field_index(&self, info: TyInfo, index: usize) -> u64 {
         self.ctx.backend_field_index(info, index)
@@ -45,12 +36,6 @@ impl<'b, 'm> LayoutMethods<'b> for LLVMBuilder<'_, 'b, 'm> {
 
     fn is_backend_scalar_pair(&self, ty: TyInfo) -> bool {
         self.ctx.is_backend_scalar_pair(ty)
-    }
-}
-
-impl HasDataLayout for LLVMBuilder<'_, '_, '_> {
-    fn data_layout(&self) -> &TargetDataLayout {
-        self.ctx.data_layout()
     }
 }
 

@@ -1,7 +1,9 @@
 //! Wrapper around the typechecker to provide an interface to
 //! intrinsic functions.
 
+use hash_layout::{compute::LayoutComputer, HasLayout};
 use hash_reporting::diagnostic::Diagnostics;
+use hash_source::identifier::Identifier;
 use hash_target::{HasTarget, Target};
 use hash_tir::{
     context::{Context, HasContext},
@@ -34,6 +36,12 @@ impl<T: TcEnv> HasTarget for IntrinsicAbilitiesImpl<'_, T> {
     }
 }
 
+impl<T: TcEnv> HasLayout for IntrinsicAbilitiesImpl<'_, T> {
+    fn layout_computer(&self) -> LayoutComputer {
+        self.tc.layout_computer()
+    }
+}
+
 impl<T: TcEnv> IntrinsicAbilities for IntrinsicAbilitiesImpl<'_, T> {
     fn normalise_term(&self, term: TermId) -> Result<Option<TermId>, String> {
         // Allow intrinsics to normalise terms through the typechecker:
@@ -43,10 +51,7 @@ impl<T: TcEnv> IntrinsicAbilities for IntrinsicAbilitiesImpl<'_, T> {
         })
     }
 
-    fn resolve_from_prelude(
-        &self,
-        _name: impl Into<hash_source::identifier::Identifier>,
-    ) -> TermId {
+    fn resolve_from_prelude(&self, _name: impl Into<Identifier>) -> TermId {
         // @@Todo: actually implement this to be able to resolve prelude items
         todo!()
     }

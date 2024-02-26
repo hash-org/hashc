@@ -51,7 +51,6 @@
 // printed, and never shown as a span in any diagnostics. Therefore, all origins
 // are set to `NodeOrigin::Generated`.
 
-pub mod constant;
 pub mod construct;
 pub mod deconstruct;
 pub mod diagnostics;
@@ -67,10 +66,15 @@ pub mod wildcard;
 
 use diagnostics::{ExhaustivenessDiagnostics, ExhaustivenessError, ExhaustivenessWarning};
 use hash_ast::ast::MatchOrigin;
+use hash_ir::{HasIrCtx, IrCtx};
 use hash_reporting::diagnostic::Diagnostics;
 use hash_source::location::Span;
-use hash_target::HasTarget;
-use hash_tir::tir::{PatId, TyId};
+use hash_target::{HasTarget, Target};
+use hash_tir::{
+    context::{Context, HasContext},
+    tir::{PatId, TyId},
+};
+use hash_tir_utils::lower::{HasTyCache, TyCache, TyLower, TyLowerEnv};
 use hash_utils::derive_more::Deref;
 use storage::ExhaustivenessCtx;
 use usefulness::Reachability;
@@ -114,20 +118,56 @@ pub struct ExhaustivenessChecker<'env, E> {
     /// The ambient environment for target etc.
     #[deref]
     env: &'env E,
+
+    /// Current typechecking context.
+    ctx: &'env Context,
 }
 
-pub trait ExhaustivenessEnv: HasTarget {}
-impl<T: HasTarget> ExhaustivenessEnv for T {}
+pub trait ExhaustivenessEnv: HasIrCtx + HasTarget + HasTyCache {}
+
+impl<E: HasIrCtx + HasTarget + HasTyCache> ExhaustivenessEnv for E {}
+
+impl<E: ExhaustivenessEnv> HasContext for ExhaustivenessChecker<'_, E> {
+    fn context(&self) -> &Context {
+        self.ctx
+    }
+}
+
+impl<E: ExhaustivenessEnv> HasTyCache for ExhaustivenessChecker<'_, E> {
+    fn repr_ty_cache(&self) -> &TyCache {
+        self.env.repr_ty_cache()
+    }
+}
+
+impl<E: ExhaustivenessEnv> HasIrCtx for ExhaustivenessChecker<'_, E> {
+    fn ir_ctx(&self) -> &IrCtx {
+        self.env.ir_ctx()
+    }
+}
+
+impl<E: ExhaustivenessEnv> HasTarget for ExhaustivenessChecker<'_, E> {
+    fn target(&self) -> &Target {
+        self.env.target()
+    }
+}
+
+impl<'env, E: ExhaustivenessEnv> TyLowerEnv for ExhaustivenessChecker<'env, E> {}
 
 impl<'env, E: ExhaustivenessEnv> ExhaustivenessChecker<'env, E> {
     /// Create a new checker.
-    pub fn new(subject_span: Span, env: &'env E) -> Self {
+    pub fn new(subject_span: Span, env: &'env E, ctx: &'env Context) -> Self {
         Self {
             subject_span,
             ecx: ExhaustivenessCtx::new(),
+            ctx,
             diagnostics: ExhaustivenessDiagnostics::new(),
             env,
         }
+    }
+
+    /// Create a new type lowerer, converting TIR types into Repr Types.
+    pub fn ty_lower(&self) -> TyLower<'_, Self> {
+        TyLower::new(self)
     }
 
     /// Convert the [ExhaustivenessChecker] into its

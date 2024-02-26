@@ -22,7 +22,7 @@ use hash_pipeline::{
 };
 use hash_reporting::{diagnostic::DiagnosticsMut, report::Report, reporter::Reports};
 use hash_source::{
-    constant::string_table, location::SpannedSource, InteractiveId, ModuleId, SourceId,
+    constant::const_stores, location::SpannedSource, InteractiveId, ModuleId, SourceId,
     SourceMapUtils,
 };
 use hash_utils::{
@@ -261,7 +261,7 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     }
 
     // Update the global string table now!
-    string_table().add_local_table(strings);
+    const_stores().add_local_table(strings);
 
     // Create a new import resolver in the event of more modules that
     // are encountered whilst parsing this module.

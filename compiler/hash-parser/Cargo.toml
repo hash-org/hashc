@@ -8,8 +8,6 @@ edition = "2021"
 doctest = false
 
 [dependencies]
-num-bigint = "0.4"
-
 # For profiling the parser
 profiling = "1.0"
 

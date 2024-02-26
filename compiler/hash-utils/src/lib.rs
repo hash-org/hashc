@@ -22,6 +22,7 @@ pub mod range_map;
 pub mod scoping;
 pub mod stack;
 pub mod state;
+pub mod temp_writer;
 pub mod tree_writing;
 
 // Re-export commonly used packages
@@ -39,6 +40,7 @@ pub use indexmap;
 pub use itertools;
 pub use lazy_static;
 pub use log;
+pub use num_bigint;
 pub use num_traits;
 pub use parking_lot;
 pub use rayon;

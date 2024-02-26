@@ -12,7 +12,6 @@ use hash_utils::profiling::{CellStageMetrics, HasMetrics};
 
 // Various passes that are used to optimise the generated IR bodies.
 mod cleanup_locals;
-pub(crate) mod constant_propagations;
 mod simplify_graph;
 
 pub trait IrOptimisationPass {

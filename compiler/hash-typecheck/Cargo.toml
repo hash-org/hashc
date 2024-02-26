@@ -9,17 +9,21 @@ doctest = false
 
 [dependencies]
 itertools = "0.10"
-num-bigint = "0.4"
 once_cell = "1.17"
 
 hash-ast = { path = "../hash-ast" }
+hash-ast-utils = { path = "../hash-ast-utils" }
 hash-attrs = { path = "../hash-attrs" }
+hash-const-eval = { path = "../hash-const-eval" }
 hash-exhaustiveness = { path = "../hash-exhaustiveness" }
-hash-reporting = { path = "../hash-reporting" }
+hash-ir = { path = "../hash-ir" }
+hash-layout = { path = "../hash-layout" }
 hash-pipeline = { path = "../hash-pipeline" }
+hash-reporting = { path = "../hash-reporting" }
 hash-source = { path = "../hash-source" }
-hash-target = { path = "../hash-target" }
 hash-storage = { path = "../hash-storage" }
+hash-target = { path = "../hash-target" }
 hash-tir = { path = "../hash-tir" }
+hash-tir-utils = { path = "../hash-tir-utils" }
 hash-tree-def = { path = "../hash-tree-def" }
 hash-utils = { path = "../hash-utils" }

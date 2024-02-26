@@ -8,7 +8,7 @@ use std::fmt;
 
 use delimiter::Delimiter;
 use hash_source::{
-    constant::{FloatTy, IntTy, InternedStr},
+    constant::{AllocId, FloatTy, IntTy},
     identifier::Identifier,
     location::{ByteRange, SpannedSource},
 };
@@ -315,7 +315,7 @@ pub enum TokenKind {
     /// Character literal.
     Char(char),
     /// String literal.
-    Str(InternedStr),
+    Str(AllocId),
     /// Identifier.
     Ident(Identifier),
 
@@ -356,7 +356,7 @@ impl TokenKind {
         match self {
             TokenKind::Unexpected(atom) => format!("an unknown character `{atom}`"),
             TokenKind::Char(ch) => format!("`{ch}`"),
-            TokenKind::Str(str) => format!("the string `{}`", *str),
+            TokenKind::Str(alloc) => format!("the string `{}`", alloc.to_str()),
             TokenKind::Keyword(kwd) => format!("the keyword `{kwd}`"),
             TokenKind::Ident(ident) => format!("the identifier `{}`", *ident),
             kind => format!("a `{kind}`"),
@@ -410,7 +410,8 @@ impl std::fmt::Display for TokenKind {
             TokenKind::RightDelim(delim) => write!(f, "{}", delim.right()),
             TokenKind::Tree(delim, _) => write!(f, "{}...{}", delim.left(), delim.right()),
             TokenKind::Str(str) => {
-                write!(f, "\"{}\"", *str)
+                let value = str.to_str();
+                write!(f, "\"{}\"", value)
             }
             TokenKind::Keyword(kwd) => kwd.fmt(f),
             TokenKind::Ident(ident) => {

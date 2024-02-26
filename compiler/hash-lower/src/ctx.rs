@@ -3,7 +3,7 @@
 //! other operations.
 use std::io::Write;
 
-use hash_ir::{ty::ReprTyId, IrCtx};
+use hash_ir::{ty::ReprTyId, HasIrCtx, IrCtx};
 use hash_layout::{
     compute::{LayoutComputer, LayoutError},
     write::{LayoutWriter, LayoutWriterConfig},
@@ -11,16 +11,14 @@ use hash_layout::{
 };
 use hash_pipeline::{interface::CompilerOutputStream, settings::CompilerSettings};
 use hash_storage::store::statics::SequenceStoreValue;
-use hash_target::{
-    data_layout::{HasDataLayout, TargetDataLayout},
-    HasTarget, Target,
-};
+use hash_target::{HasTarget, Target};
 use hash_tir::{
     atom_info::{AtomInfoStore, HasAtomInfo},
     context::{Context, HasContext},
     stores::tir_stores,
     tir::{Arg, DataDefId, DataTy, ModDefId, Node, NodeId},
 };
+use hash_tir_utils::lower::{HasTyCache, TyCache, TyLowerEnv};
 use hash_utils::stream_writeln;
 
 use crate::LoweringCtx;
@@ -35,6 +33,8 @@ pub(crate) struct BuilderCtx<'ir> {
     /// lowering the TIR.
     pub lcx: &'ir IrCtx,
 
+    pub ty_cache: &'ir TyCache,
+
     /// The type layout context stores all relevant information to layouts and
     /// computing them.
     layouts: &'ir LayoutStorage,
@@ -48,15 +48,21 @@ pub(crate) struct BuilderCtx<'ir> {
     pub context: Context,
 }
 
-impl HasDataLayout for BuilderCtx<'_> {
-    fn data_layout(&self) -> &TargetDataLayout {
-        &self.layouts.data_layout
-    }
-}
-
 impl HasContext for BuilderCtx<'_> {
     fn context(&self) -> &Context {
         &self.context
+    }
+}
+
+impl HasTyCache for BuilderCtx<'_> {
+    fn repr_ty_cache(&self) -> &TyCache {
+        self.ty_cache
+    }
+}
+
+impl HasIrCtx for BuilderCtx<'_> {
+    fn ir_ctx(&self) -> &IrCtx {
+        self.lcx
     }
 }
 
@@ -71,6 +77,8 @@ impl HasAtomInfo for BuilderCtx<'_> {
         tir_stores().atom_info()
     }
 }
+
+impl TyLowerEnv for BuilderCtx<'_> {}
 
 impl<'ir> BuilderCtx<'ir> {
     /// Create a new [BuilderCtx] from the given [LoweringCtx].
@@ -91,6 +99,7 @@ impl<'ir> BuilderCtx<'ir> {
 
         Self {
             lcx: &ir_storage.ctx,
+            ty_cache: &semantic_storage.repr_ty_cache,
             settings,
             layouts: layout_storage,
             prelude,
@@ -116,7 +125,7 @@ impl<'ir> BuilderCtx<'ir> {
 
     /// Dump the layout of a given type.
     pub(crate) fn dump_ty_layout(&self, data_def: DataDefId, mut out: CompilerOutputStream) {
-        let ty = self.ty_from_tir_data(DataTy {
+        let ty = self.repr_ty_from_tir_data_ty(DataTy {
             args: Node::create_at(Node::<Arg>::empty_seq(), data_def.origin()),
             data_def,
         });

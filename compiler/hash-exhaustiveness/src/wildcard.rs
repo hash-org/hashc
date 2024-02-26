@@ -47,7 +47,7 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     pub(super) fn split_wildcard_from_pat_ctx(&mut self, ctx: PatCtx) -> SplitWildcard {
         let make_range = |start, end| {
             DeconstructedCtor::IntRange(self.make_int_range(
-                ctx.ty,
+                self.ty_lower().repr_ty_from_tir_ty(ctx.ty),
                 start,
                 end,
                 &RangeEnd::Included,

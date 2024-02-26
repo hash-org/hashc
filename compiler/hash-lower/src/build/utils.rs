@@ -4,9 +4,10 @@
 //! types.
 
 use hash_ast::ast::AstNodeId;
+use hash_const_eval::Const;
 use hash_ir::{
     ir::{
-        AggregateKind, AssertKind, BasicBlock, Const, Local, LocalDecl, Operand, Place, RValue,
+        AggregateKind, AssertKind, BasicBlock, Local, LocalDecl, Operand, Place, RValue,
         TerminatorKind,
     },
     lang_items::LangItem,

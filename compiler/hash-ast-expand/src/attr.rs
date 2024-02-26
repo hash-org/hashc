@@ -6,9 +6,10 @@ use hash_ast_utils::{
     dump::dump_ast,
 };
 use hash_attrs::{
-    attr::{attr_store, Attr, AttrArgIdx, AttrValue, AttrValueKind, Attrs},
+    attr::{attr_store, Attr, AttrArgIdx, AttrValue, Attrs},
     builtin::{attrs, ATTR_MAP},
 };
+use hash_layout::ty::COMMON_REPR_TYS;
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
     TrivialSequenceStoreKey,
@@ -17,8 +18,8 @@ use hash_target::HasTarget;
 use hash_tir::{
     intrinsics::definitions::Primitive,
     tir::{
-        validate_and_reorder_args_against_params, Arg, CharLit, FloatLit, IntLit, Lit, Node,
-        NodeOrigin, ParamIndex, StrLit, Term, Ty, TyId,
+        validate_and_reorder_args_against_params, Arg, Lit, Node, NodeOrigin, ParamIndex, Term, Ty,
+        TyId,
     },
 };
 
@@ -106,13 +107,11 @@ impl AstExpander<'_> {
         match *param_ty.value() {
             Ty::DataTy(data) => match Primitive::try_from_def(data.data_def) {
                 Some(I8 | I16 | I32 | I64 | I128 | U8 | U16 | U32 | U64 | U128) => {
-                    maybe_emit_err(matches!(value, AttrValueKind::Int(_)))
+                    maybe_emit_err(value.ty().is_integral())
                 }
-                Some(Primitive::F32 | Primitive::F64) => {
-                    maybe_emit_err(matches!(value, AttrValueKind::Float(_)))
-                }
-                Some(Primitive::Char) => maybe_emit_err(matches!(value, AttrValueKind::Char(_))),
-                Some(Primitive::Str) => maybe_emit_err(matches!(value, AttrValueKind::Str(_))),
+                Some(F32 | F64) => maybe_emit_err(value.ty().is_float()),
+                Some(Char) => maybe_emit_err(value.ty() == COMMON_REPR_TYS.char),
+                Some(Str) => maybe_emit_err(value.ty() == COMMON_REPR_TYS.str),
                 ty => panic!("unexpected attribute parameter type `{ty:?}`"),
             },
             _ => panic!("unexpected attribute parameter type"),
@@ -155,53 +154,42 @@ impl AstExpander<'_> {
 
                     // If we can't convert this into an attribute value, then we
                     // can't properly check the invocation.
-                    let attr_value =
-                        match AttrValueKind::try_from_expr(arg.value.body(), expected_ty, ptr_size)
-                        {
-                            Ok(Some(value)) => value,
-                            Ok(None) => {
-                                let expr_kind = AttrTarget::classify_expr(arg.value.body());
-                                self.add_error(ExpansionError::new(
-                                    ExpansionErrorKind::InvalidAttributeArg(expr_kind),
-                                    arg.id(),
-                                ));
+                    let attr_value = match AttrValue::try_from_expr(
+                        arg.id(),
+                        arg.value.body(),
+                        expected_ty,
+                        ptr_size,
+                    ) {
+                        Ok(Some(value)) => value,
+                        Ok(None) => {
+                            let expr_kind = AttrTarget::classify_expr(arg.value.body());
+                            self.add_error(ExpansionError::new(
+                                ExpansionErrorKind::InvalidAttributeArg(expr_kind),
+                                arg.id(),
+                            ));
 
-                                is_valid = false;
-                                break;
-                            }
+                            is_valid = false;
+                            break;
+                        }
 
-                            // Literal parsing failed, we just push the error into the
-                            // expansion diagnostics and let it be handled later.
-                            Err(err) => {
-                                self.add_error(ExpansionError::new(err.into(), node.id));
+                        // Literal parsing failed, we just push the error into the
+                        // expansion diagnostics and let it be handled later.
+                        Err(err) => {
+                            self.add_error(ExpansionError::new(err.into(), node.id));
 
-                                is_valid = false;
-                                break;
-                            }
-                        };
-
-                    macro_rules! lit_prim {
-                        ($name:ident,$lit_name:ident, $contents:expr) => {
-                            Term::from(
-                                Term::Lit(Node::create_at(
-                                    Lit::$name($lit_name::from($contents)),
-                                    NodeOrigin::Given(arg.value.id()),
-                                )),
-                                NodeOrigin::Given(arg.value.id()),
-                            )
-                        };
-                    }
-
-                    let value = match attr_value {
-                        AttrValueKind::Str(lit) => lit_prim!(Str, StrLit, lit),
-                        AttrValueKind::Char(lit) => lit_prim!(Char, CharLit, lit),
-                        AttrValueKind::Int(lit) => lit_prim!(Int, IntLit, lit),
-                        AttrValueKind::Float(lit) => lit_prim!(Float, FloatLit, lit),
+                            is_valid = false;
+                            break;
+                        }
                     };
 
-                    attr.add_arg(
-                        AttrArgIdx::from(target),
-                        AttrValue { origin: arg.id(), value: attr_value },
+                    attr.add_arg(AttrArgIdx::from(target), attr_value);
+
+                    let value = Term::from(
+                        Term::Lit(Node::create_at(
+                            Lit::Const(attr_value.value),
+                            NodeOrigin::Given(arg.value.id()),
+                        )),
+                        NodeOrigin::Given(arg.value.id()),
                     );
                     args.push(Node::at(Arg { target, value }, NodeOrigin::Given(arg.id())));
                 }

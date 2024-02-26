@@ -10,8 +10,8 @@ mod cfg;
 mod ctx;
 
 mod discover;
-mod lower_ty;
 mod optimise;
+mod ty;
 
 use build::BodyBuilder;
 use ctx::BuilderCtx;
@@ -65,7 +65,7 @@ pub struct LoweringCtx<'ir> {
     /// the lowered IR, and all metadata about the IR.
     pub icx: &'ir mut IrStorage,
 
-    /// Reference to the [LayoutCtx] that is used to store
+    /// Reference to the [LayoutStorage] that is used to store
     /// the layouts of types.
     pub lcx: &'ir LayoutStorage,
 
