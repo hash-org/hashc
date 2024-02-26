@@ -11,7 +11,7 @@ use hash_tir::{
 };
 use hash_tir_utils::lower::{HasTyCache, TyCache};
 use hash_typecheck::env::{HasTcDiagnostics, TcEnv};
-use hash_utils::timing::{CellStageMetrics, HasMetrics};
+use hash_utils::profiling::{CellStageMetrics, HasMetrics};
 
 use crate::{
     diagnostics::definitions::{SemanticError, SemanticWarning},

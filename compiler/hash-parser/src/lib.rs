@@ -27,8 +27,8 @@ use hash_source::{
 };
 use hash_utils::{
     crossbeam_channel::{unbounded, Sender},
+    profiling::{HasMutMetrics, StageMetrics},
     rayon,
-    timing::{HasMutMetrics, StageMetrics},
 };
 use import_resolver::ImportResolver;
 use parser::AstGen;
@@ -56,7 +56,7 @@ impl Parser {
         // perhaps there should be a "light" metrics mode, and a more verbose
         // one.
         for metric in metrics.iter() {
-            *self.metrics.timings.entry(metric.0).or_default() += metric.1;
+            *self.metrics.metrics.entry(metric.0).or_default() += metric.1;
         }
     }
 }
@@ -217,7 +217,7 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
 
     // Read in the contents from disk if this is a module, otherwise copy
     // from the already inserted interactive line.
-    let contents = timings.time_item("read", |_| {
+    let contents = timings.record("read", |_| {
         if id.is_interactive() {
             // @@Dumbness: We have to copy out the contents of the interactive line.
             Ok(SourceMapUtils::map(id, |source| source.owned_contents()))
@@ -244,7 +244,7 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
 
     // Lex the contents of the module or interactive block
     let LexerMetadata { tokens, mut diagnostics, strings } =
-        timings.time_item("tokenise", |_| Lexer::new(spanned, id).tokenise());
+        timings.record("tokenise", |_| Lexer::new(spanned, id).tokenise());
 
     // Check if the lexer has errors...
     if diagnostics.has_errors() {
@@ -274,7 +274,7 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     // message queue, regardless of it being an error or not.
     let action = match id.is_interactive() {
         false => {
-            let node = timings.time_item("gen", |_| gen.parse_module());
+            let node = timings.record("gen", |_| gen.parse_module());
             SourceMapUtils::set_module_source(id, contents);
 
             ParserAction::SetModuleNode {
@@ -285,7 +285,7 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
             }
         }
         true => {
-            let node = timings.time_item("gen", |_| gen.parse_expr_from_interactive());
+            let node = timings.record("gen", |_| gen.parse_expr_from_interactive());
 
             ParserAction::SetInteractiveNode {
                 id: id.into(),
