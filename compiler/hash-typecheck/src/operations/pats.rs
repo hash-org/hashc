@@ -2,16 +2,12 @@ use std::ops::ControlFlow;
 
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
-    atom_info::ItemInAtomInfo,
     context::HasContext,
     intrinsics::{definitions::bool_ty, utils::bool_term},
-    tir::{
-        IfPat, NodeId, NodeOrigin, NodesId, OrPat, Pat, PatId, PatListId, Term, TermId, Ty, TyId,
-    },
+    tir::{IfPat, NodeId, NodeOrigin, OrPat, PatId, Term, Ty, TyId},
 };
 
 use crate::{
-    diagnostics::TcResult,
     env::TcEnv,
     options::normalisation::{normalise_nested, NormaliseResult},
     tc::Tc,

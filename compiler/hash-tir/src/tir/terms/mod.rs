@@ -41,7 +41,7 @@ pub use holes::*;
 pub use refs::*;
 pub use tuples::*;
 
-use super::Pat;
+use super::{Pat, Spread};
 
 /// A term that can contain unsafe operations.
 #[derive(Debug, Clone, Copy)]
@@ -281,6 +281,35 @@ impl TermId {
     pub fn use_as_non_pat(&self) -> Option<TermId> {
         // @@Todo: handle
         Some(*self)
+    }
+}
+
+impl TermListId {
+    /// Split the pattern list into the `prefix`, `suffix` and an optional;
+    /// `rest` pattern.
+    pub fn into_pat_parts(&self) -> (Vec<TermId>, Vec<TermId>, Option<Spread>) {
+        let mut prefix = vec![];
+        let mut suffix = vec![];
+        let mut spread = None;
+
+        for pat in self.iter() {
+            match (pat.borrow().data, spread.is_some()) {
+                (Term::Pat(Pat::Spread(s)), false) => {
+                    spread = Some(s);
+                }
+                (Term::Pat(Pat::Spread(_)), true) => {
+                    panic!("Multiple spreads in a pattern list")
+                }
+                (_, false) => {
+                    prefix.push(pat);
+                }
+                (_, true) => {
+                    suffix.push(pat);
+                }
+            }
+        }
+
+        (prefix, suffix, spread)
     }
 }
 

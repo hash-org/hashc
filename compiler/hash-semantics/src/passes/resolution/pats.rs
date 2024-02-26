@@ -12,9 +12,9 @@ use hash_storage::store::{statics::SequenceStoreValue, SequenceStoreKey};
 use hash_tir::{
     intrinsics::utils::bool_term,
     tir::{
-        pats::BindingPat, Arg, ArrayPat, ArrayTerm, CharLit, CtorTerm, IfPat, Lit, LitPat, Node,
-        NodeId, NodeOrigin, OrPat, ParamIndex, Pat, PatArgsId, PatId, PatListId, RangePat, Spread,
-        StrLit, SymbolId, Term, TermId, TupleTerm,
+        pats::BindingPat, Arg, ArrayTerm, CharLit, CtorTerm, IfPat, Lit, LitPat, Node, NodeId,
+        NodeOrigin, OrPat, ParamIndex, Pat, PatArgsId, PatId, PatListId, RangePat, Spread, StrLit,
+        SymbolId, Term, TermId, TupleTerm,
     },
 };
 
@@ -63,7 +63,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
     ) -> SemanticResult<PatListId> {
         let created_pats = pats
             .iter()
-            .map(|pat| Ok(self.make_pat_from_ast_pat(pat.ast_ref())?))
+            .map(|pat| self.make_pat_from_ast_pat(pat.ast_ref()))
             .collect::<SemanticResult<Vec<_>>>()?;
         Ok(Node::create_at(TermId::seq(created_pats), NodeOrigin::Given(pats.id())))
     }

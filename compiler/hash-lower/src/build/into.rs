@@ -337,6 +337,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
             Term::Annot(_)
             | Term::TyOf(_)
+            | Term::Pat(_)
             | Ty::DataTy(_)
             | Ty::FnTy(_)
             | Ty::TupleTy(_)

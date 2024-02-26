@@ -5,7 +5,7 @@ use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceSto
 use hash_tir::{
     intrinsics::definitions::usize_ty,
     tir::{
-        Arg, CtorDefId, CtorTerm, DataDefCtors, DataDefId, DataTy, NodeId, NodeOrigin, PatId,
+        Arg, CtorDefId, CtorTerm, DataDefCtors, DataDefId, DataTy, NodeId, NodeOrigin,
         PrimitiveCtorInfo, TermId, Ty, TyId,
     },
     visitor::Map,

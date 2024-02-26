@@ -12,8 +12,8 @@ pub mod gen {
     use hash_utils::itertools::Itertools;
 
     use crate::tir::{
-        Arg, ArgsId, DataDef, DataDefCtors, DataDefId, Node, NodeOrigin, Param, ParamsId, Pat,
-        PatId, PrimitiveCtorInfo, RefKind, SymbolId, Term, TermId, Ty, TyId, VariantData,
+        Arg, ArgsId, DataDef, DataDefCtors, DataDefId, Node, NodeOrigin, Param, ParamsId,
+        PrimitiveCtorInfo, RefKind, SymbolId, Term, TermId, Ty, TyId, VariantData,
         VariantDataWithoutArgs,
     };
 

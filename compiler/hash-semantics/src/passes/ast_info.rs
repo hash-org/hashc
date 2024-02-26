@@ -6,7 +6,7 @@ use hash_tir::{
     stack::StackId,
     tir::{
         ArgId, ArgsSeqId, CtorDefId, CtorDefsSeqId, DataDefId, FnDefId, ModDefId, ModMemberId,
-        ModMembersSeqId, ParamId, ParamsSeqId, PatArgId, PatId, TermId, TyId,
+        ModMembersSeqId, ParamId, ParamsSeqId, PatId, TermId, TyId,
     },
 };
 use hash_utils::{fxhash::FxHashMap, parking_lot::RwLock};

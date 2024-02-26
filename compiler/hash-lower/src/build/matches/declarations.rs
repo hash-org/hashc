@@ -8,8 +8,8 @@ use hash_ir::{
 };
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::tir::{
-    blocks::Decl, ArrayPat, ArrayTerm, BindingPat, CtorTerm, IfPat, NodesId, OrPat, Pat, PatId,
-    SymbolId, Term, TermId, TupleTerm,
+    blocks::Decl, BindingPat, CtorTerm, IfPat, NodesId, OrPat, Pat, PatId, SymbolId, Term, TermId,
+    TupleTerm,
 };
 
 use super::{candidate::Candidate, BlockAnd, BodyBuilder};
@@ -104,7 +104,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 //     )
                 // }
             }
-            Term::Array(array) => {
+            Term::Array(_array) => {
                 // @@Todo
                 todo!()
                 // if let Some(spread_pat) = spread {

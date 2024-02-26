@@ -7,8 +7,8 @@ use hash_tir::{
     context::HasContext,
     sub::Sub,
     tir::{
-        AccessTerm, ArgsId, Hole, NodeId, ParamId, ParamIndex, ParamsId, Pat, SymbolId, Term,
-        TermId, Ty, VarTerm,
+        AccessTerm, ArgsId, Hole, NodeId, ParamId, ParamIndex, ParamsId, SymbolId, Term, TermId,
+        Ty, VarTerm,
     },
     visitor::{Atom, Map, Visit, Visitor},
 };

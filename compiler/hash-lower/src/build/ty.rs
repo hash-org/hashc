@@ -192,13 +192,6 @@ impl<'tcx> BodyBuilder<'tcx> {
         }
     }
 
-    /// Convert the [LitPat] into a [Const] and return the value of the constant
-    /// as a [u128]. This literal term must be an integral type.
-    #[inline]
-    pub(crate) fn eval_lit_pat(&self, pat: LitPat) -> Const {
-        self.lit_as_const(pat.0)
-    }
-
     /// This will compute the value of a range literal as a [Const] and a
     /// [u128]. The [u128] is essentially an encoded version in order to
     /// store signed and unsigned values within the same value.
@@ -217,7 +210,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     ) -> (Const, u128) {
         let scalar = match maybe_pat {
             Some(lit_pat) => {
-                let constant = self.eval_lit_pat(lit_pat);
+                let constant = self.lit_as_const(lit_pat.0);
                 let ConstKind::Scalar(scalar) = constant.kind else {
                     panic!("expected scalar constant in `add_cases_to_switch`")
                 };

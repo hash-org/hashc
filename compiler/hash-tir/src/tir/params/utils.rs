@@ -357,7 +357,7 @@ pub fn validate_and_reorder_args_against_params(
     params_id: ParamsId,
 ) -> ParamResult<PatArgsId> {
     // First validate the arguments
-    validate_args_against_params(args_id.into(), params_id)?;
+    validate_args_against_params(args_id, params_id)?;
 
     let spread = args_id.get_spread();
 
@@ -381,7 +381,7 @@ pub fn validate_and_reorder_args_against_params(
                     && spread.index == j - 1
                 {
                     error_state.add_error(ParamError::SpreadBeforePositionalArg {
-                        next_positional: arg_id.into(),
+                        next_positional: arg_id,
                     });
                 }
 
@@ -409,8 +409,8 @@ pub fn validate_and_reorder_args_against_params(
                             // Duplicate argument name, must be from positional
                             assert!(j != i);
                             error_state.add_error(ParamError::DuplicateArg {
-                                first: PatArgId::new(args_id.elements(), i).into(),
-                                second: PatArgId::new(args_id.elements(), j).into(),
+                                first: PatArgId::new(args_id.elements(), i),
+                                second: PatArgId::new(args_id.elements(), j),
                             });
                         } else {
                             // Found an uncrossed parameter, add it to the result
@@ -423,7 +423,7 @@ pub fn validate_and_reorder_args_against_params(
                     None => {
                         // No parameter with the same name as the argument
                         error_state.add_error(ParamError::ArgNameNotFoundInParams {
-                            arg: arg_id.into(),
+                            arg: arg_id,
                             params: params_id,
                         });
                     }
@@ -454,7 +454,7 @@ pub fn validate_and_reorder_args_against_params(
                 // this is an error
                 error_state.add_error(ParamError::RequiredParamNotFoundInArgs {
                     param: param_id,
-                    args: args_id.into(),
+                    args: args_id,
                 });
             }
         }

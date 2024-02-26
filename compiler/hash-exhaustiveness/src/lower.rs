@@ -16,10 +16,9 @@ use hash_tir::{
     },
     term_as_variant,
     tir::{
-        pats::BindingPat, Arg, ArrayCtorInfo, ArrayPat, ArrayTerm, CharLit, CtorDefId, CtorTerm,
-        DataTy, IfPat, IntLit, Lit, LitPat, Node, NodeOrigin, NodesId, OrPat, ParamId, ParamsId,
-        Pat, PatArgsId, PatId, RangePat, Spread, StrLit, SymbolId, Term, TermId, TupleTerm,
-        TupleTy, Ty, TyId,
+        pats::BindingPat, Arg, ArrayCtorInfo, ArrayTerm, CharLit, CtorDefId, CtorTerm, DataTy,
+        IfPat, IntLit, Lit, LitPat, Node, NodeOrigin, NodesId, OrPat, ParamId, ParamsId, Pat,
+        PatArgsId, PatId, RangePat, Spread, StrLit, SymbolId, Term, TupleTerm, TupleTy, Ty, TyId,
     },
 };
 use hash_utils::{itertools::Itertools, smallvec::SmallVec};
@@ -273,7 +272,7 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
                         let pats = Node::create_at(PatId::seq(children), NodeOrigin::Generated);
                         Term::Array(ArrayTerm::Normal(pats))
                     }
-                    ArrayKind::Var(prefix, suffix) => {
+                    ArrayKind::Var(prefix, _suffix) => {
                         let xs = &children[..*prefix];
                         let ys = &children[*prefix..];
                         let pats = Node::create_at(
@@ -315,7 +314,7 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
                 Node::at(
                     Arg {
                         target: ParamId::new(params.elements(), index).as_param_index(),
-                        value: self.construct_pat(p).into(),
+                        value: self.construct_pat(p),
                     },
                     NodeOrigin::Generated,
                 )

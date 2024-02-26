@@ -7,15 +7,12 @@ use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
     CloneStore, SequenceStoreKey, TrivialSequenceStoreKey,
 };
-use hash_utils::{derive_more::From, itertools::Itertools};
+use hash_utils::itertools::Itertools;
 
 use super::{Pat, Spread};
 use crate::{
     stores::tir_stores,
-    tir::{
-        HasAstNodeId, Node, NodeId, NodeOrigin, NodesId, ParamIndex, ParamsId, PatId, SymbolId,
-        Term, TermId,
-    },
+    tir::{HasAstNodeId, Node, NodeId, NodeOrigin, NodesId, ParamIndex, ParamsId, Term, TermId},
     tir_node_sequence_store_direct,
 };
 

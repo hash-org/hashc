@@ -7,8 +7,7 @@ use hash_storage::store::{
     SequenceStoreKey,
 };
 use hash_tir::tir::{
-    ArgsId, CallTerm, Node, NodeOrigin, Param, ParamId, ParamsId, PatArgsId, Spread, Term, TermId,
-    Ty,
+    ArgsId, CallTerm, Node, NodeOrigin, Param, ParamId, ParamsId, PatArgsId, Term, TermId, Ty,
 };
 
 use super::ResolutionPass;
@@ -250,7 +249,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                     self.try_or_add_error(self.make_pat_args_from_ast_pat_args(pat_args));
                 let spread = self.try_or_add_error(self.make_spread_from_ast_spread(spread));
                 match (pat_args, spread) {
-                    (Some(pat_args), Some(spread)) => Ok(ResolvedArgs::Pat(pat_args)),
+                    (Some(pat_args), Some(_spread)) => Ok(ResolvedArgs::Pat(pat_args)),
                     _ => Err(SemanticError::Signal),
                 }
             }

@@ -5,27 +5,20 @@
 //! and functions.
 // @@DRY: the operations for arguments and pattern arguments are really similar,
 // maybe there is a way to abstract both of them into a single operation?
-use std::{collections::HashSet, ops::ControlFlow};
+use std::ops::ControlFlow;
 
-use hash_storage::store::{
-    statics::{SequenceStoreValue, StoreId},
-    SequenceStoreKey, TrivialSequenceStoreKey,
-};
+use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     context::{HasContext, ScopeKind},
-    tir::{
-        validate_and_reorder_args_against_params, Arg, ArgsId, Node, NodeId, NodesId, ParamsId,
-        Pat, PatArgsId, Spread, SymbolId, Term, TermId, TupleTerm, TyId,
-    },
-    visitor::{Atom, Map, Visit},
+    tir::{validate_and_reorder_args_against_params, ArgsId, ParamsId, TermId, TyId},
+    visitor::Map,
 };
-use itertools::Itertools;
 
 use crate::{
     diagnostics::{TcError, TcResult},
     env::TcEnv,
-    options::normalisation::{normalise_nested, NormaliseResult, NormaliseSignal},
+    options::normalisation::{normalise_nested, NormaliseResult},
     tc::Tc,
     traits::{OperationsOnNode, ScopedOperationsOnNode},
 };

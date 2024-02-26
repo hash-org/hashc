@@ -3,7 +3,7 @@
 //! when deciding where to jump to within the decision tree.
 #![allow(clippy::too_many_arguments)]
 
-use std::cmp::Ordering;
+use std::{borrow::Borrow, cmp::Ordering};
 
 use fixedbitset::FixedBitSet;
 use hash_ast::ast::{self, AstNodeId};
@@ -19,7 +19,10 @@ use hash_reporting::macros::panic_on_span;
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    tir::{IfPat, NodesId, ParamIndex, Pat, PatArgsId, PatId, RangePat, Spread},
+    tir::{
+        ArrayTerm, CtorTerm, IfPat, NodesId, ParamIndex, Pat, PatArgsId, PatId, RangePat, Spread,
+        Term,
+    },
 };
 use hash_utils::indexmap::IndexMap;
 
@@ -135,7 +138,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     self.span_of_pat(*pat),
                     *pat,
                     place_builder,
-                    candidate.has_guard || pat.borrow().is_if(),
+                    candidate.has_guard || matches!((*pat).borrow().data, Term::Pat(Pat::If(_))),
                 )
             })
             .collect();
@@ -179,7 +182,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         };
 
         match *pair.pat.value() {
-            Pat::Ctor(pat) => {
+            Term::Ctor(pat) => {
                 let ty_id = self.ty_id_from_tir_pat(pair.pat);
 
                 ty_id.map(|ty| match ty {
@@ -214,9 +217,9 @@ impl<'tcx> BodyBuilder<'tcx> {
                     _ => unreachable!("non-bool, non-adt type in test_match_pair"),
                 })
             }
-            Pat::Lit(lit) => {
+            Term::Lit(lit) => {
                 let ty = self.ty_id_from_tir_pat(pair.pat);
-                let value = self.lit_as_const(*lit);
+                let value = self.lit_as_const(lit);
 
                 // If it is not an integral constant, we use an `Eq` test. This will
                 // happen when the constant is either a float or a string.
@@ -226,33 +229,36 @@ impl<'tcx> BodyBuilder<'tcx> {
                     Test { kind: TestKind::Eq { ty, value }, origin }
                 }
             }
-            Pat::Range(ref range_pat) => {
+            Term::Pat(Pat::Range(ref range_pat)) => {
                 let ty = self.ty_id_from_tir_pat(pair.pat);
                 Test {
                     kind: TestKind::Range { range: ConstRange::from_range(range_pat, ty, self) },
                     origin,
                 }
             }
-            Pat::Array(array_pat) => {
-                let (prefix, suffix, rest) = array_pat.into_parts();
+            Term::Array(ArrayTerm::Normal(array_pat)) => {
+                let (prefix, suffix, rest) = array_pat.into_pat_parts();
 
                 let len = (prefix.len() + suffix.len()) as u64;
                 let op = if rest.is_some() { BinOp::GtEq } else { BinOp::Eq };
 
                 Test { kind: TestKind::Len { len, op }, origin }
             }
-            Pat::If(IfPat { pat, .. }) => {
+            Term::Pat(Pat::If(IfPat { pat, .. })) => {
                 self.test_match_pair(&MatchPair { pat, place: pair.place.clone() })
             }
-            Pat::Or(_) => {
+            Term::Pat(Pat::Or(_)) => {
                 panic_on_span!(origin.span(), "or patterns should be handled by `test_or_pat`")
             }
-            Pat::Tuple(_) | Pat::Binding(_) => {
+            Term::Tuple(_) | Term::Pat(Pat::Binding(_)) => {
                 panic_on_span!(
                     origin.span(),
                     "attempt to test simplify-able pattern, `{}`",
                     (pair.pat)
                 )
+            }
+            _ => {
+                panic_on_span!(origin.span(), "attempt to test non-pattern, `{}`", (pair.pat))
             }
         }
     }
@@ -283,7 +289,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         let pat_ty = self.ctx.get_inferred_ty(pair.pat);
 
         match (&test.kind, *pair.pat.value()) {
-            (TestKind::Switch { adt, .. }, Pat::Ctor(CtorPat { ctor, ctor_pat_args, .. })) => {
+            (TestKind::Switch { adt, .. }, Term::Ctor(CtorTerm { ctor, ctor_args, .. })) => {
                 // If we are performing a variant switch, then this informs
                 // variant patterns, bu nothing else.
                 let test_adt = self.ty_id_from_tir_ty(pat_ty);
@@ -301,7 +307,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     pair_index,
                     *adt,
                     variant_index,
-                    Some(ctor_pat_args),
+                    Some(ctor_args),
                     candidate,
                 );
 
@@ -311,10 +317,10 @@ impl<'tcx> BodyBuilder<'tcx> {
             (TestKind::Switch { .. }, _) => None,
 
             // The `bool` case
-            (TestKind::SwitchInt { ty, ref options }, Pat::Ctor(CtorPat { ctor, .. })) => {
+            (TestKind::SwitchInt { ty, ref options }, Term::Ctor(CtorTerm { ctor, .. })) => {
                 // We can't really do anything here since we can't compare them with
                 // the switch.
-                if !ty.borrow().is_switchable() {
+                if !(*ty).borrow().is_switchable() {
                     unreachable!("switch_int test for constructor pat with non-switchable type");
                 }
 
@@ -329,21 +335,21 @@ impl<'tcx> BodyBuilder<'tcx> {
             // When we are performing a switch over integers, then this informs integer
             // equality, but nothing else, @@Improve: we could use the Pat::Range to rule
             // some things out.
-            (TestKind::SwitchInt { ty, ref options }, Pat::Lit(lit_pat)) => {
+            (TestKind::SwitchInt { ty, ref options }, Term::Lit(lit_pat)) => {
                 // We can't really do anything here since we can't compare them with
                 // the switch.
-                if !ty.borrow().is_switchable() {
+                if !(*ty).borrow().is_switchable() {
                     return None;
                 }
 
-                let value = self.eval_lit_pat(lit_pat);
+                let value = self.lit_as_const(lit_pat);
                 let index = options.get_index_of(&value).unwrap();
 
                 // remove the candidate from the pairs
                 candidate.pairs.remove(pair_index);
                 Some(index)
             }
-            (TestKind::SwitchInt { ty, ref options }, Pat::Range(ref range_pat)) => {
+            (TestKind::SwitchInt { ty, ref options }, Term::Pat(Pat::Range(ref range_pat))) => {
                 let not_contained =
                     self.values_not_contained_in_range(range_pat, *ty, options).unwrap_or(false);
 
@@ -353,8 +359,11 @@ impl<'tcx> BodyBuilder<'tcx> {
             }
             (TestKind::SwitchInt { .. }, _) => None,
 
-            (TestKind::Len { len: test_len, op: BinOp::Eq }, Pat::Array(list_pat)) => {
-                let (prefix, suffix, rest) = list_pat.into_parts();
+            (
+                TestKind::Len { len: test_len, op: BinOp::Eq },
+                Term::Array(ArrayTerm::Normal(array_pat)),
+            ) => {
+                let (prefix, suffix, rest) = array_pat.into_pat_parts();
                 let pat_len = (prefix.len() + suffix.len()) as u64;
                 let ty = self.ty_id_from_tir_pat(pair.pat);
 
@@ -379,8 +388,11 @@ impl<'tcx> BodyBuilder<'tcx> {
                     (Ordering::Greater, None) => Some(1),
                 }
             }
-            (TestKind::Len { len: test_len, op: BinOp::GtEq }, Pat::Array(list_pat)) => {
-                let (prefix, suffix, rest) = list_pat.into_parts();
+            (
+                TestKind::Len { len: test_len, op: BinOp::GtEq },
+                Term::Array(ArrayTerm::Normal(array_pat)),
+            ) => {
+                let (prefix, suffix, rest) = array_pat.into_pat_parts();
                 let pat_len = (prefix.len() + suffix.len()) as u64;
 
                 let ty = self.ty_id_from_tir_pat(pair.pat);
@@ -408,7 +420,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 }
             }
 
-            (TestKind::Range { range }, Pat::Range(ref range_pat)) => {
+            (TestKind::Range { range }, Term::Pat(Pat::Range(ref range_pat))) => {
                 let actual_range = ConstRange::from_range(range_pat, range.ty, self);
 
                 if actual_range == *range {
@@ -426,8 +438,8 @@ impl<'tcx> BodyBuilder<'tcx> {
                     None
                 }
             }
-            (TestKind::Range { ref range }, Pat::Lit(lit_pat)) => {
-                let value = self.eval_lit_pat(lit_pat);
+            (TestKind::Range { ref range }, Term::Lit(lit_pat)) => {
+                let value = self.lit_as_const(lit_pat);
 
                 // If the `value` is not contained in the testing range, so the `value` can be
                 // matched only if the test fails.
@@ -443,7 +455,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 // from here because we will panic if we continue down this
                 // branch, since the `test()` only expects fully simplified
                 // patterns.
-                if pat.is_or() {
+                if matches!(pat.borrow(), Term::Pat(Pat::Or(_))) {
                     return None;
                 }
 
@@ -522,7 +534,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
                         let place =
                             downcast_place.clone_project(PlaceProjection::Field(field_index));
-                        MatchPair { place, pat: arg.pat.assert_pat() }
+                        MatchPair { place, pat: arg.value }
                     })
                     .collect()
             });
@@ -818,7 +830,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         // See if the underlying pattern is a variant, and if so add it to
         // the variants...
         match *match_pair.pat.value() {
-            Pat::Ctor(CtorPat { ctor, .. }) => {
+            Term::Ctor(CtorTerm { ctor, .. }) => {
                 variants.insert(ctor.1 as usize);
                 true
             }
@@ -841,15 +853,15 @@ impl<'tcx> BodyBuilder<'tcx> {
         };
 
         match *match_pair.pat.value() {
-            Pat::Lit(lit_pat) => {
-                let constant = self.eval_lit_pat(lit_pat);
+            Term::Lit(lit_pat) => {
+                let constant = self.lit_as_const(lit_pat);
                 let ConstKind::Scalar(scalar) = constant.kind else {
                     panic!("expected scalar constant in `add_cases_to_switch`")
                 };
                 options.entry(constant).or_insert(scalar.to_bits(scalar.size()).unwrap());
                 true
             }
-            Pat::Range(ref pat) => {
+            Term::Pat(Pat::Range(ref pat)) => {
                 // Check if there is at least one value that is not
                 // contained within the range.
                 let ty = self.ty_id_from_tir_pat(match_pair.pat);
@@ -857,7 +869,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             }
 
             // Boolean type...
-            Pat::Ctor(ctor_pat) => {
+            Term::Ctor(ctor_pat) => {
                 // If the constructor is `1` then we know that it is `true`, this is defined
                 // in: compiler/hash-intrinsics/src/primitives.rs
                 let (constant, value) = if ctor_pat.ctor.1 == 0 {
@@ -872,7 +884,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
             // We either don't know how to map these, or they should of been mapped
             // by `add_variants_to_switch`.
-            Pat::Binding(_) | Pat::Tuple(_) | Pat::Array(_) | Pat::Or(_) | Pat::If(_) => false,
+            _ => false,
         }
     }
 

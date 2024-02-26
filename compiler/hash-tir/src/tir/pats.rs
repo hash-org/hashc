@@ -11,11 +11,7 @@ use hash_storage::{
 use hash_utils::derive_more::From;
 
 use super::{NodeOrigin, TermId, TermListId};
-use crate::{
-    stores::tir_stores,
-    tir::{ArrayPat, CtorTerm, IfPat, LitPat, NodeId, OrPat, PatArgsId, SymbolId, Term, TupleTerm},
-    tir_node_sequence_store_indirect, tir_node_single_store,
-};
+use crate::tir::{IfPat, LitPat, OrPat, PatArgsId, SymbolId, Term};
 
 /// A binding pattern, which is essentially a declaration left-hand side.
 #[derive(Clone, Debug, Copy, PartialEq, Eq)]

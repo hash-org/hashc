@@ -14,7 +14,7 @@ use crate::{
     stores::tir_stores,
     tir::{
         ArgsId, CtorDefId, DataDefId, FnDefId, FnTy, HasAstNodeId, Node, NodeId, NodeOrigin,
-        NodesId, PatArgsId, SymbolId, TermId, TupleTy, Ty, TyId,
+        NodesId, SymbolId, TermId, TupleTy, Ty, TyId,
     },
     tir_node_sequence_store_direct,
 };

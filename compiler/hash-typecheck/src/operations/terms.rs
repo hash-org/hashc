@@ -192,7 +192,7 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
             | Term::Ctor(_) => Ok(Some(ControlFlow::Continue(()))),
 
             // Patterns
-            Term::Pat(pat) => already_normalised(),
+            Term::Pat(_pat) => already_normalised(),
 
             // Imperative:
             Term::LoopControl(loop_control) => self.try_normalise(loop_control, term),

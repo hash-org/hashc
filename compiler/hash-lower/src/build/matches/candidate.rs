@@ -203,8 +203,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                     mem::swap(&mut candidate.bindings, &mut existing_bindings);
 
                     // @@Temporary: We need to load in the alternatives for the or pat...
-                    let sub_pats =
-                        sub_pats.alternatives.borrow().iter().map(|pat| pat).collect_vec();
+                    let sub_pats = sub_pats.alternatives.borrow().iter().collect_vec();
 
                     candidate.sub_candidates =
                         self.create_sub_candidates(&pair.place, candidate, &sub_pats);
@@ -374,7 +373,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             }
             // The simplification that can occur here is if both the prefix and the
             // suffix are empty, then we can perform some simplifications.
-            Term::Array(array_pat) => {
+            Term::Array(_array_pat) => {
                 // @@Todo
                 todo!()
                 // let (prefix, suffix, rest) = array_pat.into_parts();

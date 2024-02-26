@@ -1,21 +1,17 @@
 use std::ops::ControlFlow;
 
-use hash_storage::store::{
-    statics::{SequenceStoreValue, StoreId},
-    SequenceStoreKey, TrivialSequenceStoreKey,
-};
+use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
     intrinsics::{
-        definitions::{array_ty, list_def, list_ty, usize_ty},
+        definitions::{array_ty, list_ty, usize_ty},
         utils::{create_term_from_usize_lit, try_use_term_as_integer_lit},
     },
     tir::{
-        ArgsId, ArrayPat, ArrayTerm, DataDefCtors, IndexTerm, Node, NodeId, NodeOrigin, NodesId,
-        ParamIndex, PatId, PatListId, PrimitiveCtorInfo, Term, TermId, TermListId, Ty, TyId,
+        ArgsId, ArrayTerm, DataDefCtors, IndexTerm, NodeId, NodeOrigin, NodesId, ParamIndex,
+        PrimitiveCtorInfo, Term, TermId, TermListId, Ty, TyId,
     },
     visitor::Map,
 };
-use itertools::Itertools;
 
 use crate::{
     diagnostics::{TcError, TcResult, WrongTermKind},

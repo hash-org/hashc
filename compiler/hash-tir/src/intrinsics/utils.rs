@@ -16,7 +16,7 @@ use crate::{
     context::HasContext,
     tir::{
         Arg, ArrayCtorInfo, CharLit, CtorDefId, CtorTerm, DataDefCtors, IntLit, Lit, Node,
-        NodeOrigin, Pat, PatId, PrimitiveCtorInfo, Term, TermId, Ty, TyId,
+        NodeOrigin, PrimitiveCtorInfo, Term, TermId, Ty, TyId,
     },
 };
 

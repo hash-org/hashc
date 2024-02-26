@@ -4,7 +4,7 @@ use std::hash::Hash;
 
 use hash_storage::store::{DefaultPartialStore, PartialCloneStore, PartialStore};
 
-use crate::tir::{ArgsId, FnDefId, FnTy, ParamsId, PatArgsId, PatId, TermId, TyId};
+use crate::tir::{ArgsId, FnDefId, FnTy, ParamsId, TermId, TyId};
 
 macro_rules! atom_info {
     ($($name:ident: <$item:ident, $item_ty:ty>),* $(,)?) => {

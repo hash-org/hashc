@@ -2,7 +2,7 @@
 
 use std::fmt::Display;
 
-use crate::tir::{ArgsId, ParamsId, PatArgsId, PatArgsWithSpread, Spread};
+use crate::tir::{ArgsId, ParamsId};
 
 /// A tuple type.
 ///

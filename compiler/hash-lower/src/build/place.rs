@@ -144,6 +144,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             | Term::Ctor(_)
             | Term::Fn(_)
             | Term::Intrinsic(_)
+            | Term::Pat(_)
             | Term::Block(_)
             | Term::Loop(_)
             | Term::LoopControl(_)

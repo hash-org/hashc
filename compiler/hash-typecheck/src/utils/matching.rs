@@ -3,15 +3,8 @@
 // @@Improvement: perhaps the contents of this module should be reorganised into
 // traits similar to `Operations` which allow a node `X` to be matched against a
 // pattern `P`.
-use hash_ast::ast::RangeEnd;
-use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
-use hash_tir::{
-    intrinsics::utils::is_true_bool_ctor,
-    tir::{
-        ArrayTerm, Lit, LitPat, NodeId, NodesId, Pat, PatId, RangePat, Spread, SymbolId, Term,
-        TermId,
-    },
-};
+
+use hash_tir::tir::{PatId, Spread, SymbolId, TermId};
 
 use crate::{env::TcEnv, options::normalisation::NormaliseSignal, tc::Tc};
 
@@ -81,9 +74,9 @@ impl<E: TcEnv> Tc<'_, E> {
     /// The term must be normalised and well-typed with respect to the pattern.
     pub fn match_value_and_get_binds(
         &self,
-        term_id: TermId,
-        pat_id: PatId,
-        f: &mut impl FnMut(SymbolId, TermId),
+        _term_id: TermId,
+        _pat_id: PatId,
+        _f: &mut impl FnMut(SymbolId, TermId),
     ) -> Result<MatchResult, NormaliseSignal> {
         todo!()
         // let evaluated_id = self.normalise_node(term_id)?;

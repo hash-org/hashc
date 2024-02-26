@@ -12,12 +12,12 @@ use hash_utils::derive_more::{From, TryInto};
 use crate::tir::{
     blocks::{BlockStatement, BlockStatementsId, BlockTerm, Decl},
     commands::AssignTerm,
-    AccessTerm, AnnotTerm, Arg, ArgsId, ArrayPat, ArrayTerm, CallTerm, CtorDefId, CtorTerm,
-    DataDefCtors, DataDefId, DataTy, DerefTerm, FnDef, FnDefId, FnTy, HasAstNodeId, IfPat,
-    IndexTerm, LitId, LoopTerm, MatchCase, MatchTerm, ModDefId, ModMemberId, ModMemberValue, Node,
-    NodeId, NodeOrigin, NodesId, OrPat, Param, ParamsId, Pat, PatArgsId, PatId, PatListId,
-    PrimitiveCtorInfo, RefTerm, RefTy, ReturnTerm, Term, TermId, TermListId, TupleTerm, TupleTy,
-    Ty, TyId, TyOfTerm, UniverseTy, UnsafeTerm,
+    AccessTerm, AnnotTerm, Arg, ArgsId, ArrayTerm, CallTerm, CtorDefId, CtorTerm, DataDefCtors,
+    DataDefId, DataTy, DerefTerm, FnDef, FnDefId, FnTy, HasAstNodeId, IfPat, IndexTerm, LitId,
+    LoopTerm, MatchCase, MatchTerm, ModDefId, ModMemberId, ModMemberValue, Node, NodeId,
+    NodeOrigin, NodesId, OrPat, Param, ParamsId, Pat, PrimitiveCtorInfo, RefTerm, RefTy,
+    ReturnTerm, Term, TermId, TermListId, TupleTerm, TupleTy, Ty, TyId, TyOfTerm, UniverseTy,
+    UnsafeTerm,
 };
 
 /// An atom in the TIR.
@@ -439,8 +439,8 @@ impl Map<TermId> for Visitor {
                 }
                 Ty::Universe(_) => Ok(Ty::from(Ty::Universe(UniverseTy), origin)),
                 Term::Pat(pat) => match pat {
-                    Pat::Binding(binding_pat) => Ok(Term::from(pat, origin)),
-                    Pat::Range(range_pat) => Ok(Term::from(pat, origin)),
+                    Pat::Binding(_binding_pat) => Ok(Term::from(pat, origin)),
+                    Pat::Range(_range_pat) => Ok(Term::from(pat, origin)),
                     Pat::Or(or_pat) => {
                         let alternatives = self.try_map(or_pat.alternatives, f)?;
                         Ok(Term::from(Term::Pat(OrPat { alternatives }.into()), origin))
@@ -450,7 +450,7 @@ impl Map<TermId> for Visitor {
                         let condition = self.try_map(if_pat.condition, f)?;
                         Ok(Term::from(Term::Pat(IfPat { pat, condition }.into()), origin))
                     }
-                    Pat::Spread(spread) => Ok(Term::from(pat, origin)),
+                    Pat::Spread(_spread) => Ok(Term::from(pat, origin)),
                 },
             },
         }?;
