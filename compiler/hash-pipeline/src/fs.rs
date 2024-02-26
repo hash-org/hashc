@@ -7,6 +7,7 @@ use std::{
 };
 
 use hash_reporting::report::{Report, ReportKind};
+use hash_source::constant::StringId;
 
 /// The location of a build directory of this package, this used to resolve
 /// where the standard library is located at.
@@ -49,7 +50,7 @@ impl Display for ImportErrorKind {
 #[derive(Debug, Clone)]
 pub struct ImportError {
     /// The path that was attempted to be imported.
-    pub path: String,
+    pub path: StringId,
 
     /// The kind of error that occurred.
     pub kind: ImportErrorKind,
@@ -57,7 +58,7 @@ pub struct ImportError {
 
 impl Display for ImportError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "couldn't import `{}`, {}", self.path, self.kind)
+        write!(f, "couldn't import `{}`, {}", self.path.0.to_str(), self.kind)
     }
 }
 
@@ -73,11 +74,11 @@ impl From<(PathBuf, io::Error)> for ImportError {
     fn from(value: (PathBuf, io::Error)) -> Self {
         match value.1.kind() {
             io::ErrorKind::NotFound => ImportError {
-                path: value.0.to_str().unwrap().into(),
+                path: StringId::new(value.0.to_str().unwrap()),
                 kind: ImportErrorKind::NotFound,
             },
             io::ErrorKind::PermissionDenied => ImportError {
-                path: value.0.to_str().unwrap().into(),
+                path: StringId::new(value.0.to_str().unwrap()),
                 kind: ImportErrorKind::UnreadableFile,
             },
             err => panic!("unexpected IO error occurred during import resolution: {err:?}"),
@@ -137,7 +138,7 @@ pub fn read_in_path(import_path: impl AsRef<Path>) -> Result<String, ImportError
     // Create a interned string to represent the path
     fs::read_to_string(import_path.as_ref()).map_err(|_| ImportError {
         kind: ImportErrorKind::UnreadableFile,
-        path: import_path.as_ref().to_str().unwrap().into(),
+        path: StringId::new(import_path.as_ref().to_str().unwrap()),
     })
 }
 
@@ -170,7 +171,7 @@ pub fn resolve_path<'p>(
     path: impl Into<&'p str>,
     wd: impl AsRef<Path>,
 ) -> Result<PathBuf, ImportError> {
-    let path = path.into();
+    let path: &str = path.into();
     let import_path = Path::new(&path);
     let wd = wd.as_ref();
 
@@ -207,7 +208,7 @@ pub fn resolve_path<'p>(
             return Ok(canonicalise(&raw_path_hash)?);
         }
 
-        Err(ImportError { path: path.into(), kind: ImportErrorKind::MissingIndex })
+        Err(ImportError { path: StringId::new(path), kind: ImportErrorKind::MissingIndex })
     } else {
         // we don't need to anything if the given raw_path already has a extension
         // '.hash', since we don't disallow someone to import a module and
@@ -232,7 +233,7 @@ pub fn resolve_path<'p>(
                 if raw_path.extension().is_none() && raw_path_hash.exists() {
                     Ok(canonicalise(&raw_path_hash)?)
                 } else {
-                    Err(ImportError { path: path.into(), kind: ImportErrorKind::NotFound })
+                    Err(ImportError { path: StringId::new(path), kind: ImportErrorKind::NotFound })
                 }
             }
         }

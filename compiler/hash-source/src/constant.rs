@@ -545,6 +545,16 @@ impl AllocId {
     }
 }
 
+/// A string that is internally represented by an [AllocId]
+#[derive(Debug, Clone, Copy)]
+pub struct StringId(pub AllocId);
+
+impl StringId {
+    pub fn new(value: impl Into<String>) -> Self {
+        Self(AllocId::str(value.into()))
+    }
+}
+
 /// A [LocalStringTable] can be used by a thread to intern strings, and later
 /// push them into the global [StringTable].
 #[derive(Default)]
