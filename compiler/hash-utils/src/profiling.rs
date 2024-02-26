@@ -241,7 +241,7 @@ cfg_match! {
     cfg(unix) => {
         pub fn get_resident_set_size() -> Option<usize> {
             let field = 1;
-            let contents = fs::read("/proc/self/statm").ok()?;
+            let contents = std::fs::read("/proc/self/statm").ok()?;
             let contents = String::from_utf8(contents).ok()?;
             let s = contents.split_whitespace().nth(field)?;
             let npages = s.parse::<usize>().ok()?;
