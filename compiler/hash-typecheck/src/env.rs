@@ -4,7 +4,7 @@ use hash_reporting::diagnostic::{Diagnostics, HasDiagnostics};
 use hash_source::{entry_point::EntryPointState, SourceId};
 use hash_target::HasTarget;
 use hash_tir::{atom_info::HasAtomInfo, context::Context, tir::FnDefId};
-use hash_utils::{state::LightState, timing::HasMetrics};
+use hash_utils::{profiling::HasMetrics, state::LightState};
 
 use crate::{
     diagnostics::TcError,

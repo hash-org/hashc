@@ -31,7 +31,7 @@ use hash_semantics::storage::SemanticStorage;
 use hash_source::SourceId;
 use hash_storage::store::{statics::StoreId, Store};
 use hash_tir::{stores::tir_stores, tir::HasAstNodeId};
-use hash_utils::{rayon, timing::HasMutMetrics};
+use hash_utils::{profiling::HasMutMetrics, rayon};
 use optimise::Optimiser;
 
 /// The Hash IR builder compiler stage.
@@ -91,7 +91,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
     }
 
     fn reset_metrics(&mut self) {
-        self.metrics.timings.clear()
+        self.metrics = StageMetrics::default();
     }
 
     /// Lower that AST of each module that is currently in the workspace
@@ -106,7 +106,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
         let entry_point = &data.semantic_storage.distinguished_items.entry_point;
 
         // Discover all of the bodies that need to be lowered
-        let items = self.time_item("discover", |_| {
+        let items = self.record("discover", |_| {
             let discoverer = FnDiscoverer::new(&data.workspace.source_stage_info);
             discoverer.discover_fns()
         });
@@ -114,7 +114,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
         // Pre-allocate the vector of lowered bodies.
         let mut lowered_bodies = Vec::with_capacity(items.fns.len());
 
-        self.time_item("build", |_| {
+        self.record("build", |_| {
             for func in items.into_iter() {
                 let name = func.borrow().name.ident();
 
@@ -195,7 +195,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
     }
 
     fn reset_metrics(&mut self) {
-        self.metrics.timings.clear()
+        self.metrics = StageMetrics::default();
     }
 
     fn run(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
@@ -204,7 +204,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
         let bodies = &mut icx.bodies;
         let body_data = &icx.ctx;
 
-        self.time_item("optimise", |this| {
+        self.record("optimise", |this| {
             // @@Todo: think about making optimisation passes in parallel...
             // pool.scope(|scope| {
             //     for body in &mut icx.generated_bodies {

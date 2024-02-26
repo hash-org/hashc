@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use hash_ast::node_map::NodeMap;
 use hash_reporting::report::Report;
 use hash_source::SourceId;
-pub use hash_utils::timing::StageMetrics;
+pub use hash_utils::profiling::StageMetrics;
 
 use crate::{
     settings::{CompilerSettings, CompilerStageKind},

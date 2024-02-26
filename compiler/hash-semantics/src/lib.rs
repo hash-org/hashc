@@ -19,7 +19,7 @@ use hash_pipeline::{
 use hash_reporting::diagnostic::{DiagnosticCellStore, Diagnostics, HasDiagnostics};
 use hash_source::SourceId;
 use hash_target::{HasTarget, Target};
-use hash_utils::timing::{CellStageMetrics, HasMetrics, StageMetrics};
+use hash_utils::profiling::{CellStageMetrics, HasMetrics, StageMetrics};
 use storage::SemanticStorage;
 
 pub mod current_source;

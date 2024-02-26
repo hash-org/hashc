@@ -1,10 +1,12 @@
 //! Hash compiler general utilities
 #![feature(
-    type_alias_impl_trait,
-    impl_trait_in_assoc_type,
-    decl_macro,
     array_windows,
-    panic_info_message
+    cell_update,
+    cfg_match,
+    decl_macro,
+    impl_trait_in_assoc_type,
+    panic_info_message,
+    type_alias_impl_trait
 )]
 
 pub mod assert;
@@ -15,11 +17,11 @@ pub mod highlight;
 pub mod logging;
 pub mod path;
 pub mod printing;
+pub mod profiling;
 pub mod range_map;
 pub mod scoping;
 pub mod stack;
 pub mod state;
-pub mod timing;
 pub mod tree_writing;
 
 // Re-export commonly used packages

@@ -970,6 +970,7 @@ dependencies = [
  "indexmap 1.9.3",
  "itertools",
  "lazy_static",
+ "libc",
  "log",
  "num-traits",
  "parking_lot",

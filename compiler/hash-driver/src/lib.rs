@@ -9,6 +9,7 @@
 //! keeping the crate dependency graph clean.
 #![feature(let_chains, thread_id_value)]
 pub mod driver;
+mod metrics;
 
 use std::collections::HashSet;
 
@@ -88,6 +89,8 @@ impl CompilerBuilder {
 }
 
 pub mod utils {
+    use std::io::Write;
+
     use hash_pipeline::interface::CompilerOutputStream;
     use hash_reporting::report::Report;
     use hash_utils::stream_writeln;

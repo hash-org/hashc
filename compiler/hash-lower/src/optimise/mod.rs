@@ -8,7 +8,7 @@
 
 use hash_ir::{ir::Body, IrCtx};
 use hash_pipeline::settings::{CompilerSettings, OptimisationLevel};
-use hash_utils::timing::{CellStageMetrics, HasMetrics};
+use hash_utils::profiling::{CellStageMetrics, HasMetrics};
 
 // Various passes that are used to optimise the generated IR bodies.
 mod cleanup_locals;
@@ -65,7 +65,7 @@ impl<'ir> Optimiser<'ir> {
     pub fn optimise(&self, body: &mut Body) {
         for pass in self.passes.iter() {
             if pass.enabled(self.settings) {
-                self.time_item(pass.name(), |this| {
+                self.record(pass.name(), |this| {
                     pass.optimise(body, this.store);
                 })
             }
