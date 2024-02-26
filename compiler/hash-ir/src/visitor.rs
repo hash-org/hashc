@@ -300,8 +300,8 @@ pub trait IrVisitorMut<'ir>: Sized {
 
 /// Contains all of the walking methods for the [IrVisitorMut] trait.
 pub mod walk_mut {
-    use super::{IrVisitorMut, *};
-    use crate::ir::{BodyInfo, StatementKind, TerminatorKind};
+    use super::*;
+    use crate::ir::{StatementKind, TerminatorKind};
 
     /// Walk over all the [BasicBlock]s in the [Body] of the given
     /// to the visitor.
@@ -772,7 +772,7 @@ pub trait ModifyingIrVisitor<'ir>: Sized {
 
 /// Contains all of the walking methods for the [IrVisitorMut] trait.
 pub mod walk_modifying {
-    use super::{ModifyingIrVisitor, *};
+    use super::*;
     use crate::ir::{StatementKind, TerminatorKind};
 
     /// Walk over all the [BasicBlock]s in the [Body] of the given

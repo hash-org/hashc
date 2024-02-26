@@ -6,7 +6,7 @@ use hash_source::identifier::IDENTS;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
 use hash_utils::thin_vec::thin_vec;
 
-use super::{AstGen, TyParamOrigin};
+use super::AstGen;
 use crate::diagnostics::{
     error::{ParseErrorKind, ParseResult},
     expected::ExpectedItem,

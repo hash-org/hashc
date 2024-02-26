@@ -13,13 +13,10 @@ use crate::{
         args, indexed_enum_def, params, primitive_with_params, ref_ty, sym, term, ty, unit_term,
         Type,
     },
-    intrinsics::{
-        make::{IntrinsicAbilities, IsIntrinsic, IsPrimitive},
-        utils::{
-            bool_term, create_term_from_float_lit, create_term_from_integer_lit,
-            try_use_term_as_bool, try_use_term_as_char_lit, try_use_term_as_float_lit,
-            try_use_term_as_integer_lit, try_use_ty_as_lit_ty, LitTy,
-        },
+    intrinsics::utils::{
+        bool_term, create_term_from_float_lit, create_term_from_integer_lit, try_use_term_as_bool,
+        try_use_term_as_char_lit, try_use_term_as_float_lit, try_use_term_as_integer_lit,
+        try_use_ty_as_lit_ty, LitTy,
     },
     make_intrinsics, make_primitives,
     tir::{
