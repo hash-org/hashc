@@ -7,7 +7,6 @@ use hash_reporting::{
     diagnostic::HasDiagnosticsMut, unicode_normalization::char::is_combining_mark,
 };
 use hash_source::{
-    self,
     constant::LocalStringTable,
     identifier::{Identifier, IDENTS},
     location::{ByteRange, Span, SpannedSource},
