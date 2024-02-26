@@ -7,20 +7,27 @@
 // maybe there is a way to abstract both of them into a single operation?
 use std::ops::ControlFlow;
 
-use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
+use hash_storage::store::{
+    statics::{SequenceStoreValue, StoreId},
+    SequenceStoreKey, TrivialSequenceStoreKey,
+};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     context::{HasContext, ScopeKind},
-    tir::{validate_and_reorder_args_against_params, ArgsId, ParamsId, TermId, TyId},
+    tir::{
+        validate_and_reorder_args_against_params, Arg, ArgsId, Node, NodeId, ParamsId, PatArgsId,
+        SymbolId, TermId, TyId,
+    },
     visitor::Map,
 };
 
 use crate::{
     diagnostics::{TcError, TcResult},
     env::TcEnv,
-    options::normalisation::{normalise_nested, NormaliseResult},
+    options::normalisation::{normalise_nested, NormaliseResult, NormaliseSignal},
     tc::Tc,
     traits::{OperationsOnNode, ScopedOperationsOnNode},
+    utils::matching::MatchResult,
 };
 
 impl<E: TcEnv> ScopedOperationsOnNode<ArgsId> for Tc<'_, E> {
@@ -121,5 +128,54 @@ impl<E: TcEnv> Tc<'_, E> {
         // Add the shadowed substitutions to the ambient scope
         self.add_sub_to_scope(&shadowed_sub);
         Ok(result)
+    }
+
+    /// From the given arguments matching with the given parameters, extract the
+    /// arguments that are part of the given spread.
+    fn _extract_spread_args(&self, term_args: ArgsId, pat_args: ArgsId) -> ArgsId {
+        debug_assert!(pat_args.len() <= term_args.len());
+
+        let pat_arg_spread_idx = pat_args.get_spread_idx();
+        if pat_arg_spread_idx.is_none() {
+            return ArgsId::empty();
+        }
+
+        let spread_args = term_args
+            .iter()
+            .skip(pat_arg_spread_idx.unwrap())
+            .take(pat_args.len() - pat_arg_spread_idx.unwrap())
+            .map(|arg| arg.value())
+            .collect::<Vec<_>>();
+
+        Node::create_at(Node::<Arg>::seq(spread_args), pat_args.origin().computed())
+    }
+
+    /// Match the given arguments with the given pattern arguments.
+    ///
+    /// Also takes into account the spread.
+    ///
+    /// If the pattern arguments match, the given closure is called with the
+    /// bindings.
+    pub fn match_args_and_get_binds(
+        &self,
+        term_args: ArgsId,
+        pat_args: PatArgsId,
+        // @@Todo: restore spread handling
+        // spread: Option<Spread>,
+        f: &mut impl FnMut(SymbolId, TermId),
+    ) -> Result<MatchResult, NormaliseSignal> {
+        self.match_some_sequence_and_get_binds(
+            term_args.len(),
+            // spread,
+            // |sp| {
+            //     Term::from(
+            //         TupleTerm { data: self.extract_spread_args(term_args, pat_args) },
+            //         sp.name.origin().computed(),
+            //     )
+            // },
+            |i| pat_args.at(i).unwrap().borrow().value,
+            |i| term_args.at(i).unwrap().borrow().value,
+            f,
+        )
     }
 }

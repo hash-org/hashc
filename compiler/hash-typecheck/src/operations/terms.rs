@@ -124,6 +124,9 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
                 Ok(())
             }
             (Term::Var(mut a), Term::Var(mut b)) => self.unify(&mut a, &mut b, src_id, target_id),
+            (Term::Pat(Pat::Binding(a)), Term::Pat(Pat::Binding(b))) => {
+                self.unification_ok_or_mismatching_atoms(a.name == b.name, src_id, target_id)
+            }
             (Term::Var(_), _) | (_, Term::Var(_)) => self.mismatching_atoms(src_id, target_id),
 
             // If the source is uninhabitable, then we can unify it with

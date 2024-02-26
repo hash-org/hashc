@@ -124,6 +124,16 @@ impl ArgsId {
         None
     }
 
+    /// Get the index of the first spread argument, if any.
+    pub fn get_spread_idx(&self) -> Option<usize> {
+        for (i, arg) in self.iter().enumerate() {
+            if let Term::Pat(Pat::Spread(_)) = arg.value().data.value.value().data {
+                return Some(i);
+            }
+        }
+        None
+    }
+
     /// Given that this `ArgsId` represents a pattern, separate the pattern list
     /// into the `prefix`, `suffix` and an optional; `rest` pattern.
     pub fn into_pat_parts(&self) -> (Vec<TermId>, Vec<TermId>, Option<Spread>) {
