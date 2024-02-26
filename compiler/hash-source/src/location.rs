@@ -1,7 +1,6 @@
 //! Hash Compiler source locations utilities and definitions.
 use std::{
     cmp,
-    convert::TryInto,
     fmt::{self, Display},
     ops::{Deref, DerefMut},
 };

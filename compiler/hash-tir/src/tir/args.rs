@@ -1,7 +1,7 @@
 //! Definitions related to arguments to data structures, functions,
 //! etc.
 use core::fmt;
-use std::{fmt::Debug, option::Option};
+use std::fmt::Debug;
 
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},

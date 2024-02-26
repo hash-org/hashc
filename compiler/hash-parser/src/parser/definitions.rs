@@ -4,10 +4,7 @@ use hash_ast::ast::*;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, TokenKind};
 
 use super::AstGen;
-use crate::{
-    diagnostics::error::{ParseErrorKind, ParseResult},
-    parser::TyParamOrigin,
-};
+use crate::diagnostics::error::{ParseErrorKind, ParseResult};
 
 impl<'s> AstGen<'s> {
     /// Construct the [Params] from the parsed [`AstNodes<Param>`]. This is

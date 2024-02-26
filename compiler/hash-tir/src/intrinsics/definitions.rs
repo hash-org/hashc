@@ -16,10 +16,7 @@ use crate::{
         args, indexed_enum_def, params, primitive_with_params, ref_ty, sym, term, ty, unit_term,
         Type,
     },
-    intrinsics::{
-        make::{IntrinsicAbilities, IsIntrinsic, IsPrimitive},
-        utils::{try_use_term_as_const, try_use_term_as_integer_lit},
-    },
+    intrinsics::utils::{try_use_term_as_const, try_use_term_as_integer_lit},
     make_intrinsics, make_primitives,
     tir::{
         numeric_ctors, ArrayCtorInfo, CtorDefId, DataDefId, FnTy, Lit, ModMember, Node, NodeOrigin,
