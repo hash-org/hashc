@@ -1,7 +1,7 @@
 use hash_ir::{HasIrCtx, IrCtx};
-use hash_layout::{compute::LayoutComputer, HasLayout};
 use hash_pipeline::settings::{CompilerSettings, HasCompilerSettings};
 use hash_reporting::diagnostic::HasDiagnostics;
+use hash_repr::{compute::LayoutComputer, HasLayout};
 use hash_source::{entry_point::EntryPointState, SourceId};
 use hash_target::{HasTarget, Target};
 use hash_tir::{

@@ -3,11 +3,11 @@
 use hash_ast::ast::AstNodeId;
 use hash_ast_utils::{attr::AttrTarget, lit::LitParseError};
 use hash_attrs::{attr::AttrArgIdx, builtin::ATTR_MAP, diagnostics::AttrError};
-use hash_layout::constant::Const;
 use hash_reporting::{
     hash_error_codes::error_codes::HashErrorCode,
     reporter::{Reporter, Reports},
 };
+use hash_repr::constant::Const;
 use hash_source::identifier::Identifier;
 use hash_tir::tir::{ParamError, TyId};
 use hash_utils::derive_more::{Constructor, From};

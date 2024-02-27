@@ -10,7 +10,7 @@ use hash_attrs::{
     builtin::attrs,
     ty::AttrId,
 };
-pub use hash_layout::ty::*;
+pub use hash_repr::ty::*;
 use hash_storage::store::statics::{SingleStoreValue, StoreId};
 
 use crate::ir::{BodyInfo, Place, PlaceProjection};

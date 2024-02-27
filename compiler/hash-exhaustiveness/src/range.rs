@@ -36,8 +36,8 @@ use std::{
 };
 
 use hash_ast::ast::RangeEnd;
-use hash_layout::{constant::Const, ty::ReprTyId};
 use hash_reporting::diagnostic::Diagnostics;
+use hash_repr::{constant::Const, ty::ReprTyId};
 use hash_storage::store::statics::StoreId;
 use hash_tir::tir::{PatId, RangePat};
 

@@ -2,7 +2,7 @@
 //! target backend.
 
 use hash_ir::ir;
-use hash_layout::{
+use hash_repr::{
     constant::{Const, ConstKind},
     TyInfo,
 };

@@ -9,7 +9,7 @@ use hash_attrs::{
     attr::{attr_store, Attr, AttrArgIdx, AttrValue, Attrs},
     builtin::{attrs, ATTR_MAP},
 };
-use hash_layout::ty::COMMON_REPR_TYS;
+use hash_repr::ty::COMMON_REPR_TYS;
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
     TrivialSequenceStoreKey,

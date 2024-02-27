@@ -29,5 +29,5 @@ pub mod traits;
 // re-export `abi` and `layout` crates to make them available to the backend
 // implementations.
 pub use hash_abi as abi;
-pub use hash_layout as layout;
+pub use hash_repr as repr;
 pub use hash_target as target;

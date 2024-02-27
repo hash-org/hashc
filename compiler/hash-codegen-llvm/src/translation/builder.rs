@@ -7,11 +7,11 @@ use std::{borrow::Cow, iter};
 use hash_codegen::{
     abi::FnAbiId,
     common::{AtomicOrdering, CheckedOp, IntComparisonKind, MemFlags, RealComparisonKind},
-    layout::TyInfo,
     lower::{
         operands::{OperandRef, OperandValue},
         place::PlaceRef,
     },
+    repr::TyInfo,
     target::{
         abi::{AbiRepresentation, Scalar, ScalarKind, ValidScalarRange},
         alignment::Alignment,

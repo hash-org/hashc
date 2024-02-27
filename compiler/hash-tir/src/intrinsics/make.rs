@@ -1,6 +1,6 @@
 use std::iter::once;
 
-use hash_layout::HasLayout;
+use hash_repr::HasLayout;
 /// Generation macros for intrinsics and primitives.
 use hash_source::identifier::Identifier;
 use hash_storage::store::statics::SequenceStoreValue;

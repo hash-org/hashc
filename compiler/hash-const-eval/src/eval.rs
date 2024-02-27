@@ -2,7 +2,7 @@
 //! propagation and constant folding optimisations that can occur on
 //! Hash IR.
 
-use hash_layout::{
+use hash_repr::{
     compute::LayoutComputer,
     constant::{Const, ConstKind},
     ty::{ReprTy, ReprTyId},

@@ -5,7 +5,7 @@ use std::cell::{Cell, RefCell};
 
 use hash_codegen::{
     backend::CodeGenStorage,
-    layout::{compute::LayoutComputer, LayoutStorage},
+    repr::{compute::LayoutComputer, LayoutStorage},
     symbols::{push_string_encoded_count, ALPHANUMERIC_BASE},
     target::{HasTarget, Target},
     traits::{BackendTypes, HasCtxMethods},

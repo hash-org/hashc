@@ -9,11 +9,11 @@ use hash_ir::{
     ty::{AdtHelpers, InstanceHelpers},
     HasIrCtx,
 };
-use hash_layout::ty::{
+use hash_reporting::macros::panic_on_span;
+use hash_repr::ty::{
     self, Adt, AdtField, AdtFlags, AdtId, AdtVariant, AdtVariants, Instance, Mutability, ReprTy,
     ReprTyId, ReprTyListId, COMMON_REPR_TYS,
 };
-use hash_reporting::macros::panic_on_span;
 use hash_source::{identifier::Identifier, IntTy, SIntTy, Size};
 use hash_storage::store::{
     statics::{SingleStoreValue, StoreId},

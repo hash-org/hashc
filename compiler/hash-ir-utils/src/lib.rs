@@ -20,7 +20,7 @@ use hash_ir::{
     },
     ty::Mutability,
 };
-use hash_layout::{compute::LayoutComputer, constant::Const};
+use hash_repr::{compute::LayoutComputer, constant::Const};
 use hash_storage::store::statics::StoreId;
 use hash_target::data_layout::HasDataLayout;
 use hash_utils::temp_writer::TempWriter;
@@ -357,7 +357,7 @@ mod tests {
         ir::{BodyInfo, Local, LocalDecls, Place, PlaceProjection, Projections},
         ty::VariantIdx,
     };
-    use hash_layout::{compute::LayoutComputer, LayoutStorage};
+    use hash_repr::{compute::LayoutComputer, LayoutStorage};
     use hash_target::data_layout::TargetDataLayout;
 
     use crate::IrWriter;

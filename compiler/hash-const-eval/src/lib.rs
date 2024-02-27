@@ -11,4 +11,4 @@ pub mod utils;
 
 // Re-export the "primitives" from the hash-target crate so that everyone can
 // use.
-pub use hash_layout::constant::{Const, ConstKind};
+pub use hash_repr::constant::{Const, ConstKind};

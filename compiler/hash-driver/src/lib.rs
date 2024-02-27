@@ -20,7 +20,6 @@ use hash_ast_expand::{AstExpansionCtx, AstExpansionCtxQuery, AstExpansionPass};
 use hash_backend::{BackendCtxQuery, CodeGenPass};
 use hash_codegen::backend::{BackendCtx, CodeGenStorage};
 use hash_ir::IrStorage;
-use hash_layout::LayoutStorage;
 use hash_link::{CompilerLinker, LinkerCtx, LinkerCtxQuery};
 use hash_lower::{IrGen, IrOptimiser, LoweringCtx, LoweringCtxQuery};
 use hash_parser::{Parser, ParserCtx, ParserCtxQuery};
@@ -31,6 +30,7 @@ use hash_pipeline::{
     workspace::Workspace,
 };
 use hash_reporting::report::Report;
+use hash_repr::LayoutStorage;
 use hash_semantics::{
     storage::SemanticStorage, SemanticAnalysis, SemanticAnalysisCtx, SemanticAnalysisCtxQuery,
 };

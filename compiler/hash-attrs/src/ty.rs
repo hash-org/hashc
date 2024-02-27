@@ -3,7 +3,7 @@
 //! later use to programatically check attribute annotations.
 
 use hash_ast_utils::attr::AttrTarget;
-use hash_layout::ty::{ReprTyId, COMMON_REPR_TYS};
+use hash_repr::ty::{ReprTyId, COMMON_REPR_TYS};
 use hash_source::{identifier::Identifier, Size};
 use hash_storage::store::statics::StoreId;
 use hash_tir::tir::{

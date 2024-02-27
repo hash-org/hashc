@@ -19,7 +19,6 @@ use discover::FnDiscoverer;
 use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_ir::IrStorage;
 use hash_ir_utils::{graphviz, pretty};
-use hash_layout::{compute::LayoutComputer, LayoutStorage};
 use hash_pipeline::{
     interface::{
         CompilerInterface, CompilerOutputStream, CompilerResult, CompilerStage, StageMetrics,
@@ -27,6 +26,7 @@ use hash_pipeline::{
     settings::{CompilerSettings, CompilerStageKind, IrDumpMode},
     workspace::{SourceStageInfo, Workspace},
 };
+use hash_repr::{compute::LayoutComputer, LayoutStorage};
 use hash_semantics::storage::SemanticStorage;
 use hash_source::SourceId;
 use hash_storage::store::{statics::StoreId, Store};

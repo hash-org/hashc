@@ -2,7 +2,7 @@
 
 use hash_abi::FnAbi;
 use hash_ir::ty::{ReprTy, ReprTyId};
-use hash_layout::TyInfo;
+use hash_repr::TyInfo;
 use hash_source::constant::FloatTy;
 use hash_storage::store::statics::StoreId;
 use hash_target::abi::{AddressSpace, Integer};

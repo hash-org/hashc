@@ -469,7 +469,7 @@ name = "hash-abi"
 version = "0.1.0"
 dependencies = [
  "hash-ir",
- "hash-layout",
+ "hash-repr",
  "hash-source",
  "hash-storage",
  "hash-target",
@@ -508,9 +508,9 @@ dependencies = [
  "hash-ast",
  "hash-ast-utils",
  "hash-attrs",
- "hash-layout",
  "hash-pipeline",
  "hash-reporting",
+ "hash-repr",
  "hash-source",
  "hash-storage",
  "hash-target",
@@ -525,8 +525,8 @@ version = "0.1.0"
 dependencies = [
  "hash-ast",
  "hash-const-eval",
- "hash-layout",
  "hash-reporting",
+ "hash-repr",
  "hash-source",
  "hash-storage",
  "hash-token",
@@ -540,8 +540,8 @@ dependencies = [
  "hash-ast",
  "hash-ast-utils",
  "hash-error-codes",
- "hash-layout",
  "hash-reporting",
+ "hash-repr",
  "hash-source",
  "hash-storage",
  "hash-target",
@@ -572,9 +572,9 @@ dependencies = [
  "hash-abi",
  "hash-attrs",
  "hash-ir",
- "hash-layout",
  "hash-pipeline",
  "hash-reporting",
+ "hash-repr",
  "hash-source",
  "hash-storage",
  "hash-target",
@@ -611,7 +611,7 @@ dependencies = [
 name = "hash-const-eval"
 version = "0.1.0"
 dependencies = [
- "hash-layout",
+ "hash-repr",
  "hash-source",
  "hash-storage",
  "hash-target",
@@ -630,12 +630,12 @@ dependencies = [
  "hash-backend",
  "hash-codegen",
  "hash-ir",
- "hash-layout",
  "hash-link",
  "hash-lower",
  "hash-parser",
  "hash-pipeline",
  "hash-reporting",
+ "hash-repr",
  "hash-semantics",
  "hash-source",
  "hash-tir",
@@ -655,8 +655,8 @@ version = "0.1.0"
 dependencies = [
  "hash-ast",
  "hash-ir",
- "hash-layout",
  "hash-reporting",
+ "hash-repr",
  "hash-source",
  "hash-storage",
  "hash-target",
@@ -673,8 +673,8 @@ dependencies = [
  "hash-ast",
  "hash-attrs",
  "hash-const-eval",
- "hash-layout",
  "hash-reporting",
+ "hash-repr",
  "hash-source",
  "hash-storage",
  "hash-target",
@@ -688,26 +688,12 @@ dependencies = [
  "hash-ast",
  "hash-const-eval",
  "hash-ir",
- "hash-layout",
+ "hash-repr",
  "hash-source",
  "hash-storage",
  "hash-target",
  "hash-utils",
  "html-escape",
-]
-
-[[package]]
-name = "hash-layout"
-version = "0.1.0"
-dependencies = [
- "fixedbitset",
- "hash-ast",
- "hash-reporting",
- "hash-source",
- "hash-storage",
- "hash-target",
- "hash-utils",
- "paste",
 ]
 
 [[package]]
@@ -745,9 +731,9 @@ dependencies = [
  "hash-const-eval",
  "hash-ir",
  "hash-ir-utils",
- "hash-layout",
  "hash-pipeline",
  "hash-reporting",
+ "hash-repr",
  "hash-semantics",
  "hash-source",
  "hash-storage",
@@ -802,6 +788,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash-repr"
+version = "0.1.0"
+dependencies = [
+ "fixedbitset",
+ "hash-ast",
+ "hash-reporting",
+ "hash-source",
+ "hash-storage",
+ "hash-target",
+ "hash-utils",
+ "paste",
+]
+
+[[package]]
 name = "hash-semantics"
 version = "0.1.0"
 dependencies = [
@@ -811,9 +811,9 @@ dependencies = [
  "hash-const-eval",
  "hash-exhaustiveness",
  "hash-ir",
- "hash-layout",
  "hash-pipeline",
  "hash-reporting",
+ "hash-repr",
  "hash-source",
  "hash-storage",
  "hash-target",
@@ -914,8 +914,8 @@ dependencies = [
  "hash-ast",
  "hash-ast-utils",
  "hash-const-eval",
- "hash-layout",
  "hash-reporting",
+ "hash-repr",
  "hash-source",
  "hash-storage",
  "hash-target",
@@ -935,8 +935,8 @@ dependencies = [
  "hash-attrs",
  "hash-const-eval",
  "hash-ir",
- "hash-layout",
  "hash-reporting",
+ "hash-repr",
  "hash-source",
  "hash-storage",
  "hash-target",
@@ -976,9 +976,9 @@ dependencies = [
  "hash-const-eval",
  "hash-exhaustiveness",
  "hash-ir",
- "hash-layout",
  "hash-pipeline",
  "hash-reporting",
+ "hash-repr",
  "hash-source",
  "hash-storage",
  "hash-target",

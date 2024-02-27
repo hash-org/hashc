@@ -20,8 +20,8 @@ use error::{CodeGenError, CodegenResult};
 use hash_attrs::builtin::attrs;
 use hash_codegen::{
     backend::{BackendCtx, CodeGenStorage, CompilerBackend},
-    layout::LayoutStorage,
     lower::codegen_ir_body,
+    repr::LayoutStorage,
     symbols::mangle::compute_symbol_name,
     target::{HasTarget, TargetArch},
     traits::{

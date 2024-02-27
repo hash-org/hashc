@@ -11,7 +11,7 @@ use std::io;
 
 use hash_const_eval::print::pretty_print_const;
 use hash_ir::ir::{BasicBlock, BasicBlockData, Body, BodySource, TerminatorKind};
-use hash_layout::{compute::LayoutComputer, constant::Const};
+use hash_repr::{compute::LayoutComputer, constant::Const};
 use hash_target::data_layout::HasDataLayout;
 use hash_utils::derive_more::Constructor;
 use html_escape::encode_text;

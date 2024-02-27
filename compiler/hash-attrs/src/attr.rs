@@ -4,7 +4,7 @@ use std::{fmt, sync::OnceLock};
 
 use hash_ast::{ast, ast::AstNodeId};
 use hash_ast_utils::lit::{LitHelpers, LitParseResult};
-use hash_layout::constant::Const;
+use hash_repr::constant::Const;
 use hash_source::{identifier::Identifier, location::Span};
 use hash_storage::store::{DefaultPartialStore, PartialStore};
 use hash_target::{primitives::IntTy, size::Size};
