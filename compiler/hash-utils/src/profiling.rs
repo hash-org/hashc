@@ -213,7 +213,6 @@ cfg_match! {
                     pmc_size as u32,
                 )
             }
-            .ok()
             .ok()?;
 
             Some(pmc.WorkingSetSize)
