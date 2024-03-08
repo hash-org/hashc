@@ -272,7 +272,7 @@ attr_node_impls! {
 macro_rules! generate_vis {
     ($fn_name:ident, $vis_name:ident) => {
         #[allow(unused_mut)]
-        pub fn $fn_name<T: $vis_name, O>(&self, mut visitor: T) -> Result<O, T::Error>
+        pub fn $fn_name<T, O>(&self, mut visitor: T) -> Result<O, T::Error>
         where
             T: $vis_name<
                 LitRet = O,

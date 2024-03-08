@@ -587,7 +587,6 @@ impl<'l> LayoutWriter<'l> {
         self.ty_info.ty.map(|ty| self.ty_info.layout.map(|layout| f(self, ty, layout)))
     }
 
-    ///
     pub fn create_box_contents_for_shape(&self) -> Vec<BoxContent> {
         self.with_info(|this, ty, layout| this.create_box_contents(ty, layout, None))
     }
