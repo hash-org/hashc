@@ -472,7 +472,7 @@ pub struct CodeGenSettings {
     /// be that some functions/expressions are evaluated at compile-time via the
     /// Hash VM which may mean that the code generation backend for that one
     /// might differ from the overall code generation backend.
-    #[arg(long="backend", default_value_t = CodeGenBackend::LLVM)]
+    #[arg(long="backend", default_value_t = CodeGenBackend::default())]
     pub backend: CodeGenBackend,
 
     /// An optionally specified path to a file that should be used to
@@ -537,21 +537,49 @@ impl Default for CodeGenSettings {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum CodeGenBackend {
     /// The LLVM backend is target for code generation.
+    #[cfg(feature = "llvm")]
     LLVM,
 
     /// The Hash VM interpreter is being targeted.
     VM,
 }
 
+impl CodeGenBackend {
+    /// Check if the code generation backend is the LLVM backend.
+    #[cfg(feature = "llvm")]
+    pub fn is_llvm(&self) -> bool {
+        matches!(self, Self::LLVM)
+    }
+
+    #[cfg(not(feature = "llvm"))]
+    pub fn is_llvm(&self) -> bool {
+        false
+    }
+
+    /// Check if the code generation backend is the Hash VM backend.
+    pub fn is_vm(&self) -> bool {
+        matches!(self, Self::VM)
+    }
+}
+
+#[cfg(feature = "llvm")]
 impl Default for CodeGenBackend {
     fn default() -> Self {
         Self::LLVM
     }
 }
 
+#[cfg(not(feature = "llvm"))]
+impl Default for CodeGenBackend {
+    fn default() -> Self {
+        Self::VM
+    }
+}
+
 impl fmt::Display for CodeGenBackend {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            #[cfg(feature = "llvm")]
             Self::LLVM => write!(f, "llvm"),
             Self::VM => write!(f, "vm"),
         }

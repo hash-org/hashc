@@ -13,6 +13,8 @@ use hash_pipeline::{
 };
 use hash_source::SourceId;
 
+type Backend<'b> = Box<dyn CompilerBackend<'b> + 'b>;
+
 /// The Hash compiler code generation stage. This stage is responsible for
 /// converting the generated Hash IR into machine code using a specific backend.
 #[derive(Default)]
@@ -58,6 +60,7 @@ impl<Ctx: BackendCtxQuery> CompilerStage<Ctx> for CodeGenPass {
 
         // Create a new instance of a backend, and then run it...
         let mut backend = match settings.codegen_settings.backend {
+            #[cfg(feature = "llvm")]
             CodeGenBackend::LLVM => create_llvm_backend(ctx.data(), &mut self.metrics),
             CodeGenBackend::VM => unimplemented!(),
         };
@@ -67,9 +70,7 @@ impl<Ctx: BackendCtxQuery> CompilerStage<Ctx> for CodeGenPass {
 }
 
 /// Create a new instance of the [hash_codegen_llvm::LLVMBackend].
-pub fn create_llvm_backend<'b>(
-    ctx: BackendCtx<'b>,
-    metrics: &'b mut StageMetrics,
-) -> Box<dyn CompilerBackend<'b> + 'b> {
+#[cfg(feature = "llvm")]
+pub fn create_llvm_backend<'b>(ctx: BackendCtx<'b>, metrics: &'b mut StageMetrics) -> Backend<'b> {
     Box::new(hash_codegen_llvm::LLVMBackend::new(ctx, metrics))
 }
