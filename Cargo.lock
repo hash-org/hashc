@@ -745,6 +745,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash-messaging"
+version = "0.1.0"
+dependencies = [
+ "hash-utils",
+]
+
+[[package]]
 name = "hash-parser"
 version = "0.1.0"
 dependencies = [
