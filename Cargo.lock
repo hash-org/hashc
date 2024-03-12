@@ -554,6 +554,7 @@ version = "0.1.0"
 dependencies = [
  "hash-codegen",
  "hash-codegen-llvm",
+ "hash-codegen-vm",
  "hash-ir",
  "hash-pipeline",
  "hash-reporting",
@@ -580,16 +581,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hash-codegen-bytecode"
-version = "0.1.0"
-dependencies = [
- "hash-codegen",
- "hash-ir",
- "hash-source",
- "hash-utils",
-]
-
-[[package]]
 name = "hash-codegen-llvm"
 version = "0.1.0"
 dependencies = [
@@ -603,6 +594,17 @@ dependencies = [
  "hash-utils",
  "inkwell",
  "llvm-sys",
+]
+
+[[package]]
+name = "hash-codegen-vm"
+version = "0.1.0"
+dependencies = [
+ "hash-codegen",
+ "hash-ir",
+ "hash-pipeline",
+ "hash-source",
+ "hash-utils",
 ]
 
 [[package]]

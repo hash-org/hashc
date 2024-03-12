@@ -62,7 +62,7 @@ impl<Ctx: BackendCtxQuery> CompilerStage<Ctx> for CodeGenPass {
         let mut backend = match settings.codegen_settings.backend {
             #[cfg(feature = "llvm")]
             CodeGenBackend::LLVM => create_llvm_backend(ctx.data(), &mut self.metrics),
-            CodeGenBackend::VM => unimplemented!(),
+            CodeGenBackend::VM => create_vm_backend(ctx.data(), &mut self.metrics),
         };
 
         backend.run()
@@ -73,4 +73,9 @@ impl<Ctx: BackendCtxQuery> CompilerStage<Ctx> for CodeGenPass {
 #[cfg(feature = "llvm")]
 pub fn create_llvm_backend<'b>(ctx: BackendCtx<'b>, metrics: &'b mut StageMetrics) -> Backend<'b> {
     Box::new(hash_codegen_llvm::LLVMBackend::new(ctx, metrics))
+}
+
+/// Create a new instance of the [hash_codegen_vm::VMBackend].
+pub fn create_vm_backend<'b>(ctx: BackendCtx<'b>, metrics: &'b mut StageMetrics) -> Backend<'b> {
+    Box::new(hash_codegen_vm::VMBackend::new(ctx, metrics))
 }

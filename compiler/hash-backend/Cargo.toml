@@ -10,6 +10,7 @@ doctest = false
 [dependencies]
 hash-codegen = { path = "../hash-codegen" }
 hash-codegen-llvm = { path = "../hash-codegen-llvm" }
+hash-codegen-vm = { path = "../hash-codegen-vm" }
 hash-ir = { path = "../hash-ir" }
 hash-pipeline = { path = "../hash-pipeline" }
 hash-reporting = { path = "../hash-reporting" }
