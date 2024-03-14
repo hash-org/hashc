@@ -6,6 +6,7 @@ use std::{
 };
 
 use hash_utils::{derive_more::Constructor, range_map::RangeMap};
+use line_span::LineSpanExt;
 
 use crate::{SourceId, SourceMapUtils};
 
@@ -263,9 +264,9 @@ impl LineRanges {
         // range, and push it into the map.
         let mut count = 0;
 
-        for line in s.lines() {
-            map.append(count..=(count + line.len()), ());
-            count += line.len() + 1;
+        for span in s.line_spans() {
+            map.append(count..=span.end(), ());
+            count = span.ending();
         }
 
         Self { map, source }

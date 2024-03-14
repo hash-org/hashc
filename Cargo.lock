@@ -832,6 +832,7 @@ dependencies = [
  "hash-storage",
  "hash-target",
  "hash-utils",
+ "line-span",
  "once_cell",
  "paste",
 ]
@@ -1192,6 +1193,12 @@ name = "libc"
 version = "0.2.153"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9c198f91728a82281a64e1f4f9eeb25d82cb32a5de251c6bd1b5154d63a8e7bd"
+
+[[package]]
+name = "line-span"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29fc123b2f6600099ca18248f69e3ee02b09c4188c0d98e9a690d90dec3e408a"
 
 [[package]]
 name = "linux-raw-sys"
