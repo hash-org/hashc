@@ -25,7 +25,7 @@ use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_target::{HasTarget, Target};
 use hash_tir::{
     context::{Context, HasContext, ScopeKind},
-    tir::{FnDef, FnDefId, FnTy, NodesId, SymbolId, TermId},
+    tir::{FnDef, FnDefId, FnTy, HasAstNodeId, NodesId, SymbolId, TermId},
 };
 use hash_utils::{fxhash::FxHashMap, index_vec::IndexVec};
 
@@ -204,10 +204,23 @@ impl<'ctx> BodyBuilder<'ctx> {
             BuildItem::Const(_) => (0, BodySource::Const),
         };
 
+        // Compute the span of the item that was just lowered.
+        let span = match item {
+            BuildItem::FnDef(def) => def.node_id_or_default(),
+            BuildItem::Const(term) => term.node_id_or_default(),
+        };
+
+        let mut info = BodyMetadata::new(name, source);
+
+        // If the body needs to be dumped, then we mark it as such.
+        if attr_store().node_has_attr(span, attrs::DUMP_IR) {
+            info.dump = true;
+        }
+
         Self {
             item,
             ctx,
-            info: BodyMetadata::new(name, source),
+            info,
             arg_count,
             control_flow_graph: ControlFlowGraph::new(),
             locals: IndexVec::new(),
@@ -234,7 +247,7 @@ impl<'ctx> BodyBuilder<'ctx> {
             BuildItem::Const(term) => self.span_of_term(term),
         };
 
-        let mut body = Body::new(
+        let body = Body::new(
             self.control_flow_graph.basic_blocks,
             self.locals,
             self.projections,
@@ -242,11 +255,6 @@ impl<'ctx> BodyBuilder<'ctx> {
             self.arg_count,
             span,
         );
-
-        // If the body needs to be dumped, then we mark it as such.
-        if attr_store().node_has_attr(span, attrs::DUMP_IR) {
-            body.mark_to_dump()
-        }
 
         body
     }
