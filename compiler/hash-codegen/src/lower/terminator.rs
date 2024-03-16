@@ -10,7 +10,12 @@
 //! whether two blocks have been merged together.
 
 use hash_abi::{ArgAbi, FnAbiId, PassMode};
-use hash_ir::{intrinsics::Intrinsic, ir, lang_items::LangItem, ty::COMMON_REPR_TYS};
+use hash_ir::{
+    intrinsics::Intrinsic,
+    ir,
+    lang_items::LangItem,
+    ty::{ReprTy, COMMON_REPR_TYS},
+};
 use hash_pipeline::settings::OptimisationLevel;
 use hash_source::constant::AllocId;
 use hash_storage::store::{statics::StoreId, Store};
@@ -150,16 +155,22 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     ) -> bool {
         // generate the operand as the function call...
         let call_subject = self.codegen_operand(builder, op);
-
         let ty = call_subject.info.ty;
-        let instance = ty.borrow().as_instance();
-        let is_intrinsic = instance.borrow().is_intrinsic();
+
+        let (instance, func) = match ty.value() {
+            ReprTy::FnDef { instance, .. } => (Some(instance), None),
+            ReprTy::Fn { .. } => (None, Some(call_subject.immediate_value())),
+            ty => panic!("expected function type, found `{:?}`", ty),
+        };
+
         let mut maybe_intrinsic = None;
 
         // If this is an intrinsic, we will generate the required code
         // for the intrinsic here...
-        if is_intrinsic {
-            maybe_intrinsic = Intrinsic::from_str_name(instance.borrow().name().into());
+        if let Some(inst) = instance
+            && inst.borrow().is_intrinsic()
+        {
+            maybe_intrinsic = Intrinsic::from_str_name(inst.borrow().name().into());
 
             // We exit early for transmute since we don't need to compute the ABI
             // or any information about the return destination.
@@ -194,7 +205,10 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
         // compute the function pointer value and the ABI
         let abis = self.ctx.cg_ctx().abis();
-        let fn_abi = abis.create_fn_abi(builder, instance);
+        let fn_abi = match instance {
+            Some(instance) => abis.create_fn_abi_from_instance(builder, instance),
+            None => abis.create_fn_abi_from_ty(builder, ty.borrow().as_fn()),
+        };
         let ret_abi = abis.map_fast(fn_abi, |abi| abi.ret_abi);
 
         // If the return ABI pass mode is "indirect", then this means that
@@ -270,7 +284,11 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             };
         }
 
-        let fn_ptr = builder.get_fn_ptr(instance);
+        let fn_ptr = match (instance, func) {
+            (Some(instance), None) => builder.get_fn_ptr(instance),
+            (_, Some(func)) => func,
+            _ => unreachable!(),
+        };
 
         // Finally, generate the code for the function call and
         // cleanup
@@ -623,7 +641,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
         // Get the `panic` lang item.
         let (instance, fn_ptr) = self.resolve_lang_item(builder, LangItem::Panic);
-        let abi = self.ctx.cg_ctx().abis().create_fn_abi(builder, instance);
+        let abi = self.ctx.cg_ctx().abis().create_fn_abi_from_instance(builder, instance);
 
         // Finally we emit this as a call to panic...
         self.codegen_fn_call(builder, abi, fn_ptr, &args, &[], None, false)
