@@ -94,7 +94,8 @@ pub trait BlockBuilderMethods<'a, 'b>:
     /// function.
     fn call(
         &mut self,
-        fn_ptr: Self::Function,
+        fn_ty: Self::Type,
+        fn_ptr: Self::Value,
         args: &[Self::Value],
         fn_abi: Option<FnAbiId>,
     ) -> Self::Value;

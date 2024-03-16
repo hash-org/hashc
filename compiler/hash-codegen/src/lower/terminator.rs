@@ -656,17 +656,20 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         &mut self,
         builder: &mut Builder,
         fn_abi: FnAbiId,
-        fn_ptr: Builder::Function,
+        fn_ptr: Builder::Value,
         args: &[Builder::Value],
         copied_const_args: &[PlaceRef<Builder::Value>],
         destination: Option<(ir::BasicBlock, ReturnDestinationKind<Builder::Value>)>,
         can_merge: bool,
     ) -> bool {
+        let fn_ty =
+            self.ctx.cg_ctx().abis().map_fast(fn_abi, |abi| builder.backend_ty_from_abi(abi));
+
         //@@Future: when we deal with unwinding functions, we will have to use the
         // `builder::invoke()` API in order to instruct the backends to emit relevant
         // clean-up code for when the function starts to unwind (i.e. panic).
         // However for now, we simply emit a `builder::call()`
-        let return_value = builder.call(fn_ptr, args, Some(fn_abi));
+        let return_value = builder.call(fn_ty, fn_ptr, args, Some(fn_abi));
 
         if let Some((destination_block, return_destination)) = destination {
             // now that the function has finished, we essentially mark all of the
