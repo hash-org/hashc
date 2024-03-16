@@ -15,7 +15,12 @@ pub trait MiscBuilderMethods<'b>: BackendTypes {
     /// Get a function pointer from a [ty::InstanceId] whilst also
     /// applying all of the specified attributes that can appear
     /// on a function definition.
-    fn get_fn_ptr(&self, instance: ty::InstanceId) -> Self::Function;
+    fn get_fn_ptr(&self, instance: ty::InstanceId) -> Self::Value;
+
+    /// Get a function pointer from a [ty::InstanceId] whilst also
+    /// applying all of the specified attributes that can appear
+    /// on a function definition.
+    fn get_fn_addr(&self, instance: ty::InstanceId) -> Self::Value;
 
     /// Declare the program entry point
     fn declare_entry_point(&self, ty: Self::Type) -> Option<Self::Function>;
