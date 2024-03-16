@@ -334,6 +334,14 @@ impl<'tcx> BodyBuilder<'tcx> {
                 block.unit()
             }
 
+            Term::Fn(def) => {
+                let ty = self.ty_id_from_tir_fn_def(def);
+                let value = Operand::Const(Const::zst(ty));
+                self.control_flow_graph.push_assign(block, destination, value.into(), span);
+
+                block.unit()
+            }
+
             Term::Annot(_)
             | Term::TyOf(_)
             | Ty::DataTy(_)
@@ -342,8 +350,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             | Ty::RefTy(_)
             | Ty::Universe(_)
             | Term::Hole(_)
-            | Term::Intrinsic(_)
-            | Term::Fn(_) => block.unit(),
+            | Term::Intrinsic(_) => block.unit(),
         };
 
         block_and
