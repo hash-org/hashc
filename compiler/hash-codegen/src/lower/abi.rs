@@ -83,7 +83,7 @@ pub fn compute_fn_abi_from_instance<'b, Ctx: HasCtxMethods<'b> + LayoutMethods<'
     ctx: &Ctx,
     instance: InstanceId,
 ) -> Result<FnAbi, FnAbiError> {
-    let Instance { params, ret_ty, abi, .. } = instance.value();
+    let Instance { params, return_ty, abi, .. } = instance.value();
 
     // map the ABI to a calling convention whilst making any adjustments according
     // to the target.

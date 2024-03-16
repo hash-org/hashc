@@ -79,6 +79,19 @@ impl fmt::Display for Mutability {
     }
 }
 
+/// A function type, contains the types of the parameters and the
+/// return type of the function.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct FnTy {
+    /// A reference to the parameter types of this function
+    /// instance.
+    pub params: ReprTyListId,
+
+    /// The function return type.
+    pub return_ty: ReprTyId,
+    // @@Todo: do we need to keep around an AstNodeId for the attributes?
+}
+
 /// This is a temporary struct that identifies a unique instance of a
 /// function within the generated code, and is later used to resolve
 /// function references later on.
@@ -95,7 +108,7 @@ pub struct Instance {
     pub params: ReprTyListId,
 
     /// The function return type.
-    pub ret_ty: ReprTyId,
+    pub return_ty: ReprTyId,
 
     /// Any attributes that are present  on the instance, this is used
     /// to specify special behaviour of the function.
@@ -130,7 +143,7 @@ impl Instance {
         name: Identifier,
         source: Option<SourceId>,
         params: ReprTyListId,
-        ret_ty: ReprTyId,
+        return_ty: ReprTyId,
         attr_id: ast::AstNodeId,
     ) -> Self {
         Self {
@@ -138,7 +151,7 @@ impl Instance {
             is_intrinsic: false,
             params,
             source,
-            ret_ty,
+            return_ty,
             polymoprhpic_origin: false,
             abi: Abi::Hash,
             attr_id,
@@ -234,13 +247,7 @@ pub enum ReprTy {
 
     /// A function type, with interned parameter type list and a return
     /// type.
-    Fn {
-        /// The parameter types of the function.
-        params: ReprTyListId,
-
-        /// The return type of the function.
-        return_ty: ReprTyId,
-    },
+    Fn(FnTy),
 
     /// A function definition, it has an associated instance which denotes
     /// information about the function, such as the name, defining module,
@@ -319,6 +326,11 @@ impl ReprTy {
         matches!(self, Self::Fn { .. })
     }
 
+    /// Check if a [ReprTy] is a function type.
+    pub fn is_fn_def(&self) -> bool {
+        matches!(self, Self::FnDef { .. })
+    }
+
     /// Check if a type is a scalar, i.e. it cannot be divided into
     /// further components. [`ReprTy::Ref(..)`] with non-[`RefKind::Rc`] is also
     /// considered as a scalar since the components of the reference are
@@ -359,12 +371,20 @@ impl ReprTy {
         }
     }
 
-    /// Assuming that the [ReprTy] is an ADT, return the [AdtId]
-    /// of the underlying ADT.
+    /// Assuming that the [ReprTy] is an function definition, return the
+    /// [InstanceId] of the underlying function definition.
     pub fn as_instance(&self) -> InstanceId {
         match self {
             Self::FnDef { instance } => *instance,
             ty => panic!("expected fn def, but got {ty:?}"),
+        }
+    }
+
+    /// Assuming that the [ReprTy] is a function type, return the [FnTy].
+    pub fn as_fn(&self) -> FnTy {
+        match self {
+            Self::Fn(ty) => *ty,
+            ty => panic!("expected function type, but got {ty:?}"),
         }
     }
 
@@ -520,6 +540,11 @@ impl ReprTyId {
     pub fn is_str(&self) -> bool {
         self.borrow().is_str()
     }
+
+    /// Check if the type is a function definition type.
+    pub fn is_fn_def(&self) -> bool {
+        self.borrow().is_fn_def()
+    }
 }
 
 static_sequence_store_indirect!(
@@ -662,7 +687,7 @@ impl fmt::Display for &ReprTy {
             }
             ReprTy::Adt(adt) => write!(f, "{}", adt),
 
-            ReprTy::Fn { params, return_ty, .. } => {
+            ReprTy::Fn(FnTy { params, return_ty, .. }) => {
                 write!(f, "({}) -> {}", params, return_ty)
             }
             ReprTy::FnDef { instance } => {

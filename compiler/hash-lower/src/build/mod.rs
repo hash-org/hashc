@@ -263,7 +263,7 @@ impl<'ctx> BodyBuilder<'ctx> {
         // function as the `return_ty`, otherwise we assume the type provided
         // is the `return_ty`
         let return_ty = ty.map(|item_ty| match item_ty {
-            ReprTy::FnDef { instance } => instance.borrow().ret_ty,
+            ReprTy::FnDef { instance } => instance.borrow().return_ty,
             _ => ty,
         });
 
