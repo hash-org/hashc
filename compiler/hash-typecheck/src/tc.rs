@@ -42,6 +42,7 @@ pub struct Tc<'tc, E> {
     pub fn_infer_mode: LightState<FnInferMode>,
     pub unification_opts: UnificationOptions,
     pub normalisation_opts: NormalisationOptions,
+    pub in_pat: LightState<bool>,
 }
 
 impl<E: TcEnv> Tc<'_, E> {

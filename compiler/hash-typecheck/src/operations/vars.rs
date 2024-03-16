@@ -26,6 +26,7 @@ impl<E: TcEnv> OperationsOn<VarTerm> for Tc<'_, E> {
         _: Self::Node,
     ) -> TcResult<()> {
         let term = *term;
+
         match self.context().try_get_decl(term.symbol) {
             Some(decl) => {
                 if let Some(ty) = decl.ty {
@@ -77,9 +78,14 @@ impl<E: TcEnv> Tc<'_, E> {
         var_term: TermId,
         term: TermId,
     ) -> TcResult<()> {
-        match self.context().try_get_decl_value(var.symbol) {
-            Some(v) => self.unify_nodes(v, term),
-            None => self.mismatching_atoms(var_term, term),
+        if self.in_pat.get() {
+            self.add_unification(var.symbol, term);
+            Ok(())
+        } else {
+            match self.context().try_get_decl_value(var.symbol) {
+                Some(v) => self.unify_nodes(v, term),
+                None => self.mismatching_atoms(var_term, term),
+            }
         }
     }
 

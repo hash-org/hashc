@@ -42,12 +42,4 @@ impl<T: TcEnv> IntrinsicAbilities for IntrinsicAbilitiesImpl<'_, T> {
             "normalisation error".to_string()
         })
     }
-
-    fn resolve_from_prelude(
-        &self,
-        _name: impl Into<hash_source::identifier::Identifier>,
-    ) -> TermId {
-        // @@Todo: actually implement this to be able to resolve prelude items
-        todo!()
-    }
 }

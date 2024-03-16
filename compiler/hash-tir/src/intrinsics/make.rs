@@ -20,9 +20,6 @@ use crate::{
 pub trait IntrinsicAbilities: HasContext + HasTarget {
     /// Normalise a term fully.
     fn normalise_term(&self, term: TermId) -> Result<Option<TermId>, String>;
-
-    /// Resolve a term from the prelude.
-    fn resolve_from_prelude(&self, name: impl Into<Identifier>) -> TermId;
 }
 
 /// Trait implemented by all intrinsics.

@@ -3,7 +3,7 @@ use std::ops::ControlFlow;
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    tir::{ArgsId, NodesId, Pat, Term, TermId, Ty, TyId},
+    tir::{ArgsId, BindingPat, NodesId, Pat, Term, TermId, Ty, TyId, VarTerm},
     visitor::{Atom, Map, Visitor},
 };
 
@@ -103,25 +103,31 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
             return Ok(());
         }
 
-        let src = src_id.value();
-        let target = target_id.value();
+        // Substitute from context
+        let v = Visitor::new();
+        let src_id_subbed = v.copy(src_id);
+        self.substituter().apply_sub_from_context(src_id_subbed);
+        let target_id_subbed = v.copy(target_id);
+        self.substituter().apply_sub_from_context(target_id_subbed);
+        let src = src_id_subbed.value().data;
+        let target = target_id_subbed.value().data;
 
-        match (*src, *target) {
+        match (src, target) {
             (Term::Hole(mut h1), Term::Hole(mut h2)) => {
                 self.unify(&mut h1, &mut h2, src_id, target_id)
             }
             (Term::Hole(a), _) => self.unify_hole_with(a, src_id, target_id),
             (_, Term::Hole(b)) => self.unify_hole_with(b, target_id, src_id),
-
-            // (Term::Pat(Pat::Binding(mut a)), Term::Pat(Pat::Binding(mut b))) => {
-            //     self.unify(&mut a, &mut b, src_id, target_id)
-            // }
-            (Term::Var(a), Term::Var(b)) if a.symbol == b.symbol => Ok(()),
-            (Term::Pat(Pat::Binding(a)), Term::Pat(Pat::Binding(b))) if a.name == b.name => Ok(()),
-            (Term::Pat(Pat::Binding(a)), _) => self.unify_binding_with(a, target_id),
-            (_, Term::Pat(Pat::Binding(b))) => self.unify_binding_with(b, src_id),
+            (
+                Term::Var(VarTerm { symbol: a })
+                | Term::Pat(Pat::Binding(BindingPat { name: a, .. })),
+                Term::Var(VarTerm { symbol: b })
+                | Term::Pat(Pat::Binding(BindingPat { name: b, .. })),
+            ) if a == b => Ok(()),
             (Term::Var(a), _) => self.unify_var_with(a, src_id, target_id),
             (_, Term::Var(b)) => self.unify_var_with(b, target_id, src_id),
+            (Term::Pat(Pat::Binding(a)), _) => self.unify_binding_with(a, target_id),
+            (_, Term::Pat(Pat::Binding(b))) => self.unify_binding_with(b, src_id),
 
             // If the source is uninhabitable, then we can unify it with
             // anything
@@ -245,9 +251,9 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
 }
 
 impl<E: TcEnv> Tc<'_, E> {
-    pub(crate) fn normalise_and_unify_nodes<N: Copy>(&self, src_id: N, target_id: N) -> TcResult<()>
+    pub(crate) fn normalise_and_unify_nodes<N>(&self, src_id: N, target_id: N) -> TcResult<()>
     where
-        N: Into<Atom>,
+        N: Copy + Into<Atom>,
         Visitor: Map<N>,
         Self: OperationsOnNode<N>,
     {

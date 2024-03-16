@@ -44,6 +44,7 @@ pub trait TcEnv:
         Tc {
             env: self,
             context,
+            in_pat: LightState::new(false),
             fn_infer_mode: LightState::new(FnInferMode::Body),
             unification_opts: UnificationOptions::default(),
             normalisation_opts: NormalisationOptions::default(),

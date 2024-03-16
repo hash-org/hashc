@@ -69,9 +69,7 @@ impl<E: TcEnv> Tc<'_, E> {
         target_id: impl Into<Atom>,
     ) -> TcResult<U> {
         match (src_id.into(), target_id.into()) {
-            (Atom::Term(a), Atom::Term(b)) => {
-                Err(TcError::MismatchingTypes { expected: b, actual: a })
-            }
+            (Atom::Term(a), Atom::Term(b)) => Err(TcError::UndecidableEquality { a, b }),
             (Atom::FnDef(a), Atom::FnDef(b)) => Err(TcError::MismatchingFns { a, b }),
             _ => unreachable!(),
         }

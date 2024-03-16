@@ -51,7 +51,7 @@ impl<E: TcEnv> OperationsOn<MatchTerm> for Tc<'_, E> {
             self.context().enter_scope(case_data.stack_id.into(), || -> TcResult<_> {
                 let subject_ty_copy = self.visitor().copy(match_subject_ty);
 
-                self.check_node(case_data.bind_pat, subject_ty_copy)?;
+                self.in_pat.enter(true, || self.check_node(case_data.bind_pat, subject_ty_copy))?;
                 let new_unified_ty =
                     Ty::expect_is(case_data.value, self.visitor().copy(unified_ty));
 
