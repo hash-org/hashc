@@ -22,6 +22,7 @@ use crate::{
         misc::MiscBuilderMethods, statics::StaticMethods, ty::TypeBuilderMethods, CodeGenObject,
     },
 };
+use crate::traits::misc::MiscBuilderMethods;
 
 /// Represents the kind of [OperandValue] that is expected for a
 /// type. This includes useful information about the ABI representation
@@ -424,7 +425,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         match operand {
             ir::Operand::Place(place) => self.codegen_consume_operand(builder, *place),
             // @@TODO: we shouldn't put this is as a ZST, perhaps this should be some kind
-            // of special cast to say that this is actually a function pointer that we are
+            // of special cast to say that this is actually a function pointer that we are 
             // resolving!
             ir::Operand::Const(constant) if constant.is_zero() && constant.ty().is_fn_def() => {
                 let ty = constant.ty();
