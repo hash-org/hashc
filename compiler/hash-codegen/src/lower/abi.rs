@@ -74,7 +74,7 @@ pub enum FnAbiError {
     Layout(LayoutError),
 }
 
-/// Compute an [FnAbi] from a provided [Instance]. 
+/// Compute an [FnAbi] from a provided [Instance].
 pub fn compute_fn_abi_from_instance<'b, Ctx: HasCtxMethods<'b> + LayoutMethods<'b>>(
     ctx: &Ctx,
     instance: InstanceId,
@@ -88,7 +88,7 @@ pub fn compute_fn_abi_from_instance<'b, Ctx: HasCtxMethods<'b> + LayoutMethods<'
     compute_fn_abi(ctx, params, return_ty, calling_convention)
 }
 
-/// Compute an [FnAbi] from a provided function parameter and return type, with 
+/// Compute an [FnAbi] from a provided function parameter and return type, with
 /// a given calling convention.
 pub fn compute_fn_abi<'b, Ctx: HasCtxMethods<'b> + LayoutMethods<'b>>(
     ctx: &Ctx,

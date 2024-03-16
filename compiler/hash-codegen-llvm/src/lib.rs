@@ -41,7 +41,12 @@ use hash_storage::store::{statics::StoreId, Store};
 use hash_utils::{profiling::HasMutMetrics, stream_writeln};
 use inkwell as llvm;
 use llvm::{
-    context::Context as LLVMContext, module::Module as LLVMModule, passes::{PassManager, PassManagerBuilder}, targets::{FileType, TargetTriple}, types::AnyType, values::{AnyValue, FunctionValue}
+    context::Context as LLVMContext,
+    module::Module as LLVMModule,
+    passes::{PassManager, PassManagerBuilder},
+    targets::{FileType, TargetTriple},
+    types::AnyType,
+    values::{AnyValue, FunctionValue},
 };
 use misc::{CodeModelWrapper, OptimisationLevelWrapper, RelocationModeWrapper};
 use translation::LLVMBuilder;

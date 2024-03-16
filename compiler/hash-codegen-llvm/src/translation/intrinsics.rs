@@ -11,7 +11,10 @@ use hash_codegen::{
 use hash_ir::ty::ReprTyId;
 use hash_source::identifier::{Identifier, IDENTS};
 use hash_storage::store::statics::StoreId;
-use inkwell::{types::AnyType, values::{AnyValue, AnyValueEnum, UnnamedAddress}};
+use inkwell::{
+    types::AnyType,
+    values::{AnyValue, AnyValueEnum, UnnamedAddress},
+};
 
 use super::LLVMBuilder;
 
@@ -28,7 +31,10 @@ impl<'b, 'm> LLVMBuilder<'_, 'b, 'm> {
 
     /// Get an intrinsic function type and function pointer value
     /// for the given intrinsic name.
-    pub(crate) fn get_intrinsic_function(&self, name: &str) -> (<Self as BackendTypes>::Type, <Self as BackendTypes>::Value) {
+    pub(crate) fn get_intrinsic_function(
+        &self,
+        name: &str,
+    ) -> (<Self as BackendTypes>::Type, <Self as BackendTypes>::Value) {
         if let Some(intrinsic) = self.intrinsics.borrow().get(name).cloned() {
             return (intrinsic.get_type().as_any_type_enum(), intrinsic.as_any_value_enum());
         }
@@ -38,7 +44,10 @@ impl<'b, 'm> LLVMBuilder<'_, 'b, 'm> {
         })
     }
 
-    pub(crate) fn declare_intrinsic(&self, name: &str) -> Option<(<Self as BackendTypes>::Type, <Self as BackendTypes>::Value)> {
+    pub(crate) fn declare_intrinsic(
+        &self,
+        name: &str,
+    ) -> Option<(<Self as BackendTypes>::Type, <Self as BackendTypes>::Value)> {
         // This macro is used to define the intrinsic based on the function name.
         // If the name of the intrinsic is equal to the specified value, then this
         // type and function pointer value will be returned.
@@ -265,7 +274,7 @@ impl<'b, 'm> LLVMBuilder<'_, 'b, 'm> {
         // Now we add the function into the "intrinsics" map in order to
         // avoid re-declaring the function or re-resolving the function.
         self.intrinsics.borrow_mut().insert(name, func);
-        (func_ty.as_any_type_enum(),  func.as_any_value_enum())
+        (func_ty.as_any_type_enum(), func.as_any_value_enum())
     }
 
     /// Attempt to resolve an intrinsic function that is "simple" in
@@ -273,7 +282,10 @@ impl<'b, 'm> LLVMBuilder<'_, 'b, 'm> {
     /// to be generated for this intrinsic function, all others are
     /// considered "special" and require additional steps to generate
     /// code for.
-    fn get_simple_intrinsic(&self, name: Identifier) -> Option<(<Self as BackendTypes>::Type, <Self as BackendTypes>::Value)> {
+    fn get_simple_intrinsic(
+        &self,
+        name: Identifier,
+    ) -> Option<(<Self as BackendTypes>::Type, <Self as BackendTypes>::Value)> {
         let name = match name {
             i if i == IDENTS.sqrt_f32 => "llvm.sqrt.f32",
             i if i == IDENTS.sqrt_f64 => "llvm.sqrt.f64",

@@ -247,16 +247,14 @@ impl<'ctx> BodyBuilder<'ctx> {
             BuildItem::Const(term) => self.span_of_term(term),
         };
 
-        let body = Body::new(
+        Body::new(
             self.control_flow_graph.basic_blocks,
             self.locals,
             self.projections,
             self.info,
             self.arg_count,
             span,
-        );
-
-        body
+        )
     }
 
     pub(crate) fn build(&mut self) {
