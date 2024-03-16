@@ -1,16 +1,16 @@
 use std::{cell::Cell, ops::ControlFlow};
 
-use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
+use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
     context::HasContext,
     intrinsics::definitions::never_ty,
-    tir::{MatchTerm, NodeId, NodeOrigin, NodesId, Term, TermId, Ty, TyId},
+    tir::{MatchTerm, NodeOrigin, NodesId, Term, TermId, Ty, TyId},
     visitor::Map,
 };
 use itertools::Itertools;
 
 use crate::{
-    diagnostics::{TcError, TcResult},
+    diagnostics::TcResult,
     env::TcEnv,
     options::normalisation::{
         normalised_to, stuck_normalising, NormalisationState, NormaliseResult, NormaliseSignal,
@@ -160,12 +160,22 @@ impl<E: TcEnv> OperationsOn<MatchTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _src: &mut MatchTerm,
-        _target: &mut MatchTerm,
+        src: &mut MatchTerm,
+        target: &mut MatchTerm,
         src_node: Self::Node,
-        _target_node: Self::Node,
+        target_node: Self::Node,
     ) -> crate::diagnostics::TcResult<()> {
-        // @@Todo
-        Err(TcError::Blocked(src_node.origin()))
+        if src.cases.len() != target.cases.len() {
+            return self.mismatching_atoms(src_node, target_node);
+        }
+
+        for (src_case, target_case) in src.cases.iter().zip(target.cases.iter()) {
+            let src_case = src_case.value();
+            let target_case = target_case.value();
+            self.unify_nodes(src_case.bind_pat, target_case.bind_pat)?;
+            self.unify_nodes(src_case.value, target_case.value)?;
+        }
+
+        Ok(())
     }
 }

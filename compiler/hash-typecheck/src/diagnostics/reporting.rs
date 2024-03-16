@@ -117,6 +117,57 @@ impl TcReporter {
                     error.add_labelled_span(location, format!("this is of type `{}`", *actual));
                 }
             }
+            TcError::MismatchingDataDefs { expected, actual } => {
+                let error = reporter.error().code(HashErrorCode::TypeMismatch).title(format!(
+                    "expected data definition `{}` but got data definition `{}`",
+                    *expected, *actual
+                ));
+                if let Some(location) = expected.span() {
+                    error.add_labelled_span(
+                        location,
+                        format!("expected data definition `{}`", *expected),
+                    );
+                }
+                if let Some(location) = actual.span() {
+                    error.add_labelled_span(location, format!("got data definition `{}`", *actual));
+                }
+            }
+            TcError::MismatchingModDefs { expected, actual } => {
+                let error = reporter.error().code(HashErrorCode::TypeMismatch).title(format!(
+                    "expected module definition `{}` but got module definition `{}`",
+                    *expected, *actual
+                ));
+                if let Some(location) = expected.span() {
+                    error.add_labelled_span(
+                        location,
+                        format!("expected module definition `{}`", *expected),
+                    );
+                }
+                if let Some(location) = actual.span() {
+                    error.add_labelled_span(
+                        location,
+                        format!("got module definition `{}`", *actual),
+                    );
+                }
+            }
+            TcError::MismatchingCtorDefs { expected, actual } => {
+                let error = reporter.error().code(HashErrorCode::TypeMismatch).title(format!(
+                    "expected constructor definition `{}` but got constructor definition `{}`",
+                    *expected, *actual
+                ));
+                if let Some(location) = expected.span() {
+                    error.add_labelled_span(
+                        location,
+                        format!("expected constructor definition `{}`", *expected),
+                    );
+                }
+                if let Some(location) = actual.span() {
+                    error.add_labelled_span(
+                        location,
+                        format!("got constructor definition `{}`", *actual),
+                    );
+                }
+            }
             TcError::UndecidableEquality { a, b } => {
                 let error = reporter.error().code(HashErrorCode::TypeMismatch).title(format!(
                     "cannot determine if expressions `{}` and `{}` are equal",
@@ -126,7 +177,7 @@ impl TcReporter {
                     error.add_labelled_span(
                         location,
                         format!(
-                            "`{}` from here", //@@Todo: flag for if inferred or declared
+                            "`{}` from here", //@@ErrorReporting: flag for if inferred or declared
                             (*a)
                         ),
                     );

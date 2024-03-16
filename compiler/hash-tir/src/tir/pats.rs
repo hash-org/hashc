@@ -10,7 +10,7 @@ use hash_storage::{
 };
 use hash_utils::derive_more::From;
 
-use super::{NodeOrigin, TermId};
+use super::{NodeOrigin, TermId, VarTerm};
 use crate::tir::{IfPat, LitPat, OrPat, PatArgsId, SymbolId, Term};
 
 /// A binding pattern, which is essentially a declaration left-hand side.
@@ -27,6 +27,12 @@ pub struct BindingPat {
 impl fmt::Display for BindingPat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}{}", if self.is_mutable { "mut " } else { "" }, self.name)
+    }
+}
+
+impl From<BindingPat> for VarTerm {
+    fn from(val: BindingPat) -> Self {
+        VarTerm { symbol: val.name }
     }
 }
 

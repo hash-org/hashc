@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, ops::ControlFlow};
+use std::ops::ControlFlow;
 
 use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
@@ -203,13 +203,21 @@ impl<E: TcEnv> OperationsOn<ArrayTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _src: &mut ArrayTerm,
-        _target: &mut ArrayTerm,
+        src: &mut ArrayTerm,
+        target: &mut ArrayTerm,
         src_node: Self::Node,
-        _target_node: Self::Node,
+        target_node: Self::Node,
     ) -> TcResult<()> {
-        // @@Todo
-        Err(TcError::Blocked(src_node.origin()))
+        match (src, target) {
+            (ArrayTerm::Normal(src), ArrayTerm::Normal(target)) => {
+                self.unify_nodes_scoped(*src, *target, |_| Ok(()))
+            }
+            (ArrayTerm::Repeated(src, src_repeat), ArrayTerm::Repeated(target, target_repeat)) => {
+                self.unify_nodes(*src, *target)?;
+                self.unify_nodes(*src_repeat, *target_repeat)
+            }
+            _ => self.mismatching_atoms(src_node, target_node),
+        }
     }
 }
 

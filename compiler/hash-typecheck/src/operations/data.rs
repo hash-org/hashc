@@ -1,4 +1,4 @@
-use std::{collections::HashSet, ops::ControlFlow};
+use std::ops::ControlFlow;
 
 use hash_reporting::diagnostic::ErrorState;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
@@ -88,7 +88,7 @@ impl<E: TcEnv> OperationsOn<CtorTerm> for Tc<'_, E> {
         // parameters. Substitute any results to the constructor arguments, the
         // result arguments of the constructor, and the constructor data
         // arguments.
-        let (final_result_args, resulting_sub, binds) = self.check_node_scoped(
+        let (final_result_args, resulting_sub) = self.check_node_scoped(
             term.ctor_args,
             subbed_ctor_params,
             |inferred_term_ctor_args| {
@@ -105,7 +105,7 @@ impl<E: TcEnv> OperationsOn<CtorTerm> for Tc<'_, E> {
                 // We are exiting the constructor scope, so we need to hide the binds
                 let hidden_ctor_sub =
                     self.substituter().hide_param_binds(ctor.params.iter(), &ctor_sub);
-                Ok((subbed_ctor_result_args, hidden_ctor_sub, HashSet::new()))
+                Ok((subbed_ctor_result_args, hidden_ctor_sub))
             },
         )?;
 
@@ -114,10 +114,8 @@ impl<E: TcEnv> OperationsOn<CtorTerm> for Tc<'_, E> {
         annotation_data_ty.args = final_result_args;
         let expected_data_ty =
             Ty::expect_is(original_term_id, Ty::from(annotation_data_ty, annotation_ty.origin()));
-        self.unification_opts.pat_binds.enter(Some(binds), || {
-            self.add_sub_to_scope(&resulting_sub);
-            self.unify_nodes(expected_data_ty, annotation_ty)
-        })?;
+        self.add_sub_to_scope(&resulting_sub);
+        self.unify_nodes(expected_data_ty, annotation_ty)?;
 
         // Now we gather the final substitution, and apply it to the result
         // arguments, the constructor data arguments, and finally the annotation
@@ -154,12 +152,10 @@ impl<E: TcEnv> OperationsOn<CtorTerm> for Tc<'_, E> {
         &self,
         src: &mut CtorTerm,
         target: &mut CtorTerm,
-        src_node: Self::Node,
-        target_node: Self::Node,
+        _: Self::Node,
+        _: Self::Node,
     ) -> TcResult<()> {
-        if src.ctor != target.ctor {
-            return self.mismatching_atoms(src_node, target_node);
-        }
+        self.unify_nodes(src.ctor, target.ctor)?;
         self.unify_nodes_scoped(src.data_args, target.data_args, |_| Ok(()))?;
         self.unify_nodes_scoped(src.ctor_args, target.ctor_args, |_| Ok(()))?;
         Ok(())
@@ -187,11 +183,7 @@ impl<E: TcEnv> OperationsOn<DataTy> for Tc<'_, E> {
         Ok(())
     }
 
-    fn try_normalise(
-        &self,
-        _item: DataTy,
-        _item_node: Self::Node,
-    ) -> NormaliseResult<ControlFlow<TyId>> {
+    fn try_normalise(&self, _: DataTy, _: Self::Node) -> NormaliseResult<ControlFlow<TyId>> {
         normalise_nested()
     }
 
@@ -199,12 +191,10 @@ impl<E: TcEnv> OperationsOn<DataTy> for Tc<'_, E> {
         &self,
         src: &mut DataTy,
         target: &mut DataTy,
-        src_node: Self::Node,
-        target_node: Self::Node,
+        _: Self::Node,
+        _: Self::Node,
     ) -> TcResult<()> {
-        if src.data_def != target.data_def {
-            return self.mismatching_atoms(src_node, target_node);
-        }
+        self.unify_nodes(src.data_def, target.data_def)?;
         self.unify_nodes_scoped(src.args, target.args, |_| Ok(()))
     }
 }
@@ -257,9 +247,12 @@ impl<E: TcEnv> OperationsOnNode<DataDefId> for Tc<'_, E> {
         already_normalised()
     }
 
-    fn unify_nodes(&self, src: DataDefId, _: DataDefId) -> TcResult<()> {
-        // @@Todo: implement unification of definitions
-        Err(TcError::Blocked(src.origin()))
+    fn unify_nodes(&self, src: DataDefId, target: DataDefId) -> TcResult<()> {
+        if src == target {
+            Ok(())
+        } else {
+            Err(TcError::MismatchingDataDefs { expected: src, actual: target })
+        }
     }
 }
 
@@ -282,8 +275,11 @@ impl<E: TcEnv> OperationsOnNode<CtorDefId> for Tc<'_, E> {
         already_normalised()
     }
 
-    fn unify_nodes(&self, src: CtorDefId, _target: CtorDefId) -> TcResult<()> {
-        // @@Todo: implement unification of definitions
-        Err(TcError::Blocked(src.origin()))
+    fn unify_nodes(&self, src: CtorDefId, target: CtorDefId) -> TcResult<()> {
+        if src == target {
+            Ok(())
+        } else {
+            Err(TcError::MismatchingCtorDefs { expected: src, actual: target })
+        }
     }
 }

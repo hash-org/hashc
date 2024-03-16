@@ -11,7 +11,7 @@ use crate::{
     env::TcEnv,
     options::normalisation::{normalise_nested, NormaliseResult},
     tc::Tc,
-    traits::{OperationsOn, OperationsOnNode},
+    traits::{OperationsOn, OperationsOnNode, ScopedOperationsOnNode},
 };
 
 impl<E: TcEnv> OperationsOn<IfPat> for Tc<'_, E> {
@@ -81,12 +81,11 @@ impl<E: TcEnv> OperationsOn<OrPat> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _src: &mut OrPat,
-        _target: &mut OrPat,
-        src_node: Self::Node,
-        target_node: Self::Node,
+        src: &mut OrPat,
+        target: &mut OrPat,
+        _: Self::Node,
+        _: Self::Node,
     ) -> crate::diagnostics::TcResult<()> {
-        // @@Todo: unification of patterns
-        self.mismatching_atoms(src_node, target_node)
+        self.unify_nodes_scoped(src.alternatives, target.alternatives, |_| Ok(()))
     }
 }

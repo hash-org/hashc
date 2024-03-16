@@ -14,7 +14,7 @@ use hash_utils::{pluralise, printing::SequenceDisplay};
 
 use crate::tir::{
     Arg, ArgId, ArgsId, HasAstNodeId, Node, NodeId, NodesId, ParamId, ParamIndex, ParamsId,
-    PatArgId, PatArgsId, SymbolId, Term,
+    PatArgId, PatArgsId,
 };
 
 /// An error that can occur when checking [Param]s against [Args].
@@ -441,16 +441,17 @@ pub fn validate_and_reorder_args_against_params(
     for i in params_id.to_index_range() {
         if result[i].is_none() {
             let param_id = ParamId::new(params_id.elements(), i);
-            if spread.is_some() {
+            let param = param_id.borrow();
+            let default = param.default;
+
+            if let Some(default) = default {
+                // If there is a default value, add it to the result
                 result[i] = Some(Node::at(
-                    Arg {
-                        target: param_id.as_param_index(),
-                        value: Term::var(SymbolId::fresh(param_id.origin())),
-                    },
-                    param_id.origin(),
+                    Arg { target: param_id.as_param_index(), value: default },
+                    param.origin,
                 ));
             } else {
-                // No spread, and not present in the arguments, so
+                // No default value, and not present in the arguments, so
                 // this is an error
                 error_state.add_error(ParamError::RequiredParamNotFoundInArgs {
                     param: param_id,

@@ -11,7 +11,7 @@
 //! that defines all the required items for the typechecker to work, provided by
 //! the greater compiler context.
 
-#![feature(control_flow_enum, let_chains)]
+#![feature(control_flow_enum, let_chains, try_blocks)]
 
 pub mod diagnostics;
 pub mod env;

@@ -3,8 +3,8 @@ use hash_ast::lit::LitParseError;
 use hash_reporting::diagnostic::IntoCompound;
 use hash_tir::{
     tir::{
-        fns::FnDefId, NodeOrigin, ParamError, ParamIndex, ParamsId, ParamsOrArgsId, PatId, TermId,
-        TyId,
+        fns::FnDefId, CtorDefId, DataDefId, ModDefId, NodeOrigin, ParamError, ParamIndex, ParamsId,
+        ParamsOrArgsId, PatId, TermId, TyId,
     },
     visitor::Atom,
 };
@@ -41,56 +41,122 @@ pub enum TcError {
     Signal,
 
     /// A series of errors.
-    Compound { errors: Vec<TcError> },
+    Compound {
+        errors: Vec<TcError>,
+    },
 
     /// More type annotations are needed to infer the type of the given atom.
-    NeedMoreTypeAnnotationsToInfer { atom: Atom },
+    NeedMoreTypeAnnotationsToInfer {
+        atom: Atom,
+    },
 
     /// More type annotations are needed to unify the two atoms.
-    NeedMoreTypeAnnotationsToUnify { src: Atom, target: Atom },
+    NeedMoreTypeAnnotationsToUnify {
+        src: Atom,
+        target: Atom,
+    },
 
     /// The given arguments do not match the length of the target parameters.
-    WrongArgLength { params_id: ParamsId, args_id: ParamsOrArgsId },
+    WrongArgLength {
+        params_id: ParamsId,
+        args_id: ParamsOrArgsId,
+    },
 
     /// The given parameters do not match the length of their annotations.
-    WrongParamLength { given_params_id: ParamsId, annotation_params_id: ParamsId },
+    WrongParamLength {
+        given_params_id: ParamsId,
+        annotation_params_id: ParamsId,
+    },
 
     /// The two given argument/parameter lists cannot be unified due to
     /// mismatching lengths.
-    DifferentParamOrArgLengths { a: ParamsOrArgsId, b: ParamsOrArgsId },
+    DifferentParamOrArgLengths {
+        a: ParamsOrArgsId,
+        b: ParamsOrArgsId,
+    },
 
     /// Cannot dereference the subject as it is not a reference.
-    CannotDeref { subject: TermId, actual_subject_ty: TyId },
+    CannotDeref {
+        subject: TermId,
+        actual_subject_ty: TyId,
+    },
 
     /// Types don't match.
-    MismatchingTypes { expected: TyId, actual: TyId },
+    MismatchingTypes {
+        expected: TyId,
+        actual: TyId,
+    },
 
     /// Arrays have mismatching lengths.
-    MismatchingArrayLengths { expected_len: TermId, got_len: TermId },
+    MismatchingArrayLengths {
+        expected_len: TermId,
+        got_len: TermId,
+    },
+
+    /// Mismatching data definitions
+    MismatchingDataDefs {
+        expected: DataDefId,
+        actual: DataDefId,
+    },
+
+    // Mismatching module definitions
+    MismatchingModDefs {
+        expected: ModDefId,
+        actual: ModDefId,
+    },
+
+    // Mismatching constructor definitions
+    MismatchingCtorDefs {
+        expected: CtorDefId,
+        actual: CtorDefId,
+    },
 
     /// Wrong call kind, i.e. implicit/explicit.
-    WrongCallKind { site: TermId, expected_implicit: bool, actual_implicit: bool },
+    WrongCallKind {
+        site: TermId,
+        expected_implicit: bool,
+        actual_implicit: bool,
+    },
 
     /// Wrong term kind used somewhere, expected by a core language construct.
-    WrongTerm { term: TermId, inferred_term_ty: TyId, kind: WrongTermKind },
+    WrongTerm {
+        term: TermId,
+        inferred_term_ty: TyId,
+        kind: WrongTermKind,
+    },
 
     /// The given property does not exist on the given term.
-    PropertyNotFound { term: TermId, term_ty: TyId, property: ParamIndex },
+    PropertyNotFound {
+        term: TermId,
+        term_ty: TyId,
+        property: ParamIndex,
+    },
 
     /// Undecidable equality between terms.
-    UndecidableEquality { a: TermId, b: TermId },
+    UndecidableEquality {
+        a: TermId,
+        b: TermId,
+    },
 
     /// The two patterns do not match.
     // @@Todo: remove this in favour of a single mismatch variant.
-    MismatchingPats { a: PatId, b: PatId },
+    MismatchingPats {
+        a: PatId,
+        b: PatId,
+    },
 
     /// The two functions do not match.
     // @@Todo: remove this in favour of a single mismatch variant.
-    MismatchingFns { a: FnDefId, b: FnDefId },
+    MismatchingFns {
+        a: FnDefId,
+        b: FnDefId,
+    },
 
     /// A type was returned from a block that references some non-substitutable
     /// local variables in the block.
-    TryingToReferenceLocalsInType { ty: TyId },
+    TryingToReferenceLocalsInType {
+        ty: TyId,
+    },
 
     /// An error related to argument/parameter matching.
     #[from]

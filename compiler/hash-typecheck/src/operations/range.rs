@@ -77,12 +77,22 @@ impl<E: TcEnv> OperationsOn<RangePat> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _: &mut RangePat,
-        _: &mut RangePat,
+        src: &mut RangePat,
+        target: &mut RangePat,
         src_node: Self::Node,
         target_node: Self::Node,
     ) -> crate::diagnostics::TcResult<()> {
-        // @@Todo: unification of range patterns
-        self.mismatching_atoms(src_node, target_node)
+        match (src.lo, target.lo) {
+            (Some(src_lo), Some(target_lo)) => self.unify_nodes(*src_lo, *target_lo)?,
+            (None, None) => {}
+            _ => self.mismatching_atoms(src_node, target_node)?,
+        }
+        match (src.hi, target.hi) {
+            (Some(src_hi), Some(target_hi)) => self.unify_nodes(*src_hi, *target_hi)?,
+            (None, None) => {}
+            _ => self.mismatching_atoms(src_node, target_node)?,
+        }
+
+        Ok(())
     }
 }

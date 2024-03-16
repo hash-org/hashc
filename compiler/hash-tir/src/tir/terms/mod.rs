@@ -1,7 +1,7 @@
 //! Definitions related to terms.
 
 use core::fmt;
-use std::fmt::Debug;
+use std::{fmt::Debug, ops::ControlFlow};
 
 use hash_storage::store::{
     statics::{SequenceStoreValue, SingleStoreValue, StoreId},
@@ -16,7 +16,7 @@ use crate::{
         Arg, ArgsId, CtorTerm, DataDefId, DataTy, LitId, Node, NodeId, NodeOrigin, Param, SymbolId,
     },
     tir_node_single_store,
-    visitor::Atom,
+    visitor::{Atom, Map, Visitor},
 };
 
 pub mod access;
@@ -277,8 +277,11 @@ impl Term {
 impl TermId {
     /// Use a pattern as a non-pattern term, if possible
     pub fn use_as_non_pat(&self) -> Option<TermId> {
-        // @@Todo: handle
-        Some(*self)
+        // @@Todo: handle ifs/ors/spreads
+        Some(Visitor::new().map(*self, |t| match t.to_term().value().data {
+            Term::Pat(Pat::Binding(b)) => ControlFlow::Break(Term::var(b.name).into()),
+            _ => ControlFlow::Continue(()),
+        }))
     }
 }
 
@@ -296,7 +299,7 @@ impl fmt::Display for UnsafeTerm {
 
 impl fmt::Display for VarTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.symbol)
+        write!(f, "v{}", self.symbol)
     }
 }
 

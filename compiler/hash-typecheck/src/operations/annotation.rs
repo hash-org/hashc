@@ -1,6 +1,6 @@
 use std::ops::ControlFlow;
 
-use hash_tir::tir::{AnnotTerm, TermId, TyId};
+use hash_tir::tir::{AnnotTerm, NodeId, Term, TermId, TyId};
 
 use crate::{
     env::TcEnv,
@@ -27,10 +27,18 @@ impl<E: TcEnv> OperationsOn<AnnotTerm> for Tc<'_, E> {
     fn try_normalise(
         &self,
         cast_term: AnnotTerm,
-        _: Self::Node,
+        original_term_id: Self::Node,
     ) -> NormaliseResult<ControlFlow<Self::Node>> {
-        // @@Todo: will not play well with typeof?;
-        normalised_option(self.potentially_normalise_node_no_signals(cast_term.subject_term)?)
+        let subject_term = self.potentially_normalise_node_no_signals(cast_term.subject_term)?;
+        let target_ty = self.potentially_normalise_node_no_signals(cast_term.target_ty)?;
+        normalised_option(
+            try {
+                Term::from(
+                    AnnotTerm { subject_term: subject_term?, target_ty: target_ty? },
+                    original_term_id.origin().computed(),
+                )
+            },
+        )
     }
 
     fn unify(

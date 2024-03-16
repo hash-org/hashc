@@ -37,9 +37,12 @@ impl<E: TcEnv> OperationsOnNode<ModDefId> for Tc<'_, E> {
         already_normalised()
     }
 
-    fn unify_nodes(&self, src: ModDefId, _target: ModDefId) -> crate::diagnostics::TcResult<()> {
-        // @@Todo: unification of definitions
-        Err(TcError::Blocked(src.origin()))
+    fn unify_nodes(&self, src: ModDefId, target: ModDefId) -> crate::diagnostics::TcResult<()> {
+        if src == target {
+            Ok(())
+        } else {
+            Err(TcError::MismatchingModDefs { expected: target, actual: src })
+        }
     }
 }
 
@@ -88,12 +91,8 @@ impl<E: TcEnv> OperationsOnNode<ModMemberId> for Tc<'_, E> {
         already_normalised()
     }
 
-    fn unify_nodes(
-        &self,
-        src: ModMemberId,
-        _target: ModMemberId,
-    ) -> crate::diagnostics::TcResult<()> {
-        // @@Todo: unification of definitions
-        Err(TcError::Blocked(src.origin()))
+    fn unify_nodes(&self, _: ModMemberId, _: ModMemberId) -> crate::diagnostics::TcResult<()> {
+        // Not needed
+        unreachable!()
     }
 }

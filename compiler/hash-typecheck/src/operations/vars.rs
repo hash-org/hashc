@@ -62,27 +62,30 @@ impl<E: TcEnv> OperationsOn<VarTerm> for Tc<'_, E> {
     fn unify(
         &self,
         src: &mut VarTerm,
-        target: &mut VarTerm,
+        _: &mut VarTerm,
         a_id: Self::Node,
         b_id: Self::Node,
     ) -> TcResult<()> {
-        let a = src.symbol;
-        let b = target.symbol;
-        if let Some(binds) = &*self.unification_opts.pat_binds.get() {
-            if binds.contains(&a) {
-                self.add_unification(b, a_id);
-                return Ok(());
-            }
-            if binds.contains(&b) {
-                self.add_unification(a, b_id);
-                return Ok(());
-            }
+        self.unify_var_with(*src, a_id, b_id)
+    }
+}
+
+impl<E: TcEnv> Tc<'_, E> {
+    pub(crate) fn unify_var_with(
+        &self,
+        var: VarTerm,
+        var_term: TermId,
+        term: TermId,
+    ) -> TcResult<()> {
+        match self.context().try_get_decl_value(var.symbol) {
+            Some(v) => self.unify_nodes(v, term),
+            None => self.mismatching_atoms(var_term, term),
         }
-        if a == b {
-            Ok(())
-        } else {
-            self.mismatching_atoms(a_id, b_id)
-        }
+    }
+
+    pub(crate) fn unify_binding_with(&self, binding: BindingPat, term: TermId) -> TcResult<()> {
+        self.add_unification(binding.name, term);
+        Ok(())
     }
 }
 
@@ -116,8 +119,9 @@ impl<E: TcEnv> OperationsOn<BindingPat> for Tc<'_, E> {
         src_node: Self::Node,
         target_node: Self::Node,
     ) -> TcResult<()> {
-        self.unification_ok_or_mismatching_atoms(
-            src.name == target.name && src.is_mutable == target.is_mutable,
+        self.unify(
+            &mut VarTerm { symbol: src.name },
+            &mut VarTerm { symbol: target.name },
             src_node,
             target_node,
         )

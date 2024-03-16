@@ -80,7 +80,7 @@ impl<E: TcEnv> OperationsOn<CallTerm> for Tc<'_, E> {
                                 .set(original_term_id.value().with_data(fn_call_term.into()));
 
                             self.substituter().apply_sub_from_context(copied_return_ty);
-                            self.check_by_unify(copied_return_ty, annotation_ty)?;
+                            self.unify_nodes(copied_return_ty, annotation_ty)?;
                             Ok(())
                         },
                     )?;

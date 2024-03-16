@@ -3,7 +3,8 @@ use std::ops::ControlFlow;
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    tir::{ArgsId, NodesId, Pat, Term, TermId, Ty, TyId, VarTerm},
+    tir::{ArgsId, NodesId, Pat, Term, TermId, Ty, TyId},
+    visitor::{Atom, Map, Visitor},
 };
 
 use crate::{
@@ -102,9 +103,6 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
             return Ok(());
         }
 
-        self.normalise_node_in_place_no_signals(src_id)?;
-        self.normalise_node_in_place_no_signals(target_id)?;
-
         let src = src_id.value();
         let target = target_id.value();
 
@@ -115,22 +113,15 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
             (Term::Hole(a), _) => self.unify_hole_with(a, src_id, target_id),
             (_, Term::Hole(b)) => self.unify_hole_with(b, target_id, src_id),
 
-            (Term::Var(a), _) if self.unification_opts.pat_binds.get().is_some() => {
-                self.add_unification(a.symbol, target_id);
-                Ok(())
-            }
-            (_, Term::Var(b)) if self.unification_opts.pat_binds.get().is_some() => {
-                self.add_unification(b.symbol, src_id);
-                Ok(())
-            }
-            (Term::Var(mut a), Term::Var(mut b)) => self.unify(&mut a, &mut b, src_id, target_id),
-            (Term::Pat(Pat::Binding(a)), Term::Pat(Pat::Binding(b))) => self.unify(
-                &mut VarTerm { symbol: a.name },
-                &mut VarTerm { symbol: b.name },
-                src_id,
-                target_id,
-            ),
-            (Term::Var(_), _) | (_, Term::Var(_)) => self.mismatching_atoms(src_id, target_id),
+            // (Term::Pat(Pat::Binding(mut a)), Term::Pat(Pat::Binding(mut b))) => {
+            //     self.unify(&mut a, &mut b, src_id, target_id)
+            // }
+            (Term::Var(a), Term::Var(b)) if a.symbol == b.symbol => Ok(()),
+            (Term::Pat(Pat::Binding(a)), Term::Pat(Pat::Binding(b))) if a.name == b.name => Ok(()),
+            (Term::Pat(Pat::Binding(a)), _) => self.unify_binding_with(a, target_id),
+            (_, Term::Pat(Pat::Binding(b))) => self.unify_binding_with(b, src_id),
+            (Term::Var(a), _) => self.unify_var_with(a, src_id, target_id),
+            (_, Term::Var(b)) => self.unify_var_with(b, target_id, src_id),
 
             // If the source is uninhabitable, then we can unify it with
             // anything
@@ -156,18 +147,62 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
                 self.unify(&mut c1, &mut c2, src_id, target_id)
             }
             (Term::Lit(l1), Term::Lit(l2)) => self.unify_nodes(l1, l2),
-            (Term::Access(mut a1), Term::Access(mut a2)) => {
+            (Term::Fn(mut f1), Term::Fn(mut f2)) => self.unify(&mut f1, &mut f2, src_id, target_id),
+            (Term::Call(mut c1), Term::Call(mut c2)) => self
+                .unify(&mut c1, &mut c2, src_id, target_id)
+                .or_else(|_| self.normalise_and_unify_nodes(src_id, target_id)),
+            (Term::Access(mut a1), Term::Access(mut a2)) => self
+                .unify(&mut a1, &mut a2, src_id, target_id)
+                .or_else(|_| self.normalise_and_unify_nodes(src_id, target_id)),
+            (Term::Ref(mut r1), Term::Ref(mut r2)) => self
+                .unify(&mut r1, &mut r2, src_id, target_id)
+                .or_else(|_| self.normalise_and_unify_nodes(src_id, target_id)),
+            (Term::Index(mut i1), Term::Index(mut i2)) => self
+                .unify(&mut i1, &mut i2, src_id, target_id)
+                .or_else(|_| self.normalise_and_unify_nodes(src_id, target_id)),
+            (Term::Match(mut m1), Term::Match(mut m2)) => {
+                self.unify(&mut m1, &mut m2, src_id, target_id)
+            }
+            (Term::Assign(mut a1), Term::Assign(mut a2)) => {
                 self.unify(&mut a1, &mut a2, src_id, target_id)
             }
-            (Term::Ref(mut r1), Term::Ref(mut r2)) => {
+            (Term::Return(mut r1), Term::Return(mut r2)) => {
                 self.unify(&mut r1, &mut r2, src_id, target_id)
             }
-            (Term::Call(mut c1), Term::Call(mut c2)) => {
-                self.unify(&mut c1, &mut c2, src_id, target_id)
+            (Term::Block(mut b1), Term::Block(mut b2)) => {
+                self.unify(&mut b1, &mut b2, src_id, target_id)
             }
-            (Term::Fn(mut f1), Term::Fn(mut f2)) => self.unify(&mut f1, &mut f2, src_id, target_id),
-            // @@Todo: rest
-            _ => self.mismatching_atoms(src_id, target_id),
+            (Term::Loop(mut l1), Term::Loop(mut l2)) => {
+                self.unify(&mut l1, &mut l2, src_id, target_id)
+            }
+            (Term::LoopControl(mut l1), Term::LoopControl(mut l2)) => {
+                self.unify(&mut l1, &mut l2, src_id, target_id)
+            }
+            (Term::Deref(mut d1), Term::Deref(mut d2)) => {
+                self.unify(&mut d1, &mut d2, src_id, target_id)
+            }
+            (Term::Unsafe(mut u1), Term::Unsafe(mut u2)) => {
+                self.unify(&mut u1, &mut u2, src_id, target_id)
+            }
+            (Term::TyOf(mut t1), Term::TyOf(mut t2)) => {
+                self.unify(&mut t1, &mut t2, src_id, target_id)
+            }
+            (Term::Annot(mut a1), Term::Annot(mut a2)) => {
+                self.unify(&mut a1, &mut a2, src_id, target_id)
+            }
+            (Term::Intrinsic(mut i1), Term::Intrinsic(mut i2)) => {
+                self.unify(&mut i1, &mut i2, src_id, target_id)
+            }
+            (Term::Pat(Pat::If(mut i1)), Term::Pat(Pat::If(mut i2))) => {
+                self.unify(&mut i1, &mut i2, src_id, target_id)
+            }
+            (Term::Pat(Pat::Or(mut o1)), Term::Pat(Pat::Or(mut o2))) => {
+                self.unify(&mut o1, &mut o2, src_id, target_id)
+            }
+            (Term::Pat(Pat::Range(mut r1)), Term::Pat(Pat::Range(mut r2))) => {
+                self.unify(&mut r1, &mut r2, src_id, target_id)
+            }
+            _ => self.normalise_and_unify_nodes(src_id, target_id),
         }
     }
 
@@ -205,6 +240,23 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
             Ty::FnTy(_) | Ty::TupleTy(_) | Ty::DataTy(_) | Ty::Universe(_) | Ty::RefTy(_) => {
                 Ok(Some(ControlFlow::Continue(())))
             }
+        }
+    }
+}
+
+impl<E: TcEnv> Tc<'_, E> {
+    pub(crate) fn normalise_and_unify_nodes<N: Copy>(&self, src_id: N, target_id: N) -> TcResult<()>
+    where
+        N: Into<Atom>,
+        Visitor: Map<N>,
+        Self: OperationsOnNode<N>,
+    {
+        match self.potentially_normalise_node_no_signals(src_id)? {
+            Some(src_id_new) => self.unify_nodes(src_id_new, target_id),
+            None => match self.potentially_normalise_node_no_signals(target_id)? {
+                Some(target_id_new) => self.unify_nodes(src_id, target_id_new),
+                None => self.mismatching_atoms(src_id, target_id),
+            },
         }
     }
 }

@@ -1,12 +1,12 @@
 use std::ops::ControlFlow;
 
-use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
+use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
     context::{HasContext, ScopeKind},
     intrinsics::definitions::never_ty,
     tir::{
         blocks::{BlockStatement, BlockTerm},
-        NodeId, NodeOrigin, TermId, Ty, TyId,
+        NodeOrigin, TermId, Ty, TyId,
     },
 };
 use hash_utils::log::info;
@@ -154,12 +154,28 @@ impl<E: TcEnv> OperationsOn<BlockTerm> for Tc<'_, E> {
 
     fn unify(
         &self,
-        _src: &mut BlockTerm,
-        _target: &mut BlockTerm,
+        src: &mut BlockTerm,
+        target: &mut BlockTerm,
         src_node: Self::Node,
-        _target_node: Self::Node,
+        target_node: Self::Node,
     ) -> TcResult<()> {
-        // @@Todo
-        Err(TcError::Blocked(src_node.origin()))
+        if src.statements.len() != target.statements.len() {
+            return self.mismatching_atoms(src_node, target_node);
+        }
+
+        for (src_statement, target_statement) in src.statements.iter().zip(target.statements.iter())
+        {
+            match (src_statement.value().data, target_statement.value().data) {
+                (BlockStatement::Decl(src_decl), BlockStatement::Decl(target_decl)) => {
+                    self.unify_nodes(src_decl.value, target_decl.value)?;
+                }
+                (BlockStatement::Expr(src_expr), BlockStatement::Expr(target_expr)) => {
+                    self.unify_nodes(src_expr, target_expr)?;
+                }
+                _ => return self.mismatching_atoms(src_node, target_node),
+            }
+        }
+
+        Ok(())
     }
 }

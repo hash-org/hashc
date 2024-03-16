@@ -94,6 +94,8 @@ pub struct ModMember {
     pub value: ModMemberValue,
 }
 
+// @@Design: this does not need to be a separate store! Could live inside
+// modules.
 tir_node_sequence_store_direct!(ModMember);
 
 /// A module definition.
