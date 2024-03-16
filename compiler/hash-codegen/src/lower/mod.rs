@@ -135,7 +135,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 ///
 /// 3. Traverse the control flow graph in post-order and generate each
 /// block in the function.
-pub fn codegen_ir_body<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
+pub fn codegen_body<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
     instance: InstanceId,
     body: &'b ir::Body,
     ctx: &'a Builder::CodegenCtx,

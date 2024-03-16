@@ -20,7 +20,7 @@ use error::{CodeGenError, CodegenResult};
 use hash_attrs::builtin::attrs;
 use hash_codegen::{
     backend::{BackendCtx, CodeGenStorage, CompilerBackend},
-    lower::codegen_ir_body,
+    lower::codegen_body,
     repr::LayoutStorage,
     symbols::mangle::compute_symbol_name,
     target::{HasTarget, TargetArch},
@@ -293,7 +293,7 @@ impl<'b, 'm> LLVMBackend<'b> {
             let instance = body.metadata().ty().borrow().as_instance();
 
             // @@ErrorHandling: we should be able to handle the error here
-            codegen_ir_body::<LLVMBuilder>(instance, body, ctx).unwrap();
+            codegen_body::<LLVMBuilder>(instance, body, ctx).unwrap();
 
             // Check if we should dump the generated LLVM IR
             if instance.borrow().has_attr(attrs::DUMP_LLVM_IR) {
