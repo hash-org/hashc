@@ -157,7 +157,7 @@ impl<'ir> BuilderCtx<'ir> {
                                                  // for now.
                 }
             }
-            ty @ Ty::Hole(_) => {
+            ty @ Ty::Meta(_) => {
                 let message =
                     format!("all types should be monomorphised before lowering, type: `{}`", ty);
 

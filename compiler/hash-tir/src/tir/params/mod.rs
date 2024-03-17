@@ -23,6 +23,8 @@ pub mod utils;
 
 pub use utils::*;
 
+use super::Term;
+
 /// A parameter, declaring a potentially named variable with a given type and
 /// possibly a default value.
 #[derive(Debug, Clone, Copy)]
@@ -46,42 +48,6 @@ impl Param {
     /// Get the name of the parameter, if it has one.
     pub fn name(&self) -> Option<Identifier> {
         self.name.value().name
-    }
-
-    /// Create a new parameter list with the given names, and holes for all
-    /// types (the second slot of the iterator value is the origin of the
-    /// inferred type).
-    pub fn seq_from_names_with_hole_types(
-        param_names: impl Iterator<Item = (SymbolId, NodeOrigin)>,
-        origin: NodeOrigin,
-    ) -> ParamsId {
-        Node::create(Node::at(
-            Node::seq(
-                param_names
-                    .map(|(name, ty_origin)| {
-                        Node::at(Param { name, ty: Ty::hole(ty_origin), default: None }, ty_origin)
-                    })
-                    .collect_vec(),
-            ),
-            origin,
-        ))
-    }
-
-    /// Create a new parameter list with the given argument names, and holes for
-    /// all types, and no default values.
-    pub fn seq_from_args_with_hole_types(args: ArgsId) -> ParamsId {
-        Param::seq_from_names_with_hole_types(
-            args.iter().map(|arg| {
-                (
-                    match arg.value().data.target {
-                        ParamIndex::Name(name) => SymbolId::from_name(name, arg.origin()),
-                        ParamIndex::Position(_) => SymbolId::fresh(arg.origin()),
-                    },
-                    arg.origin().inferred(),
-                )
-            }),
-            args.origin().inferred(),
-        )
     }
 
     pub fn seq_positional(tys: impl IntoIterator<Item = TyId>, origin: NodeOrigin) -> ParamsId {

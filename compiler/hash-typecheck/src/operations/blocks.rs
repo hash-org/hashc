@@ -62,7 +62,7 @@ impl<E: TcEnv> OperationsOn<BlockTerm> for Tc<'_, E> {
                         decl.ty
                     }
                     BlockStatement::Expr(expr) => {
-                        let statement_ty = Ty::hole_for(expr);
+                        let statement_ty = self.fresh_meta_for(expr);
                         self.check_node(expr, statement_ty)?;
                         statement_ty
                     }
@@ -76,7 +76,7 @@ impl<E: TcEnv> OperationsOn<BlockTerm> for Tc<'_, E> {
 
             if diverges {
                 match *annotation_ty.value() {
-                    Ty::Hole(_) => {
+                    Ty::Meta(_) => {
                         // If it diverges, we can just infer the return type as `never`.
                         let block_term_ty =
                             Ty::expect_is(original_term_id, never_ty(NodeOrigin::Expected));
@@ -84,7 +84,7 @@ impl<E: TcEnv> OperationsOn<BlockTerm> for Tc<'_, E> {
                     }
                     _ => {
                         // Infer the return value
-                        let return_value_ty = Ty::hole_for(block_term.expr);
+                        let return_value_ty = self.fresh_meta_for(block_term.expr);
                         self.check_node(block_term.expr, return_value_ty)?;
                     }
                 }

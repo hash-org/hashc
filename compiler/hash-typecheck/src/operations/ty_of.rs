@@ -23,7 +23,7 @@ impl<E: TcEnv> OperationsOn<TyOfTerm> for Tc<'_, E> {
         annotation_ty: Self::AnnotNode,
         original_term_id: Self::Node,
     ) -> TcResult<()> {
-        let inferred_ty = Ty::hole_for(ty_of_term.term);
+        let inferred_ty = self.fresh_meta_for(ty_of_term.term);
         self.check_node(ty_of_term.term, inferred_ty)?;
         self.check_node(inferred_ty, annotation_ty)?;
         self.normalise_node_in_place_no_signals(original_term_id)?;

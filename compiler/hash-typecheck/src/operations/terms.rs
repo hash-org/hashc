@@ -12,7 +12,7 @@ use crate::{
     env::TcEnv,
     options::normalisation::{already_normalised, NormaliseResult},
     tc::{FnInferMode, Tc},
-    traits::{OperationsOn, OperationsOnNode},
+    traits::{OperationsOn, OperationsOnNode, ScopedOperationsOnNode},
     utils::dumping::potentially_dump_tir,
 };
 
@@ -67,7 +67,7 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
                 self.check(&mut assign_term, annotation_ty, term_id)?
             }
             Term::Intrinsic(mut intrinsic) => self.check(&mut intrinsic, annotation_ty, term_id)?,
-            Term::Hole(mut hole) => self.check(&mut hole, annotation_ty, term_id)?,
+            Term::Meta(mut hole) => self.check(&mut hole, annotation_ty, term_id)?,
             Ty::TupleTy(mut tuple_ty) => self.check(&mut tuple_ty, annotation_ty, term_id)?,
             Ty::FnTy(mut fn_ty) => self.check(&mut fn_ty, annotation_ty, term_id)?,
             Ty::RefTy(mut ref_ty) => {
@@ -104,20 +104,19 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
         }
 
         // Substitute from context
-        let v = Visitor::new();
-        let src_id_subbed = v.copy(src_id);
-        self.substituter().apply_sub_from_context(src_id_subbed);
-        let target_id_subbed = v.copy(target_id);
-        self.substituter().apply_sub_from_context(target_id_subbed);
-        let src = src_id_subbed.value().data;
-        let target = target_id_subbed.value().data;
+        let src = self.resolve_metas(src_id).value().data;
+        let target = self.resolve_metas(target_id).value().data;
+
+        match (self.classify_meta_call(src), self.classify_meta_call(target)) {
+            (Some(v1), Some(v2)) if v1.meta == v2.meta => {
+                return self.unify_nodes_scoped(v1.args, v2.args, |_| Ok(()));
+            }
+            (Some(v1), None) => return self.solve(v1, target_id, src_id, target_id),
+            (None, Some(v2)) => return self.solve(v2, src_id, src_id, target_id),
+            _ => {}
+        }
 
         match (src, target) {
-            (Term::Hole(mut h1), Term::Hole(mut h2)) => {
-                self.unify(&mut h1, &mut h2, src_id, target_id)
-            }
-            (Term::Hole(a), _) => self.unify_hole_with(a, src_id, target_id),
-            (_, Term::Hole(b)) => self.unify_hole_with(b, target_id, src_id),
             (
                 Term::Var(VarTerm { symbol: a })
                 | Term::Pat(Pat::Binding(BindingPat { name: a, .. })),
@@ -219,7 +218,7 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
             Term::Match(match_term) => self.try_normalise(match_term, term),
             Term::Call(fn_call) => self.try_normalise(fn_call, term),
             Term::Annot(cast_term) => self.try_normalise(cast_term, term),
-            Term::Hole(h) => self.try_normalise(h, term),
+            Term::Meta(h) => self.try_normalise(h, term),
             Term::Var(v) => self.try_normalise(v, term),
             Term::Deref(deref_term) => self.try_normalise(deref_term, term),
             Term::Access(access_term) => self.try_normalise(access_term, term),

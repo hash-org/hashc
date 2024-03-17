@@ -26,7 +26,7 @@ pub mod blocks;
 pub mod commands;
 pub mod control;
 pub mod fns;
-pub mod holes;
+pub mod metas;
 pub mod refs;
 pub mod tuples;
 
@@ -37,7 +37,7 @@ pub use blocks::*;
 pub use commands::*;
 pub use control::*;
 pub use fns::*;
-pub use holes::*;
+pub use metas::*;
 pub use refs::*;
 pub use tuples::*;
 
@@ -149,8 +149,8 @@ pub enum Term {
     /// The universe type
     Universe(UniverseTy),
 
-    /// Holes
-    Hole(Hole),
+    /// Metavariables
+    Meta(Meta),
 
     /// Intrinsics
     Intrinsic(Intrinsic),
@@ -182,6 +182,10 @@ impl Term {
         matches!(self, Term::Tuple(tuple_term) if tuple_term.data.value().is_empty())
     }
 
+    pub fn unresolved(origin: NodeOrigin) -> TermId {
+        Node::create(Node::at(Term::Meta(Meta::fresh_hole(origin)), origin))
+    }
+
     pub fn unit(origin: NodeOrigin) -> TermId {
         Node::create(Node::at(
             Term::Tuple(TupleTerm {
@@ -189,10 +193,6 @@ impl Term {
             }),
             origin,
         ))
-    }
-
-    pub fn hole(origin: NodeOrigin) -> TermId {
-        Node::create(Node::at(Term::Hole(Hole::fresh(origin)), origin))
     }
 
     pub fn var(symbol: SymbolId) -> TermId {
@@ -261,13 +261,6 @@ impl Term {
         ty
     }
 
-    /// Create a new type hole for typing the given atom.
-    pub fn hole_for(src: impl Into<Atom>) -> TyId {
-        let src = src.into();
-        let ty = Ty::hole(src.origin().inferred());
-        Ty::expect_is(src, ty)
-    }
-
     /// Create a pattern term
     pub fn pat(pat: impl Into<Pat>, origin: NodeOrigin) -> TermId {
         Node::create_at(Term::Pat(pat.into()), origin)
@@ -334,7 +327,7 @@ impl fmt::Display for Term {
             Term::TyOf(type_of_term) => write!(f, "{}", type_of_term),
             Term::Ref(ref_term) => write!(f, "{}", ref_term),
             Term::Deref(deref_term) => write!(f, "{}", deref_term),
-            Term::Hole(hole) => write!(f, "{}", *hole),
+            Term::Meta(hole) => write!(f, "{}", *hole),
             Term::Index(index) => {
                 write!(f, "{}", index)
             }

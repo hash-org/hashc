@@ -71,7 +71,7 @@ impl Category {
             | Ty::RefTy(_)
             | Term::Pat(_)
             | Ty::Universe(_)
-            | Term::Hole(_) => Category::RValue(RValueKind::As),
+            | Term::Meta(_) => Category::RValue(RValueKind::As),
         }
     }
 }

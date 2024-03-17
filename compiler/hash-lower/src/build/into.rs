@@ -343,7 +343,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             | Ty::TupleTy(_)
             | Ty::RefTy(_)
             | Ty::Universe(_)
-            | Term::Hole(_)
+            | Term::Meta(_)
             | Term::Intrinsic(_)
             | Term::Fn(_) => block.unit(),
         };

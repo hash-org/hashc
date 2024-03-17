@@ -29,9 +29,9 @@ impl<E: TcEnv> OperationsOn<TupleTerm> for Tc<'_, E> {
             self.normalise_and_check_ty(annotation_ty)?;
             let params = match *annotation_ty.value() {
                 Ty::TupleTy(tuple_ty) => self.visitor().copy(tuple_ty.data),
-                Ty::Hole(_) => Param::seq_from_args_with_hole_types(tuple_term.data),
+                Ty::Meta(_) => self.params_from_args_with_hole_types(tuple_term.data),
                 _ => {
-                    let inferred = Param::seq_from_args_with_hole_types(tuple_term.data);
+                    let inferred = self.params_from_args_with_hole_types(tuple_term.data);
                     return Err(TcError::MismatchingTypes {
                         expected: annotation_ty,
                         actual: Ty::from(

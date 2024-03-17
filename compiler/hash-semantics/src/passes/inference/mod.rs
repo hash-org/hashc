@@ -65,7 +65,6 @@ impl<E: SemanticEnv> AnalysisPass for InferencePass<'_, E> {
     fn pass_interactive(
         &self,
         source: SourceId,
-
         node: ast::AstNodeRef<ast::BodyBlock>,
     ) -> crate::diagnostics::definitions::SemanticResult<()> {
         let env = TcEnvImpl::new(self.env, source);
@@ -77,7 +76,7 @@ impl<E: SemanticEnv> AnalysisPass for InferencePass<'_, E> {
         let term = self.ast_info.terms().get_data_by_node(node.id()).unwrap();
         let (term, _) = self.infer_fully(
             source,
-            (term, Ty::hole_for(term)),
+            (term, tc.fresh_meta_for(term)),
             |(term_id, ty_id)| {
                 tc.check_node(term_id, ty_id)?;
                 Ok((term_id, ty_id))

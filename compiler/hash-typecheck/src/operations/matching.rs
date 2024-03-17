@@ -31,7 +31,7 @@ impl<E: TcEnv> OperationsOn<MatchTerm> for Tc<'_, E> {
         _original_node_id: Self::Node,
     ) -> crate::diagnostics::TcResult<()> {
         self.check_ty(annotation_ty)?;
-        let match_subject_ty = Ty::hole_for(match_term.subject);
+        let match_subject_ty = self.fresh_meta_for(match_term.subject);
         self.check_node(match_term.subject, match_subject_ty)?;
 
         let match_subject_var = match *match_term.subject.value() {
@@ -40,7 +40,7 @@ impl<E: TcEnv> OperationsOn<MatchTerm> for Tc<'_, E> {
         };
 
         let match_annotation_ty = match *annotation_ty.value() {
-            Ty::Hole(_) => None,
+            Ty::Meta(_) => None,
             t => Some(t),
         };
 
@@ -67,7 +67,7 @@ impl<E: TcEnv> OperationsOn<MatchTerm> for Tc<'_, E> {
 
                 match match_annotation_ty {
                     _ if self.is_uninhabitable(subject_ty_copy)? => {
-                        let new_unified_ty = Ty::hole_for(case_data.value);
+                        let new_unified_ty = self.fresh_meta_for(case_data.value);
                         self.check_node(case_data.value, new_unified_ty)?;
                         self.check_by_unify(new_unified_ty, never_ty(NodeOrigin::Expected))?;
                     }
@@ -91,7 +91,7 @@ impl<E: TcEnv> OperationsOn<MatchTerm> for Tc<'_, E> {
             })?
         }
 
-        if matches!(*unified_ty.value(), Ty::Hole(_)) {
+        if matches!(*unified_ty.value(), Ty::Meta(_)) {
             if !inhabited.get() {
                 unified_ty = never_ty(NodeOrigin::Expected);
             } else {

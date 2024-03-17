@@ -2,7 +2,7 @@
 use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_source::{entry_point::EntryPointKind, identifier::IDENTS, ModuleKind};
 use hash_storage::store::statics::{SequenceStoreValue, StoreId};
-use hash_tir::tir::{Arg, CallTerm, FnDefId, HasAstNodeId, Node, NodeOrigin, Term, Ty};
+use hash_tir::tir::{Arg, CallTerm, FnDefId, HasAstNodeId, Node, NodeId, NodeOrigin, Term};
 
 use crate::{diagnostics::TcResult, env::TcEnv, tc::Tc, traits::OperationsOnNode};
 
@@ -45,7 +45,7 @@ impl<T: TcEnv> Tc<'_, T> {
                 NodeOrigin::Generated,
             );
 
-            self.check_node(call_term, Ty::hole_for(call_term))?;
+            self.check_node(call_term, self.fresh_meta(call_term.origin().inferred()))?;
 
             // If successful, flag it as an entry point.
             self.entry_point().set(fn_def_id, entry_point);

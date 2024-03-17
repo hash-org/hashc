@@ -160,7 +160,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             | Ty::RefTy(_)
             | Ty::Universe(_)
             | Term::Ref(_)
-            | Term::Hole(_) => {
+            | Term::Meta(_) => {
                 // These expressions are not places, so we need to create a temporary
                 // and then deal with it.
                 let temp = unpack!(block = self.term_into_temp(block, term, mutability));

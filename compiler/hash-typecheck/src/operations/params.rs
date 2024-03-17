@@ -1,10 +1,17 @@
 use std::ops::ControlFlow;
 
-use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
+use hash_storage::store::{
+    statics::{SequenceStoreValue, SingleStoreValue, StoreId},
+    SequenceStoreKey, TrivialSequenceStoreKey,
+};
 use hash_tir::{
     context::{HasContext, ScopeKind},
-    tir::{validate_params, ParamsId, Term, Ty},
+    tir::{
+        validate_params, Arg, ArgsId, Node, NodeId, NodeOrigin, Param, ParamIndex, ParamsId,
+        SymbolId, Term, Ty,
+    },
 };
+use itertools::Itertools;
 
 use crate::{
     diagnostics::{TcError, TcResult},
@@ -13,6 +20,73 @@ use crate::{
     tc::Tc,
     traits::{OperationsOnNode, ScopedOperationsOnNode},
 };
+
+impl<E: TcEnv> Tc<'_, E> {
+    /// Create a new parameter list with the given names, and holes for all
+    /// types (the second slot of the iterator value is the origin of the
+    /// inferred type).
+    pub fn params_from_names_with_hole_types(
+        &self,
+        param_names: impl Iterator<Item = (SymbolId, NodeOrigin)>,
+        origin: NodeOrigin,
+    ) -> ParamsId {
+        Node::create(Node::at(
+            Node::seq(
+                param_names
+                    .map(|(name, ty_origin)| {
+                        Node::at(
+                            Param { name, ty: self.fresh_meta(ty_origin), default: None },
+                            ty_origin,
+                        )
+                    })
+                    .collect_vec(),
+            ),
+            origin,
+        ))
+    }
+
+    /// Create a new parameter list with the given argument names, and holes for
+    /// all types, and no default values.
+    pub fn params_from_args_with_hole_types(&self, args: ArgsId) -> ParamsId {
+        self.params_from_names_with_hole_types(
+            args.iter().map(|arg| {
+                (
+                    match arg.value().data.target {
+                        ParamIndex::Name(name) => SymbolId::from_name(name, arg.origin()),
+                        ParamIndex::Position(_) => SymbolId::fresh(arg.origin()),
+                    },
+                    arg.origin().inferred(),
+                )
+            }),
+            args.origin().inferred(),
+        )
+    }
+    /// Instantiate the given parameters with holes for each argument.
+    ///
+    /// This will use the origin of the parameters wrapped in
+    /// [`NodeOrigin::InferredFrom`].
+    pub fn args_from_params_as_holes(&self, params_id: ParamsId) -> ArgsId {
+        Node::create_at(
+            Node::seq(
+                params_id
+                    .value()
+                    .iter()
+                    .enumerate()
+                    .map(|(i, param)| {
+                        Node::at(
+                            Arg {
+                                target: ParamIndex::pos(i),
+                                value: self.fresh_meta(param.origin().computed()),
+                            },
+                            param.origin().computed(),
+                        )
+                    })
+                    .collect_vec(),
+            ),
+            params_id.origin().computed(),
+        )
+    }
+}
 
 impl<E: TcEnv> ScopedOperationsOnNode<ParamsId> for Tc<'_, E> {
     type AnnotNode = ();
@@ -44,7 +118,7 @@ impl<E: TcEnv> ScopedOperationsOnNode<ParamsId> for Tc<'_, E> {
             })?;
 
         // Add the shadowed substitutions to the ambient scope
-        self.add_sub_to_scope(&shadowed_sub);
+        self.context().add_sub_to_scope(&shadowed_sub);
         Ok(result)
     }
 
@@ -101,7 +175,7 @@ impl<E: TcEnv> ScopedOperationsOnNode<ParamsId> for Tc<'_, E> {
             })?;
 
         // Add the shadowed substitutions to the ambient scope
-        self.add_sub_to_scope(&shadowed_sub);
+        self.context().add_sub_to_scope(&shadowed_sub);
 
         Ok(result)
     }

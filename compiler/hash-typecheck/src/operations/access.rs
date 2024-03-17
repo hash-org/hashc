@@ -24,8 +24,9 @@ impl<E: TcEnv> OperationsOn<AccessTerm> for Tc<'_, E> {
         annotation_ty: Self::AnnotNode,
         item_node: Self::Node,
     ) -> TcResult<()> {
-        let subject_ty = Ty::hole_for(access_term.subject);
+        let subject_ty = self.fresh_meta_for(access_term.subject);
         self.check_node(access_term.subject, subject_ty)?;
+        let subject_ty = self.resolve_metas(subject_ty);
 
         // Check that the subject is a record type, and acquire its
         // parameters.

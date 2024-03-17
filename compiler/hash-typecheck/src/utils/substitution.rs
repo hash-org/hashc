@@ -1,14 +1,17 @@
 //! Operations to substitute variables in types and terms.
 use std::{collections::HashSet, ops::ControlFlow};
 
-use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
+use hash_storage::store::{
+    statics::{SequenceStoreValue, StoreId},
+    TrivialSequenceStoreKey,
+};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     context::HasContext,
     sub::Sub,
     tir::{
-        AccessTerm, ArgsId, Hole, NodeId, ParamId, ParamIndex, ParamsId, SymbolId, Term, TermId,
-        Ty, VarTerm,
+        AccessTerm, Arg, ArgsId, Meta, Node, NodeId, NodeOrigin, Param, ParamId, ParamIndex,
+        ParamsId, SymbolId, Term, TermId, Ty, VarTerm,
     },
     visitor::{Atom, Map, Visit, Visitor},
 };
@@ -80,6 +83,18 @@ impl<'a, T: TcEnv> Substituter<'a, T> {
         let atom = item;
         let sub = self.create_sub_from_current_scope();
         self.apply_sub_in_place(atom, &sub);
+    }
+
+    /// Get the set of unassigned variables in the current scope.
+    pub fn get_vars_in_current_scope(&self) -> ArgsId {
+        let mut sub = Vec::new();
+        let current_scope_index = self.context().get_current_scope_index();
+
+        self.context().for_decls_of_scope_rev(current_scope_index, |binding| {
+            sub.push(Term::var(binding.name));
+        });
+
+        Arg::seq_positional(sub, NodeOrigin::Generated)
     }
 
     /// Get the set of unassigned variables in the current scope.
@@ -259,16 +274,14 @@ impl<'a, T: TcEnv> Substituter<'a, T> {
         }
         match atom {
             Atom::Term(term) => match *term.value() {
-                Term::Hole(Hole(symbol)) | Term::Var(VarTerm { symbol }) => {
-                    match sub.get_sub_for(symbol) {
-                        Some(subbed_term) => {
-                            let subbed_term_val = subbed_term.value();
-                            term.set(subbed_term_val);
-                            ControlFlow::Break(())
-                        }
-                        None => ControlFlow::Continue(()),
+                Term::Var(VarTerm { symbol }) => match sub.get_sub_for(symbol) {
+                    Some(subbed_term) => {
+                        let subbed_term_val = subbed_term.value();
+                        term.set(subbed_term_val);
+                        ControlFlow::Break(())
                     }
-                }
+                    None => ControlFlow::Continue(()),
+                },
                 Ty::TupleTy(tuple_ty) => {
                     let _ = self.apply_sub_to_params_and_get_shadowed(tuple_ty.data, sub);
                     ControlFlow::Break(())
@@ -305,9 +318,7 @@ impl<'a, T: TcEnv> Substituter<'a, T> {
         let var_matches = &var_matches;
         match atom {
             Atom::Term(term) => match *term.value() {
-                Term::Hole(Hole(symbol)) | Term::Var(VarTerm { symbol })
-                    if var_matches.contains(&symbol) =>
-                {
+                Term::Var(VarTerm { symbol }) if var_matches.contains(&symbol) => {
                     *can_apply = true;
                     ControlFlow::Break(())
                 }
@@ -351,7 +362,7 @@ impl<'a, T: TcEnv> Substituter<'a, T> {
     fn atom_has_holes_once(&self, atom: Atom, has_holes: &mut Option<Atom>) -> ControlFlow<()> {
         match atom {
             Atom::Term(term) => match *term.value() {
-                Term::Hole(_) => {
+                Term::Meta(_) => {
                     *has_holes = Some(atom);
                     ControlFlow::Break(())
                 }

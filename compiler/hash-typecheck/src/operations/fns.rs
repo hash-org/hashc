@@ -108,7 +108,11 @@ impl<E: TcEnv> OperationsOn<FnDefId> for Tc<'_, E> {
             self.check_node_scoped(fn_def.ty.params, (), |()| {
                 self.check_node(fn_def.ty.return_ty, Ty::universe_of(fn_def.ty.return_ty))?;
                 if let Term::Fn(mut immediate_body_fn) = *fn_def.body.value() {
-                    self.check(&mut immediate_body_fn, Ty::hole_for(fn_def.body), fn_def.body)?;
+                    self.check(
+                        &mut immediate_body_fn,
+                        self.fresh_meta_for(fn_def.body),
+                        fn_def.body,
+                    )?;
                 }
                 Ok(())
             })?;

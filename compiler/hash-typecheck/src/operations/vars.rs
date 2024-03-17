@@ -79,7 +79,7 @@ impl<E: TcEnv> Tc<'_, E> {
         term: TermId,
     ) -> TcResult<()> {
         if self.in_pat.get() {
-            self.add_unification(var.symbol, term);
+            self.context().add_untyped_assignment(var.symbol, term);
             Ok(())
         } else {
             match self.context().try_get_decl_value(var.symbol) {
@@ -90,7 +90,7 @@ impl<E: TcEnv> Tc<'_, E> {
     }
 
     pub(crate) fn unify_binding_with(&self, binding: BindingPat, term: TermId) -> TcResult<()> {
-        self.add_unification(binding.name, term);
+        self.context().add_untyped_assignment(binding.name, term);
         Ok(())
     }
 }

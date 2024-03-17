@@ -85,32 +85,6 @@ impl Arg {
             origin,
         )
     }
-
-    /// Instantiate the given parameters with holes for each argument.
-    ///
-    /// This will use the origin of the parameters wrapped in
-    /// [`NodeOrigin::InferredFrom`].
-    pub fn seq_from_params_as_holes(params_id: ParamsId) -> ArgsId {
-        Node::create_at(
-            Node::seq(
-                params_id
-                    .value()
-                    .iter()
-                    .enumerate()
-                    .map(|(i, param)| {
-                        Node::at(
-                            Arg {
-                                target: ParamIndex::pos(i),
-                                value: Term::hole(param.origin().inferred()),
-                            },
-                            param.origin().inferred(),
-                        )
-                    })
-                    .collect_vec(),
-            ),
-            params_id.origin().inferred(),
-        )
-    }
 }
 
 impl ArgsId {

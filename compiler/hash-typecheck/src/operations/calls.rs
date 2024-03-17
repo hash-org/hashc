@@ -34,7 +34,7 @@ impl<E: TcEnv> OperationsOn<CallTerm> for Tc<'_, E> {
     ) -> TcResult<()> {
         self.context().enter_scope(ScopeKind::Sub, || {
             self.normalise_and_check_ty(annotation_ty)?;
-            let inferred_subject_ty = Ty::hole_for(call_term.subject);
+            let inferred_subject_ty = self.fresh_meta_for(call_term.subject);
             self.check_node(call_term.subject, inferred_subject_ty)?;
 
             match *inferred_subject_ty.value() {
@@ -44,7 +44,7 @@ impl<E: TcEnv> OperationsOn<CallTerm> for Tc<'_, E> {
                         && fn_ty.implicit
                         && !call_term.implicit
                     {
-                        let applied_args = Arg::seq_from_params_as_holes(fn_ty.params);
+                        let applied_args = self.args_from_params_as_holes(fn_ty.params);
                         let copied_subject =
                             Term::inherited_from(call_term.subject, *call_term.subject.value());
                         let new_subject = CallTerm {

@@ -187,7 +187,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
         if node.name.is(IDENTS.Type) {
             Ok(Ty::universe(NodeOrigin::Given(node.id())))
         } else if node.name.is(IDENTS.underscore) {
-            Ok(Ty::hole(NodeOrigin::Given(node.id())))
+            Ok(Ty::unresolved(NodeOrigin::Given(node.id())))
         } else {
             let path = self.named_ty_as_ast_path(node)?;
             let resolved_path = self.resolve_ast_path(&path)?;

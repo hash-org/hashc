@@ -16,19 +16,6 @@ use crate::{
 };
 
 impl<E: TcEnv> Tc<'_, E> {
-    /// Add the given substitutions to the context.
-    pub fn add_sub_to_scope(&self, sub: &Sub) {
-        self.context().add_sub_to_scope(sub);
-    }
-
-    /// Add the given unification to the context, and create a substitution
-    /// from it.
-    pub fn add_unification(&self, src: SymbolId, target: TermId) -> Sub {
-        let sub = Sub::from_pairs([(src, target)]);
-        self.add_sub_to_scope(&sub);
-        sub
-    }
-
     /// Emit an error that the unification cannot continue because it is
     /// blocked.
     pub fn unification_blocked<U>(

@@ -115,7 +115,7 @@ impl<E: TcEnv> OperationsOn<LoopTerm> for Tc<'_, E> {
         original_term_id: Self::Node,
     ) -> crate::diagnostics::TcResult<()> {
         // Forward to the inner term.
-        self.check_node(loop_term.inner, Ty::hole(loop_term.inner.origin().inferred()))?;
+        self.check_node(loop_term.inner, self.fresh_meta(loop_term.inner.origin().inferred()))?;
         let loop_term =
             Ty::expect_is(original_term_id, Ty::unit_ty(original_term_id.origin().inferred()));
         self.check_by_unify(loop_term, annotation_ty)?;
@@ -158,10 +158,10 @@ impl<E: TcEnv> OperationsOn<AssignTerm> for Tc<'_, E> {
         annotation_ty: Self::AnnotNode,
         original_term_id: Self::Node,
     ) -> crate::diagnostics::TcResult<()> {
-        let subject_ty = Ty::hole_for(assign_term.subject);
+        let subject_ty = self.fresh_meta_for(assign_term.subject);
         self.check_node(assign_term.subject, subject_ty)?;
 
-        let value_ty = Ty::hole_for(assign_term.value);
+        let value_ty = self.fresh_meta_for(assign_term.value);
         self.check_node(assign_term.value, value_ty)?;
 
         self.check_by_unify(value_ty, subject_ty)?;

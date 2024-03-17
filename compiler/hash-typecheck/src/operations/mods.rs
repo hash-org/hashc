@@ -68,8 +68,8 @@ impl<E: TcEnv> OperationsOnNode<ModMemberId> for Tc<'_, E> {
                 let mut id = fn_def_id;
                 self.check(
                     &mut id,
-                    Ty::hole(fn_def_id.origin().inferred()),
-                    Term::hole(fn_def_id.origin()),
+                    self.fresh_meta(fn_def_id.origin().inferred()),
+                    Term::from(fn_def_id, fn_def_id.origin()),
                 )?;
                 if self.fn_infer_mode.get() == FnInferMode::Body {
                     // Dump TIR if necessary

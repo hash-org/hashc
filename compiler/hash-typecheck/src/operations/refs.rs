@@ -26,10 +26,10 @@ impl<E: TcEnv> OperationsOn<RefTerm> for Tc<'_, E> {
         self.normalise_and_check_ty(annotation_ty)?;
         let annotation_ref_ty = match *annotation_ty.value() {
             Ty::RefTy(ref_ty) => ref_ty,
-            Ty::Hole(_) => RefTy {
+            Ty::Meta(_) => RefTy {
                 kind: ref_term.kind,
                 mutable: ref_term.mutable,
-                ty: Ty::hole_for(ref_term.subject),
+                ty: self.fresh_meta_for(ref_term.subject),
             },
             _ => {
                 return Err(TcError::MismatchingTypes {
@@ -38,7 +38,7 @@ impl<E: TcEnv> OperationsOn<RefTerm> for Tc<'_, E> {
                         RefTy {
                             kind: ref_term.kind,
                             mutable: ref_term.mutable,
-                            ty: Ty::hole(ref_term.subject.origin().inferred()),
+                            ty: self.fresh_meta(ref_term.subject.origin().inferred()),
                         },
                         original_term_id.origin().inferred(),
                     ),
@@ -86,7 +86,7 @@ impl<E: TcEnv> OperationsOn<DerefTerm> for Tc<'_, E> {
         annotation_ty: Self::AnnotNode,
         _item_node: Self::Node,
     ) -> crate::diagnostics::TcResult<()> {
-        let deref_inner_inferred = Ty::hole_for(deref_term.subject);
+        let deref_inner_inferred = self.fresh_meta_for(deref_term.subject);
         self.check_node(deref_term.subject, deref_inner_inferred)?;
 
         let dereferenced_ty = match *deref_inner_inferred.value() {

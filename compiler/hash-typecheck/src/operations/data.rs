@@ -35,7 +35,7 @@ impl<E: TcEnv> OperationsOn<CtorTerm> for Tc<'_, E> {
         let ctor_def_id = term.ctor;
         let ctor = ctor_def_id.value();
         let data_def = ctor.data_def_id.value();
-        let hole_args = Arg::seq_from_params_as_holes(data_def.params);
+        let hole_args = self.args_from_params_as_holes(data_def.params);
 
         let copied_ctor_params = self.visitor().copy(ctor.params);
         let copied_ctor_result_args = self.visitor().copy(ctor.result_args);
@@ -49,9 +49,9 @@ impl<E: TcEnv> OperationsOn<CtorTerm> for Tc<'_, E> {
                 data_def: ctor.data_def_id,
                 args: if data.args.len() == 0 { hole_args } else { self.visitor().copy(data.args) },
             },
-            Ty::Hole(_) => DataTy {
+            Ty::Meta(_) => DataTy {
                 data_def: ctor.data_def_id,
-                args: Arg::seq_from_params_as_holes(data_def.params),
+                args: self.args_from_params_as_holes(data_def.params),
             },
             _ => {
                 return Err(TcError::MismatchingTypes {

@@ -254,7 +254,7 @@ impl Visit<TermId> for Visitor {
                 Term::TyOf(type_of_term) => self.try_visit(type_of_term.term, f),
                 Term::Ref(ref_term) => self.try_visit(ref_term.subject, f),
                 Term::Deref(deref_term) => self.try_visit(deref_term.subject, f),
-                Term::Hole(_) => Ok(()),
+                Term::Meta(_) => Ok(()),
                 Term::Intrinsic(_) => Ok(()),
                 Ty::TupleTy(tuple_ty) => self.try_visit(tuple_ty.data, f),
                 Ty::FnTy(fn_ty) => {
@@ -404,7 +404,7 @@ impl Map<TermId> for Visitor {
                     let subject = self.try_map(deref_term.subject, f)?;
                     Ok(Term::from(DerefTerm { subject }, origin))
                 }
-                Term::Hole(hole_term) => Ok(Term::from(hole_term, origin)),
+                Term::Meta(hole_term) => Ok(Term::from(hole_term, origin)),
                 Term::Intrinsic(intrinsic) => Ok(Term::from(intrinsic, origin)),
                 Ty::TupleTy(tuple_ty) => {
                     let data = self.try_map(tuple_ty.data, f)?;

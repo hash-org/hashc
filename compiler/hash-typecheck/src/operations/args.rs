@@ -69,7 +69,7 @@ impl<E: TcEnv> ScopedOperationsOnNode<ArgsId> for Tc<'_, E> {
             })?;
 
         // Add the shadowed substitutions to the ambient scope
-        self.add_sub_to_scope(&shadowed_sub);
+        self.context().add_sub_to_scope(&shadowed_sub);
 
         Ok(result)
     }

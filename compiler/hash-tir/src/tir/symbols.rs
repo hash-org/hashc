@@ -56,6 +56,14 @@ impl SymbolId {
         Node::create_at(Symbol { name: None }, origin)
     }
 
+    /// Create a new symbol without a name.
+    pub fn fresh_prefixed(prefix: &str, origin: NodeOrigin) -> Self {
+        let symbol_id = Node::create_at(Symbol { name: None }, origin);
+        let id = symbol_id.to_index();
+        symbol_id.set(Node::at(Symbol { name: Some(format!("{prefix}{id}").into()) }, origin));
+        symbol_id
+    }
+
     /// Create a new symbol with the same name as this one.
     pub fn duplicate(&self, origin: NodeOrigin) -> SymbolId {
         let name = self.borrow().name;

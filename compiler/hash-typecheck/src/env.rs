@@ -10,6 +10,7 @@ use crate::{
     diagnostics::TcError,
     options::{normalisation::NormalisationOptions, unification::UnificationOptions},
     tc::{FnInferMode, Tc},
+    utils::metas::MetaContext,
 };
 
 /// A wrapper trait around `HasDiagnostics` for specifically diagnostics that
@@ -44,6 +45,7 @@ pub trait TcEnv:
         Tc {
             env: self,
             context,
+            meta_context: MetaContext::new(),
             in_pat: LightState::new(false),
             fn_infer_mode: LightState::new(FnInferMode::Body),
             unification_opts: UnificationOptions::default(),

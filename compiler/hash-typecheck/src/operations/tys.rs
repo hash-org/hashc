@@ -15,7 +15,7 @@ impl<E: TcEnv> Tc<'_, E> {
     /// Check that the given type is well-formed.
     pub fn check_ty(&self, ty: TyId) -> TcResult<()> {
         match *ty.value() {
-            Ty::Universe(_) | Ty::Hole(_) => Ok(()),
+            Ty::Universe(_) | Ty::Meta(_) => Ok(()),
             _ => self.check_node(ty, Ty::universe_of(ty)),
         }
     }
@@ -23,7 +23,7 @@ impl<E: TcEnv> Tc<'_, E> {
     /// Check that the given type is well-formed, and normalise it.
     pub fn normalise_and_check_ty(&self, ty: TyId) -> TcResult<()> {
         match *ty.value() {
-            Ty::Hole(_) => Ok(()),
+            Ty::Meta(_) => Ok(()),
             _ => {
                 self.check_node(ty, Ty::universe_of(ty))?;
                 self.normalise_node_in_place_no_signals(ty)?;

@@ -85,7 +85,7 @@ impl<E: TcEnv> Tc<'_, E> {
         let mismatch = || {
             Err(TcError::MismatchingTypes {
                 expected: annotation_ty,
-                actual: list_ty(Ty::hole(NodeOrigin::Expected), NodeOrigin::Expected),
+                actual: list_ty(self.fresh_meta(NodeOrigin::Expected), NodeOrigin::Expected),
             })
         };
 
@@ -114,7 +114,7 @@ impl<E: TcEnv> Tc<'_, E> {
                     _ => mismatch(),
                 }
             }
-            Ty::Hole(_) => Ok(None),
+            Ty::Meta(_) => Ok(None),
             _ => mismatch(),
         }
     }
@@ -148,7 +148,7 @@ impl<E: TcEnv> OperationsOn<ArrayTerm> for Tc<'_, E> {
         let array_len_origin = array_term.length_origin();
         let (inner_ty, array_len) = self
             .use_ty_as_array_ty(annotation_ty)?
-            .unwrap_or_else(|| (Ty::hole(array_len_origin.inferred()), None));
+            .unwrap_or_else(|| (self.fresh_meta(array_len_origin.inferred()), None));
 
         // Now unify that the terms that are specified in the array match the
         // annotation type.
@@ -181,7 +181,7 @@ impl<E: TcEnv> OperationsOn<ArrayTerm> for Tc<'_, E> {
         //   array of the specified length.
         //
         // - Otherwise, we just default to a list type.
-        if let Ty::Hole(_) = *annotation_ty.value() {
+        if let Ty::Meta(_) = *annotation_ty.value() {
             let default_annotation = match array_term {
                 ArrayTerm::Normal(_) => list_ty(inner_ty, NodeOrigin::Expected),
                 ArrayTerm::Repeated(_, repeat) => array_ty(inner_ty, *repeat, NodeOrigin::Expected),
@@ -233,7 +233,7 @@ impl<E: TcEnv> OperationsOn<IndexTerm> for Tc<'_, E> {
     ) -> TcResult<()> {
         self.check_ty(annotation_ty)?;
 
-        let subject_ty = Ty::hole_for(index_term.subject);
+        let subject_ty = self.fresh_meta_for(index_term.subject);
         self.check_node(index_term.subject, subject_ty)?;
         self.normalise_and_check_ty(subject_ty)?;
 
