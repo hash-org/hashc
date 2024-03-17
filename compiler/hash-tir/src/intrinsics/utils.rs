@@ -114,7 +114,6 @@ pub fn bool_term(value: bool, origin: NodeOrigin) -> TermId {
         Term::Ctor(CtorTerm {
             ctor: get_bool_ctor(value),
             ctor_args: Node::create_at(Node::<Arg>::empty_seq(), origin),
-            data_args: Node::create_at(Node::<Arg>::empty_seq(), origin),
         }),
         origin,
     )

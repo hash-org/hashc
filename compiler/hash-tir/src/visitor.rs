@@ -215,10 +215,7 @@ impl Visit<TermId> for Visitor {
                     }
                     ArrayTerm::Normal(elements) => self.try_visit(elements, f),
                 },
-                Term::Ctor(ctor_term) => {
-                    self.try_visit(ctor_term.data_args, f)?;
-                    self.try_visit(ctor_term.ctor_args, f)
-                }
+                Term::Ctor(ctor_term) => self.try_visit(ctor_term.ctor_args, f),
                 Term::Call(fn_call_term) => {
                     self.try_visit(fn_call_term.subject, f)?;
                     self.try_visit(fn_call_term.args, f)
@@ -308,9 +305,8 @@ impl Map<TermId> for Visitor {
                     }
                 },
                 Term::Ctor(ctor_term) => {
-                    let data_args = self.try_map(ctor_term.data_args, f)?;
                     let ctor_args = self.try_map(ctor_term.ctor_args, f)?;
-                    Ok(Term::from(CtorTerm { ctor: ctor_term.ctor, data_args, ctor_args }, origin))
+                    Ok(Term::from(CtorTerm { ctor: ctor_term.ctor, ctor_args }, origin))
                 }
                 Term::Call(fn_call_term) => {
                     let subject = self.try_map(fn_call_term.subject, f)?;

@@ -299,7 +299,7 @@ impl fmt::Display for UnsafeTerm {
 
 impl fmt::Display for VarTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "v{}", self.symbol)
+        write!(f, "{}", self.symbol)
     }
 }
 

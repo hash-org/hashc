@@ -3,10 +3,12 @@ use std::ops::ControlFlow;
 use hash_reporting::diagnostic::ErrorState;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
+    context::{HasContext, ScopeKind},
     intrinsics::definitions::usize_ty,
+    sub::Sub,
     tir::{
-        Arg, CtorDefId, CtorTerm, DataDefCtors, DataDefId, DataTy, NodeId, NodeOrigin,
-        PrimitiveCtorInfo, TermId, Ty, TyId,
+        Arg, CtorDefId, CtorTerm, DataDefCtors, DataDefId, DataTy, Node, NodeId, NodeOrigin,
+        PrimitiveCtorInfo, Term, TermId, Ty, TyId,
     },
     visitor::Map,
 };
@@ -31,22 +33,21 @@ impl<E: TcEnv> OperationsOn<CtorTerm> for Tc<'_, E> {
     ) -> TcResult<()> {
         let mut term = *term;
         let ctor_def_id = term.ctor;
-        let data_args = term.data_args;
         let ctor = ctor_def_id.value();
         let data_def = ctor.data_def_id.value();
+        let hole_args = Arg::seq_from_params_as_holes(data_def.params);
+
+        let copied_ctor_params = self.visitor().copy(ctor.params);
+        let copied_ctor_result_args = self.visitor().copy(ctor.result_args);
 
         // Ensure the annotation is valid
         self.normalise_and_check_ty(annotation_ty)?;
 
         // Get the annotation as a DataTy, or create a hole one if not given
-        let mut annotation_data_ty = match *annotation_ty.value() {
+        let annotation_data_ty = match *annotation_ty.value() {
             Ty::DataTy(data) if data.data_def == ctor.data_def_id => DataTy {
                 data_def: ctor.data_def_id,
-                args: if data.args.len() == 0 {
-                    Arg::seq_from_params_as_holes(data_def.params)
-                } else {
-                    data.args
-                },
+                args: if data.args.len() == 0 { hole_args } else { self.visitor().copy(data.args) },
             },
             Ty::Hole(_) => DataTy {
                 data_def: ctor.data_def_id,
@@ -56,88 +57,32 @@ impl<E: TcEnv> OperationsOn<CtorTerm> for Tc<'_, E> {
                 return Err(TcError::MismatchingTypes {
                     expected: annotation_ty,
                     actual: Ty::from(
-                        DataTy { args: data_args, data_def: ctor.data_def_id },
+                        DataTy { args: hole_args, data_def: ctor.data_def_id },
                         original_term_id.origin(),
                     ),
                 });
             }
         };
 
-        // Get the data arguments given to the constructor, like Equal<...>::Refl(...)
-        //                                                             ^^^ these
-        let ctor_data_args = if data_args.len() == 0 {
-            Arg::seq_from_params_as_holes(data_def.params)
-        } else {
-            data_args
-        };
-
-        // From the given constructor data args, substitute the constructor params and
-        // result arguments. In the process, infer the data args more if
-        // possible.
-        let copied_params = self.visitor().copy(data_def.params);
-        let (inferred_ctor_data_args, subbed_ctor_params, subbed_ctor_result_args) = self
-            .check_node_scoped(ctor_data_args, copied_params, |inferred_data_args| {
-                let sub = self.substituter().create_sub_from_current_scope();
-                let subbed_ctor_params = self.substituter().apply_sub(ctor.params, &sub);
-                let subbed_ctor_result_args = self.substituter().apply_sub(ctor.result_args, &sub);
-                self.substituter().apply_sub_in_place(inferred_data_args, &sub);
-                Ok((inferred_data_args, subbed_ctor_params, subbed_ctor_result_args))
-            })?;
-
         // Infer the constructor arguments from the term, using the substituted
         // parameters. Substitute any results to the constructor arguments, the
         // result arguments of the constructor, and the constructor data
         // arguments.
-        let (final_result_args, resulting_sub) = self.check_node_scoped(
-            term.ctor_args,
-            subbed_ctor_params,
-            |inferred_term_ctor_args| {
-                let ctor_sub = self.substituter().create_sub_from_current_scope();
-                self.substituter().apply_sub_in_place(subbed_ctor_result_args, &ctor_sub);
-                self.substituter().apply_sub_in_place(inferred_term_ctor_args, &ctor_sub);
-                self.substituter().apply_sub_in_place(inferred_ctor_data_args, &ctor_sub);
-
-                // These arguments might have been updated so we need to set them
-                term.data_args = inferred_ctor_data_args;
+        self.context().enter_scope(ScopeKind::Sub, || {
+            self.check_node_scoped(term.ctor_args, copied_ctor_params, |inferred_term_ctor_args| {
                 term.ctor_args = inferred_term_ctor_args;
                 original_term_id.set(original_term_id.value().with_data(term.into()));
 
-                // We are exiting the constructor scope, so we need to hide the binds
-                let hidden_ctor_sub =
-                    self.substituter().hide_param_binds(ctor.params.iter(), &ctor_sub);
-                Ok((subbed_ctor_result_args, hidden_ctor_sub))
-            },
-        )?;
+                self.substituter().apply_sub_from_context(copied_ctor_params);
+                self.unify_nodes_scoped(copied_ctor_result_args, annotation_data_ty.args, |_| {
+                    Ok(())
+                })?;
 
-        // Set the annotation data type to the final result arguments, and unify
-        // the annotation type with the expected type.
-        annotation_data_ty.args = final_result_args;
-        let expected_data_ty =
-            Ty::expect_is(original_term_id, Ty::from(annotation_data_ty, annotation_ty.origin()));
-        self.add_sub_to_scope(&resulting_sub);
-        self.unify_nodes(expected_data_ty, annotation_ty)?;
-
-        // Now we gather the final substitution, and apply it to the result
-        // arguments, the constructor data arguments, and finally the annotation
-        // type.
-        let final_sub = self.substituter().create_sub_from_current_scope();
-        self.substituter().apply_sub_in_place(subbed_ctor_result_args, &final_sub);
-        self.substituter().apply_sub_in_place(inferred_ctor_data_args, &final_sub);
-        // Set data args because they might have been updated again
-        term.data_args = inferred_ctor_data_args;
-        original_term_id.set(original_term_id.value().with_data(term.into()));
-        self.substituter().apply_sub_in_place(annotation_ty, &final_sub);
-
-        for (data_arg, result_data_arg) in term.data_args.iter().zip(subbed_ctor_result_args.iter())
-        {
-            let data_arg = data_arg.value();
-            let result_data_arg = result_data_arg.value();
-            if let Ty::Hole(_) = *data_arg.value.value() {
-                data_arg.value.set(result_data_arg.value.value());
-            }
-        }
-
-        Ok(())
+                annotation_ty
+                    .set(annotation_ty.value().with_data(Term::DataTy(annotation_data_ty)));
+                Ok(())
+            })
+        })
     }
 
     fn try_normalise(
@@ -156,7 +101,6 @@ impl<E: TcEnv> OperationsOn<CtorTerm> for Tc<'_, E> {
         _: Self::Node,
     ) -> TcResult<()> {
         self.unify_nodes(src.ctor, target.ctor)?;
-        self.unify_nodes_scoped(src.data_args, target.data_args, |_| Ok(()))?;
         self.unify_nodes_scoped(src.ctor_args, target.ctor_args, |_| Ok(()))?;
         Ok(())
     }

@@ -252,7 +252,7 @@ impl<E: HasTarget> ExhaustivenessChecker<'_, E> {
                         let ctor = CtorDefId::new(ctor_def_id.elements(), variant_idx);
                         let pats = self.construct_pat_args(fields, ctor.borrow().params);
 
-                        Term::Ctor(CtorTerm { ctor, ctor_args: pats, data_args: args })
+                        Term::Ctor(CtorTerm { ctor, ctor_args: pats  })
                     }
                     Ty::TupleTy(TupleTy { data }) => {
                         let pats = self.construct_pat_args(fields, data);

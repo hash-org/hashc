@@ -81,6 +81,7 @@ impl<E: TcEnv> OperationsOn<CallTerm> for Tc<'_, E> {
 
                             self.substituter().apply_sub_from_context(copied_return_ty);
                             self.unify_nodes(copied_return_ty, annotation_ty)?;
+
                             Ok(())
                         },
                     )?;

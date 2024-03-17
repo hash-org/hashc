@@ -51,16 +51,6 @@ impl<E: TcEnv> OperationsOn<FnTy> for Tc<'_, E> {
             self.unify_nodes_scoped(f1.params, f2.params, |()| {
                 self.unify_nodes(f1.return_ty, f2.return_ty)
             })?;
-
-            let forward_sub = self.substituter().create_sub_from_param_names(f1.params, f2.params);
-            f2.return_ty = self.substituter().apply_sub(f2.return_ty, &forward_sub);
-
-            let backward_sub = self.substituter().create_sub_from_param_names(f2.params, f1.params);
-            f1.return_ty = self.substituter().apply_sub(f1.return_ty, &backward_sub);
-
-            src_id.set(src_id.value().with_data((*f1).into()));
-            target_id.set(target_id.value().with_data((*f2).into()));
-
             Ok(())
         }
     }

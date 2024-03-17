@@ -74,8 +74,6 @@ tir_node_sequence_store_direct!(CtorDef);
 pub struct CtorTerm {
     /// The constructor definition that this term is an invocation of.
     pub ctor: CtorDefId,
-    /// The arguments to the data definition.
-    pub data_args: ArgsId,
     /// The arguments to the constructor.
     pub ctor_args: ArgsId,
 }
@@ -485,10 +483,7 @@ impl fmt::Display for CtorDefsId {
 impl Display for CtorTerm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let (ctor_name, data_def_id) = (get!(self.ctor, name), get!(self.ctor, data_def_id));
-
-        let data_ty = DataTy { args: self.data_args, data_def: data_def_id };
-        write!(f, "{}::", &data_ty)?;
-
+        write!(f, "{}::", data_def_id)?;
         write!(f, "{}", ctor_name)?;
         if self.ctor_args.len() > 0 {
             write!(f, "({})", self.ctor_args)?;
