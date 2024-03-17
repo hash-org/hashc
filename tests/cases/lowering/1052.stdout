@@ -1,0 +1,82 @@
+
+IR dump for function `foo` defined at $DIR/1052.hash:3:8-6:2
+foo := (_1: i32) -> i32 {
+    mut _0: i32;
+
+    // parameter `x` -> _1
+
+    _2: (i32) -> i32;	// parameter `double_and_shift`
+    mut _3: i32;
+    mut _4: i32;
+    _5: (i32, bool);
+
+    bb0 {
+        _2 = double_and_shift;
+        _3 = _2(const 3_i32) -> bb1;
+    }
+
+    bb1 {
+        _4 = _2(const 4_i32) -> bb2;
+    }
+
+    bb2 {
+        _5 = CheckedAdd(_3, _4);
+        assert((_5.1), false, "attempt to compute `_3 + _4`, which would overflow") -> bb3;
+    }
+
+    bb3 {
+        _0 = (_5.0);
+        return;
+    }
+}
+
+
+IR dump for function `double_and_shift` defined at $DIR/1052.hash:4:25-4:42
+double_and_shift := (_1: i32) -> i32 {
+    mut _0: i32;
+
+    // parameter `y` -> _1
+
+    _2: (i32, bool);
+
+    bb0 {
+        _2 = CheckedAdd(const 3_i32, _1);
+        assert((_2.1), false, "attempt to compute `const 3_i32 + _1`, which would overflow") -> bb1;
+    }
+
+    bb1 {
+        _0 = (_2.0);
+        return;
+    }
+}
+
+
+IR dump for function `main` defined at $DIR/1052.hash:8:9-14:2
+main := () -> () {
+    mut _0: ();
+    _1: i32;	// parameter `l`
+    mut _2: bool;
+
+    bb0 {
+        _1 = foo(const 3_i32) -> bb1;
+    }
+
+    bb1 {
+        _2 = Eq(_1, const 13_i32);
+        switch(_2) [false -> bb2, otherwise -> bb3];
+    }
+
+    bb2 {
+        _0 = ();
+        goto -> bb4;
+    }
+
+    bb3 {
+        _0 = println(const "Success") -> bb4;
+    }
+
+    bb4 {
+        return;
+    }
+}
+
