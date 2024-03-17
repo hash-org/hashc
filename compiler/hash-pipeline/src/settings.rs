@@ -121,6 +121,12 @@ impl CompilerSettings {
         Self::default()
     }
 
+    pub fn new_from_args() -> Self {
+        let mut this = Self::parse();
+        this.apply_optimisation_level(this.optimisation_level);
+        this
+    }
+
     /// Get the entry point filename from the [CompilerSettings]. If
     /// [`None`] was provided, it is assumed that this is then an interactive
     /// session.
@@ -202,9 +208,18 @@ impl CompilerSettings {
     /// `checked_operations` are disabled.
     pub fn set_optimisation_level(&mut self, level: OptimisationLevel) {
         self.optimisation_level = level;
+        self.apply_optimisation_level(level);
+    }
 
-        if self.optimisation_level == OptimisationLevel::Release {
-            self.lowering_settings.checked_operations = false;
+    pub fn apply_optimisation_level(&mut self, level: OptimisationLevel) {
+        match level {
+            OptimisationLevel::Debug => {
+                self.lowering_settings.checked_operations = true;
+            }
+            OptimisationLevel::Release => {
+                self.lowering_settings.checked_operations = false;
+            }
+            OptimisationLevel::Size | OptimisationLevel::MinSize => {}
         }
     }
 
