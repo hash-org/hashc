@@ -2,6 +2,6 @@
 
 main := () => {
   match 1 {
-    Intrinsics::user_error => {}
+    Intrinsics.user_error => {}
   }
 }
