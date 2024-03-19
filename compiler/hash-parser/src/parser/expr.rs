@@ -365,7 +365,6 @@ impl<'s> AstGen<'s> {
             subject = match token.kind {
                 // Property access or method call
                 TokenKind::Dot => self.parse_property_access(subject, subject_span)?,
-                TokenKind::Access => self.parse_ns_access(subject, subject_span)?,
                 TokenKind::Lt => match self.maybe_parse_implicit_call(subject, subject_span) {
                     (subject, true) => subject,
                     // Essentially break because the type_args failed
@@ -636,8 +635,7 @@ impl<'s> AstGen<'s> {
         }
     }
 
-    /// Parse a property access expression, in other words an [AccessExpr] with
-    /// the [AccessKind::Property] variant.
+    /// Parse a property access expression, in other words an [AccessExpr].
     pub(crate) fn parse_property_access(
         &mut self,
         subject: AstNode<Expr>,
@@ -675,32 +673,14 @@ impl<'s> AstGen<'s> {
                 let property = self.node_with_span(PropertyKind::NumericField(value), token.span);
 
                 return Ok(self.node_with_joined_span(
-                    Expr::Access(AccessExpr { subject, property, kind: AccessKind::Property }),
+                    Expr::Access(AccessExpr { subject, property }),
                     subject_span,
                 ));
             }
         }
 
         let property = self.parse_named_field(ParseErrorKind::ExpectedPropertyAccess)?;
-        Ok(self.node_with_joined_span(
-            Expr::Access(AccessExpr { subject, property, kind: AccessKind::Property }),
-            subject_span,
-        ))
-    }
-
-    /// Parse a [AccessExpr] with a `namespace` access kind.
-    pub(crate) fn parse_ns_access(
-        &mut self,
-        subject: AstNode<Expr>,
-        subject_span: ByteRange,
-    ) -> ParseResult<AstNode<Expr>> {
-        self.skip_fast(TokenKind::Access); // `::`
-
-        let property = self.parse_named_field(ParseErrorKind::ExpectedName)?;
-        Ok(self.node_with_joined_span(
-            Expr::Access(AccessExpr { subject, property, kind: AccessKind::Namespace }),
-            subject_span,
-        ))
+        Ok(self.node_with_joined_span(Expr::Access(AccessExpr { subject, property }), subject_span))
     }
 
     /// Function to either parse an expression that is wrapped in parentheses or

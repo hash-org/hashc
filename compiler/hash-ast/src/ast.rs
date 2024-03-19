@@ -1150,7 +1150,7 @@ define_tree! {
     pub enum Pat {
         /// An access pattern is one that denotes the access of a property from
         /// another pattern. This is used to denote namespace accesses like
-        /// `a::b::c`
+        /// `a.b.c`
         Access(AccessPat),
 
         /// A simple binding pattern, assign some value to the name of the pattern
@@ -1974,25 +1974,6 @@ define_tree! {
         pub args: Children!(ExprArg),
     }
 
-    /// A the kind of access an [AccessExpr] has
-    #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-    #[node]
-    pub enum AccessKind {
-        /// A namespace access, i.e. `a::b`
-        Namespace,
-        /// A property access, i.e. `a.b`
-        Property,
-    }
-
-    impl Display for AccessKind {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            match self {
-                AccessKind::Namespace => write!(f, "namespace"),
-                AccessKind::Property => write!(f, "property"),
-            }
-        }
-    }
-
     /// The kind of property that's being accessed, either being
     /// named or numeric, e.g `foo.x`, `foo.1`, etc.
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -2013,8 +1994,6 @@ define_tree! {
         pub subject: Child!(Expr),
         /// The property of the subject to access.
         pub property: Child!(PropertyKind),
-        /// The kind of access, either namespacing or property
-        pub kind: AccessKind,
     }
 
     /// A typed expression, e.g. `foo as int`.

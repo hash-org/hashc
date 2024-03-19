@@ -1140,13 +1140,9 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::AccessExpr>,
     ) -> Result<Self::AccessExprRet, Self::Error> {
-        let ast::AccessExpr { subject, property, kind } = node.body();
+        let ast::AccessExpr { subject, property } = node.body();
         self.visit_expr(subject.ast_ref())?;
-
-        match kind {
-            ast::AccessKind::Namespace => self.write("::")?,
-            ast::AccessKind::Property => self.write(".")?,
-        }
+        self.write(".")?;
 
         self.visit_property_kind(property.ast_ref())
     }
@@ -1432,7 +1428,6 @@ where
         Ty,
         Pat,
         Visibility,
-        AccessKind,
         Mutability,
         RefKind,
         UnOp,
