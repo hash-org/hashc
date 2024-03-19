@@ -12,9 +12,9 @@ Direction := enum(
 )
 
 main := () => {
-    east := Direction::Right;
+    east := Direction.Right;
     foo(east);
-    south := Direction::Down;
+    south := Direction.Down;
     bar(south);
 }
 
@@ -33,10 +33,10 @@ bar := (dir: Direction) => {
 
 foo := (dir: Direction) => {
     match dir {
-        Direction::Up => {
+        Direction.Up => {
             println("Up");
         },
-        Direction::Right => {
+        Direction.Right => {
             t := transmute<_, i8>(dir);
 
             if t == 63 {
@@ -45,10 +45,10 @@ foo := (dir: Direction) => {
                 println("Not 63");
             }
         },
-        Direction::Down => {
+        Direction.Down => {
             println("Down");
         },
-        Direction::Left => {
+        Direction.Left => {
             println("Left");
         },
     }
