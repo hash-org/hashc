@@ -112,8 +112,8 @@ impl<'s> AstGen<'s> {
                 }
                 // An access pattern which accesses the `subject` with a particular `property`
                 // denotes with a name.
-                TokenKind::Access => {
-                    self.skip_fast(TokenKind::Access); // `::`
+                TokenKind::Dot => {
+                    self.skip_fast(TokenKind::Dot); // `.`
                     let property = self.parse_name()?;
                     self.node_with_joined_span(Pat::Access(AccessPat { subject, property }), span)
                 }
@@ -606,8 +606,8 @@ impl<'s> AstGen<'s> {
                         TokenKind::Tree(Delimiter::Paren, _) => self.skip_token(),
                         // Handle the `access` pattern case. We're looking for the next
                         // three tokens to be `::Ident`
-                        TokenKind::Access => {
-                            self.skip_fast(TokenKind::Access);
+                        TokenKind::Dot => {
+                            self.skip_fast(TokenKind::Dot); // `.`
 
                             match self.peek_kind() {
                                 Some(ident @ TokenKind::Ident(_)) => {

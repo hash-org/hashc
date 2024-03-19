@@ -219,8 +219,8 @@ impl<'s> AstGen<'s> {
                     Ty::Fn(FnTy { params: self.make_params(params, ParamOrigin::Fn), return_ty })
                 }
 
-                TokenKind::Access => {
-                    self.skip_fast(TokenKind::Access);
+                TokenKind::Dot => {
+                    self.skip_fast(TokenKind::Dot); // .
 
                     Ty::Access(AccessTy {
                         subject: self.node_with_joined_span(ty, span),
