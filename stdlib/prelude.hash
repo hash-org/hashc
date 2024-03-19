@@ -6,7 +6,7 @@ eq := import("eq")
 /// The `cast(..)` function is used to cast some value into another
 /// type provided that the types are cast compatible.
 cast := <T, U> => (item: T) -> U => {
-    Intrinsics::cast(T, U, item)
+    Intrinsics.cast(T, U, item)
 }
 
 /// This is powerful mechanism that
@@ -25,7 +25,7 @@ cast := <T, U> => (item: T) -> U => {
 /// allows for the program to now read the `bytes` and `length` fields of the
 /// `SizedPointer` type.
 transmute := <T,U> => (item: T) -> U => {
-    Intrinsics::transmute(T, U, item)
+    Intrinsics.transmute(T, U, item)
 }
 
 #[repr("c")]
@@ -42,12 +42,12 @@ print := (msg: str, /* end: char = '\n' */) => {
     // stdout.
     SizedPointer(bytes, len) := transmute<str, SizedPointer>(msg);
 
-    libc::write(STDOUT, bytes, len);
+    libc.write(STDOUT, bytes, len);
 
     // @@Todo: un-comment this when default parameters are working
     // write the end character
-    // end_sep := Intrinsics::cast(type char, type u8, '\n');
-    // libc::write(1, &raw end_sep, 1);
+    // end_sep := Intrinsics.cast(type char, type u8, '\n');
+    // libc.write(1, &raw end_sep, 1);
 }
 
 println := (message: str) => {
@@ -56,17 +56,17 @@ println := (message: str) => {
 }
 
 refl := <T, a: T> => () -> {a ~ a} => {
-    Equal::Refl(a)
+    Equal.Refl(a)
 }
 
 dbg := <T> => (item: T) -> T => {
-    Intrinsics::debug_print(T, item)
+    Intrinsics.debug_print(T, item)
     item
 }
 
 #lang panic := (msg: str) -> ! => {
     print(msg);
-    Intrinsics::abort()
+    Intrinsics.abort()
 }
 
 #lang
@@ -74,29 +74,29 @@ str_eq := (left: str, right: str) => {
    SizedPointer(left_data, left_len) := transmute<_, SizedPointer>(left);
    SizedPointer(right_data, right_len) := transmute<_, SizedPointer>(right);
 
-   left_len == right_len && Intrinsics::memcmp(left_data, right_data, left_len) == 0
+   left_len == right_len && Intrinsics.memcmp(left_data, right_data, left_len) == 0
 }
 
 
 libc := mod {
     /// The `char` is equivalent to an `i32` but avoid having to make the cast.
-    #foreign putwchar := (c: char) -> i32 => { Intrinsics::abort() }
+    #foreign putwchar := (c: char) -> i32 => { Intrinsics.abort() }
 
-    #foreign write := (fd: i32, buf: &raw u8, len: usize) -> isize => { Intrinsics::abort() }
+    #foreign write := (fd: i32, buf: &raw u8, len: usize) -> isize => { Intrinsics.abort() }
 
-    #foreign read := (fd: i32, buf: &raw u8, len: usize) -> isize => { Intrinsics::abort() }
+    #foreign read := (fd: i32, buf: &raw u8, len: usize) -> isize => { Intrinsics.abort() }
 
-    #foreign open := (path: &raw u8, flags: i32, mode: i32) -> i32 => { Intrinsics::abort() }
+    #foreign open := (path: &raw u8, flags: i32, mode: i32) -> i32 => { Intrinsics.abort() }
 
-    #foreign close := (fd: i32) -> i32 => { Intrinsics::abort() }
+    #foreign close := (fd: i32) -> i32 => { Intrinsics.abort() }
 
-    #foreign exit := (status: i32) => { Intrinsics::abort() }
+    #foreign exit := (status: i32) => { Intrinsics.abort() }
 
-    #foreign malloc := (size: usize) -> &raw u8 => { Intrinsics::abort() }
+    #foreign malloc := (size: usize) -> &raw u8 => { Intrinsics.abort() }
 
-    #foreign free := (ptr: &raw u8) -> () => { Intrinsics::abort() }
+    #foreign free := (ptr: &raw u8) -> () => { Intrinsics.abort() }
 
-    #foreign memcpy := (dest: &raw u8, src: &raw u8, n: usize) -> &raw u8 => { Intrinsics::abort() }
+    #foreign memcpy := (dest: &raw u8, src: &raw u8, n: usize) -> &raw u8 => { Intrinsics.abort() }
 
-    #foreign memcmp := (s1: &raw u8, s2: &raw u8, n: usize) -> i32 => { Intrinsics::abort() }
+    #foreign memcmp := (s1: &raw u8, s2: &raw u8, n: usize) -> i32 => { Intrinsics.abort() }
 }

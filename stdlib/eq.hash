@@ -1,23 +1,23 @@
 subst := <A, a: A, b: A> => #pure (P: A -> Type, p: a ~ b, m: {P(a)}) -> {P(b)} => {
   match p {
-    Equal::Refl(x) => m
+    Equal.Refl(x) => m
   }
 }
 
 transport := <A, C, a: A, b: A> => (P: (y: A) -> C, p: a ~ b) -> {P(a)} ~ {P(b)} => {
   match p {
-    Equal::Refl(x) => Equal::Refl(P(x))
+    Equal.Refl(x) => Equal.Refl(P(x))
   }
 }
 
 sym := <A, a: A, b: A> => (p: a ~ b) -> b ~ a => {
   match p {
-    Equal::Refl(_) => p
+    Equal.Refl(_) => p
   }
 }
 
 trans := <A, a: A, b: A, c: A> => (p: a ~ b, q: b ~ c) -> a ~ c => {
   match p {
-    Equal::Refl(_) => q
+    Equal.Refl(_) => q
   }
 }
