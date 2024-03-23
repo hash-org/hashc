@@ -154,7 +154,7 @@ where
         &mut self,
         node: ast::AstNodeRef<ast::Declaration>,
     ) -> Result<Self::DeclarationRet, Self::Error> {
-        let ast::Declaration { pat, ty, value } = node.body();
+        let ast::Declaration { pat, ty, value, is_constant } = node.body();
 
         self.visit_pat(pat.ast_ref())?;
 
@@ -168,7 +168,12 @@ where
         }
 
         // Visit the initialiser
-        self.write("= ")?;
+        if *is_constant {
+            self.write(": ")?;
+        } else {
+            self.write("= ")?;
+        }
+
         self.visit_expr(value.ast_ref())
     }
 
