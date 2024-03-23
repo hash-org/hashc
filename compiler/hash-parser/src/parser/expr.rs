@@ -591,7 +591,7 @@ impl<'s> AstGen<'s> {
                 None
             }
             _ => {
-                self.parse_token(TokenKind::Colon)?; // `:` 
+                self.parse_token(TokenKind::Colon)?; // `:`
 
                 if self.peek_kind() == Some(TokenKind::Eq) {
                     self.skip_fast(TokenKind::Eq); // `=`
