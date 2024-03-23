@@ -554,9 +554,11 @@ impl<'s> AstGen<'s> {
     }
 
     fn peek_pat(&self) -> bool {
-        macro_rules! peek_colon(
+        // This is a macro that is used to simplify the lookahead for the pattern
+        // boundary, which can either be a `:` or a `::` token.
+        macro_rules! peek_pat_boundary(
             () => {
-                matches!(self.peek_kind(), Some(TokenKind::Colon))
+                matches!(self.peek_kind(), Some(TokenKind::Colon | TokenKind::Access))
             }
         );
 
@@ -575,7 +577,7 @@ impl<'s> AstGen<'s> {
                             && kind.is_range_lit()
                         {
                             self.skip_fast(kind);
-                            peek_colon!()
+                            peek_pat_boundary!()
                         } else {
                             false
                         }
@@ -587,12 +589,12 @@ impl<'s> AstGen<'s> {
             // Other general literal patterns.
             Some(kind) if kind.is_lit() => {
                 self.skip_fast(kind);
-                peek_colon!()
+                peek_pat_boundary!()
             }
             // Module, Array, Tuple patterns.
             Some(TokenKind::Tree(_, _)) => {
                 self.skip_token();
-                peek_colon!()
+                peek_pat_boundary!()
             }
             // Identifier or constructor pattern.
             Some(ident @ TokenKind::Ident(_)) => {
@@ -620,7 +622,7 @@ impl<'s> AstGen<'s> {
                     }
                 }
 
-                peek_colon!()
+                peek_pat_boundary!()
             }
             // This is the case for a bind that has a visibility modifier at the beginning. In
             // this scenario, it can be followed by a `mut` modifier and then a identifier or
