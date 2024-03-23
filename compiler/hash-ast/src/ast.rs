@@ -1269,6 +1269,9 @@ define_tree! {
         /// Any value that is assigned to the binding, simply
         /// an expression.
         pub value: Child!(Expr),
+
+        /// Whether the declaration is constant or not.
+        pub is_constant: bool,
     }
 
     /// Unary operators that are defined within the core of the language.
