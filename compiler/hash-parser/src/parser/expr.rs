@@ -58,10 +58,7 @@ impl<'s> AstGen<'s> {
         // pattern which is then followed by a `:` to denote that this is a
         // declaration.
         if self.begins_pat() {
-            let pat = self.parse_singular_pat()?;
-            self.parse_token(TokenKind::Colon)?;
-            let decl = self.parse_declaration(pat)?;
-
+            let decl = self.parse_declaration()?;
             let expr = self.node_with_joined_span(Expr::Declaration(decl), start);
             let semi = maybe_eat_semi(self);
             return Ok(Some((semi, expr)));
@@ -580,19 +577,53 @@ impl<'s> AstGen<'s> {
     /// ```text
     /// some_var: f64 = ...;
     /// ^^^^^^^^  ^^^   ^^^─────┐
-    /// pattern   type    the right hand-side expr
+    /// pattern   annotation    the right hand-side expr
     /// ```
-    pub(crate) fn parse_declaration(&mut self, pat: AstNode<Pat>) -> ParseResult<Declaration> {
-        // Attempt to parse an optional type...
+    pub(crate) fn parse_declaration(&mut self) -> ParseResult<Declaration> {
+        let pat = self.parse_singular_pat()?;
+        let mut is_constant = false;
+
+        // Figure out if this declaration has an annotation or not...
         let ty = match self.peek_kind() {
-            Some(TokenKind::Eq) => None,
-            _ => Some(self.parse_ty()?),
+            Some(TokenKind::Access) => {
+                self.skip_fast(TokenKind::Access); // `::`
+                is_constant = true;
+                None
+            }
+            _ => {
+                self.parse_token(TokenKind::Colon)?; // `:` 
+
+                if self.peek_kind() == Some(TokenKind::Eq) {
+                    self.skip_fast(TokenKind::Eq); // `=`
+                    None
+                } else {
+                    Some(self.parse_ty()?)
+                }
+            }
         };
 
         // Now parse the initialiser...
-        self.parse_token(TokenKind::Eq)?;
+        if !is_constant && ty.is_some() {
+            match self.peek_kind() {
+                Some(TokenKind::Eq) => {
+                    self.skip_fast(TokenKind::Eq); // `=`
+                }
+                Some(TokenKind::Colon) => {
+                    self.skip_fast(TokenKind::Colon); // `=`
+                    is_constant = true;
+                }
+                tok => {
+                    return self.err(
+                        ParseErrorKind::UnExpected,
+                        ExpectedItem::Colon | ExpectedItem::Eq,
+                        tok,
+                    )
+                }
+            }
+        }
+
         let value = self.parse_expr_with_precedence(0)?;
-        Ok(Declaration { pat, ty, value })
+        Ok(Declaration { pat, ty, value, is_constant })
     }
 
     /// Given a initial left-hand side expression, attempt to parse a
