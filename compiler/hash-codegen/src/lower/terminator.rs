@@ -11,7 +11,7 @@
 
 use hash_abi::{ArgAbi, FnAbiId, PassMode};
 use hash_ir::{intrinsics::Intrinsic, ir, lang_items::LangItem, ty::COMMON_REPR_TYS};
-use hash_pipeline::settings::{CodeGenBackend, OptimisationLevel};
+use hash_pipeline::settings::OptimisationLevel;
 use hash_source::constant::AllocId;
 use hash_storage::store::{statics::StoreId, Store};
 use hash_target::abi::{AbiRepresentation, ValidScalarRange};
@@ -551,7 +551,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         } else if targets_iter.len() == 2
             && self.body.blocks()[targets.otherwise()].is_empty_and_unreachable()
             && self.ctx.settings().optimisation_level == OptimisationLevel::Debug
-            && self.ctx.settings().codegen_settings().backend == CodeGenBackend::LLVM
+            && self.ctx.settings().codegen_settings().backend.is_llvm()
         {
             let (value, target_1) = targets_iter.next().unwrap();
             let (_, target_2) = targets_iter.next().unwrap();
