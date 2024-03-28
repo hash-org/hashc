@@ -3,13 +3,16 @@
 
 use std::cell::RefCell;
 
-use hash_abi::{ArgAbi, FnAbi, FnAbiId};
-use hash_ir::ty::InstanceId;
+use hash_abi::{ArgAbi, CallingConvention, FnAbi, FnAbiId};
+use hash_ir::ty::{FnTy, InstanceId};
 use hash_storage::store::{DefaultStore, Store, StoreInternalData};
 use hash_utils::fxhash::FxHashMap;
 
 use super::{layout::LayoutMethods, BackendTypes, HasCtxMethods};
-use crate::lower::{abi::compute_fn_abi_from_instance, place::PlaceRef};
+use crate::lower::{
+    abi::{compute_fn_abi, compute_fn_abi_from_instance},
+    place::PlaceRef,
+};
 
 /// This trait defines functionality to construct the ABI of functions,
 /// arguments, etc.
@@ -69,7 +72,7 @@ impl FnAbiStore {
 
     /// Create (or re-use) a [FnAbi] of the [InstanceId]. This function returns
     /// the [FnAbiId] of the [FnAbi] that was created.
-    pub fn create_fn_abi<'b, Ctx>(&self, ctx: &Ctx, instance: InstanceId) -> FnAbiId
+    pub fn create_fn_abi_from_instance<'b, Ctx>(&self, ctx: &Ctx, instance: InstanceId) -> FnAbiId
     where
         Ctx: HasCtxMethods<'b> + LayoutMethods<'b>,
     {
@@ -86,6 +89,23 @@ impl FnAbiStore {
         // Add a mapping from the instance to the ABI.
         self.instance_abi_map.borrow_mut().insert(instance, abi);
         abi
+    }
+
+    /// Compute the [FnAbi] of a given [FnTy] assuming that it is the standard
+    /// calling convention of the target.
+    pub fn create_fn_abi_from_ty<'b, Ctx>(&self, ctx: &Ctx, func_ty: FnTy) -> FnAbiId
+    where
+        Ctx: HasCtxMethods<'b> + LayoutMethods<'b>,
+    {
+        let FnTy { params, return_ty } = func_ty;
+
+        // @@Todo: do we need to configure it based on any func attrs?
+        let calling_convention = CallingConvention::C;
+
+        self.store.create(
+            // @@Todo: Emit a fatal error if the function ABI cannot be computed.
+            compute_fn_abi(ctx, params, return_ty, calling_convention).unwrap(),
+        )
     }
 
     /// Get the ABI of the [InstanceId] assuming that it has already
@@ -107,7 +127,7 @@ impl FnAbiStore {
         Ctx: HasCtxMethods<'b> + LayoutMethods<'b>,
     {
         // Get or create the ABI, and then map over it.
-        let abi = self.create_fn_abi(ctx, instance);
+        let abi = self.create_fn_abi_from_instance(ctx, instance);
         self.store.map_fast(abi, |abi| f(abi, ctx))
     }
 }

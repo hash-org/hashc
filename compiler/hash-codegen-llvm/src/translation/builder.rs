@@ -29,10 +29,10 @@ use hash_storage::store::{statics::StoreId, Store};
 use hash_utils::rayon::iter::Either;
 use inkwell::{
     basic_block::BasicBlock,
-    types::{AnyType, AnyTypeEnum, AsTypeRef, BasicTypeEnum},
+    types::{AnyType, AnyTypeEnum, AsTypeRef, BasicTypeEnum, FunctionType},
     values::{
         AggregateValueEnum, AnyValue, AnyValueEnum, AsValueRef, BasicMetadataValueEnum, BasicValue,
-        BasicValueEnum, FunctionValue, InstructionValue, IntValue, PhiValue, UnnamedAddress,
+        BasicValueEnum, InstructionValue, IntValue, PhiValue, UnnamedAddress,
     },
 };
 use llvm_sys::core as llvm;
@@ -94,10 +94,10 @@ impl<'a, 'b, 'm> LLVMBuilder<'a, 'b, 'm> {
     /// adjust the arguments.
     fn check_call_args<'arg>(
         &mut self,
-        func: FunctionValue<'m>,
+        fn_ty: FunctionType<'m>,
         args: &'arg [BasicMetadataValueEnum<'m>],
     ) -> Cow<'arg, [BasicMetadataValueEnum<'m>]> {
-        let func_params = func.get_type().get_param_types();
+        let func_params = fn_ty.get_param_types();
 
         // Check if all arguments match, and if so we return
         // early.
@@ -218,17 +218,26 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
 
     fn call(
         &mut self,
-        fn_ptr: Self::Function,
+        fn_ty: Self::Type,
+        fn_ptr: Self::Value,
         args: &[Self::Value],
         fn_abi: Option<FnAbiId>,
     ) -> Self::Value {
+        let func_ty = fn_ty.into_function_type();
+
         let args: Vec<BasicMetadataValueEnum> =
             args.iter().map(|v| (*v).try_into().unwrap()).collect();
 
         // The call adjustment might modify the arguments by inserting
         // bitcasts...
-        let args = self.check_call_args(fn_ptr, &args);
-        let site = self.builder.build_call(fn_ptr, &args, "").unwrap();
+        let args = self.check_call_args(func_ty, &args);
+        let site = match fn_ptr {
+            AnyValueEnum::FunctionValue(func) => self.builder.build_call(func, &args, "").unwrap(),
+            AnyValueEnum::PointerValue(ptr) => {
+                self.builder.build_indirect_call(func_ty, ptr, &args, "").unwrap()
+            }
+            _ => unreachable!(),
+        };
 
         if let Some(abi) = fn_abi {
             self.ctx.cg_ctx().abis().map_fast(abi, |abi| {
@@ -427,8 +436,8 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
             _ => unreachable!("unsupported float type for pow"),
         };
 
-        let func = self.get_intrinsic_function(intrinsic);
-        self.call(func, &[lhs, rhs], None)
+        let (ty, func) = self.get_intrinsic_function(intrinsic);
+        self.call(ty, func, &[lhs, rhs], None)
     }
 
     fn shl(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
@@ -661,9 +670,9 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         };
 
         let fn_ty = self.type_function(&[src_ty], dest_ty);
-        let func = self.declare_c_fn(&name, UnnamedAddress::None, fn_ty);
+        let func = self.declare_c_fn(&name, UnnamedAddress::None, fn_ty).as_any_value_enum();
 
-        self.call(func, &[value], None)
+        self.call(func.get_type(), func, &[value], None)
     }
 
     fn fp_to_ui(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value {

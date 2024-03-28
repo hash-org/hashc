@@ -1,0 +1,14 @@
+// stage=ir, args=--ir-dump --ir-dump-mode pretty
+
+foo := (x: i32) -> i32 => {
+    double_and_shift := (y: i32) => 3 + y;
+    double_and_shift(3) + double_and_shift(4)
+}
+
+main := () => {
+    l := foo(3)
+
+    if l == 13 {
+        println("Success")
+    }
+}

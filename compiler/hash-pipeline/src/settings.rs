@@ -400,7 +400,7 @@ pub struct LoweringSettings {
 
     /// Use checked operations when emitting IR, this is usually derived whether
     /// the compiler is building a debug variant or not.
-    #[arg(long = "ir-checked-operations", default_value_t = true)]
+    #[arg(long = "ir-checked-operations", default_value_t = true, action = clap::ArgAction::Set)]
     pub checked_operations: bool,
 }
 

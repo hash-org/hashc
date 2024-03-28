@@ -4,7 +4,7 @@
 use hash_abi::{
     ArgAbi, ArgAttributeFlag, ArgAttributes, ArgExtension, CallingConvention, FnAbi, PassMode,
 };
-use hash_ir::ty::{Instance, InstanceId, Mutability, RefKind, ReprTy, ReprTyId};
+use hash_ir::ty::{Instance, InstanceId, Mutability, RefKind, ReprTy, ReprTyId, ReprTyListId};
 use hash_repr::compute::LayoutError;
 use hash_storage::store::statics::StoreId;
 use hash_target::abi::{Scalar, ScalarKind};
@@ -74,21 +74,28 @@ pub enum FnAbiError {
     Layout(LayoutError),
 }
 
-/// Compute an [FnAbi] from a provided [ReprTyId]. If the ABI
-/// has already been computed for the particular instance, then
-/// the cached version of the ABI is returned.
-///
-/// N.B. the passed "ty" must be a function type.
+/// Compute an [FnAbi] from a provided [Instance].
 pub fn compute_fn_abi_from_instance<'b, Ctx: HasCtxMethods<'b> + LayoutMethods<'b>>(
     ctx: &Ctx,
     instance: InstanceId,
 ) -> Result<FnAbi, FnAbiError> {
-    let Instance { params, ret_ty, abi, .. } = instance.value();
+    let Instance { params, return_ty, abi, .. } = instance.value();
 
     // map the ABI to a calling convention whilst making any adjustments according
     // to the target.
     let calling_convention = CallingConvention::make_from_abi_and_target(abi, ctx.target());
 
+    compute_fn_abi(ctx, params, return_ty, calling_convention)
+}
+
+/// Compute an [FnAbi] from a provided function parameter and return type, with
+/// a given calling convention.
+pub fn compute_fn_abi<'b, Ctx: HasCtxMethods<'b> + LayoutMethods<'b>>(
+    ctx: &Ctx,
+    params: ReprTyListId,
+    ret_ty: ReprTyId,
+    calling_convention: CallingConvention,
+) -> Result<FnAbi, FnAbiError> {
     // Closure to create a new argument for the ABI from a given type.
     let make_arg_abi = |ty: ReprTyId, index: Option<usize>| {
         let is_return = index.is_none();
