@@ -130,8 +130,7 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
 
             // If the source is uninhabitable, then we can unify it with
             // anything
-            (_, _) if self.is_uninhabitable(src_id)? => Ok(()),
-
+            // (_, _) if self.is_uninhabitable(src_id)? => Ok(()),
             (Ty::TupleTy(mut t1), Ty::TupleTy(mut t2)) => {
                 self.unify(&mut t1, &mut t2, src_id, target_id)
             }

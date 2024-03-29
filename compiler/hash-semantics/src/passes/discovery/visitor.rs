@@ -10,8 +10,8 @@ use hash_storage::store::{statics::SequenceStoreValue, SequenceStoreKey};
 use hash_tir::{
     stack::Stack,
     tir::{
-        DataDef, FnDef, FnTy, ModDef, ModKind, ModMember, Node, NodeOrigin, ParamId, ParamsId,
-        SymbolId, Term, TermId, TupleTy, Ty, VariantData,
+        DataDef, FnDef, FnTy, ModDef, ModKind, ModMember, Node, NodeOrigin, Param, ParamId,
+        ParamsId, SymbolId, Term, TermId, TupleTy, Ty, VariantData,
     },
 };
 
@@ -187,8 +187,8 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
         // Create a data definition for the struct
         let struct_def_id = DataDef::struct_def(
             struct_name,
-            ParamsId::empty(),
-            ParamsId::empty(),
+            self.create_unresolved_params_from_ty_params(node.ty_params.as_ref(), node.id()),
+            self.create_unresolved_params_from(&node.fields.params, |field| &field.name),
             NodeOrigin::Given(node.id()),
         );
 

@@ -22,14 +22,9 @@ impl<E: TcEnv> Tc<'_, E> {
 
     /// Check that the given type is well-formed, and normalise it.
     pub fn normalise_and_check_ty(&self, ty: TyId) -> TcResult<()> {
-        match *ty.value() {
-            Ty::Meta(_) => Ok(()),
-            _ => {
-                self.check_node(ty, Ty::universe_of(ty))?;
-                self.normalise_node_in_place_no_signals(ty)?;
-                Ok(())
-            }
-        }
+        self.check_node(ty, Ty::universe_of(ty))?;
+        self.normalise_node_in_place_no_signals(ty)?;
+        Ok(())
     }
 
     /// Determine whether the given type is uninhabitable.
