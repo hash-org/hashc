@@ -55,7 +55,7 @@ impl<E: TcEnv> OperationsOn<CallTerm> for Tc<'_, E> {
                 && fn_ty.implicit
                 && !call_term.implicit
             {
-                let applied_args = self.args_from_params_as_holes(fn_ty.params);
+                let applied_args = self.args_from_params_as_metas(fn_ty.params);
                 let copied_subject =
                     Term::inherited_from(call_term.subject, *call_term.subject.value());
                 let new_subject = CallTerm {

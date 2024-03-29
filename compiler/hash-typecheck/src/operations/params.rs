@@ -65,7 +65,7 @@ impl<E: TcEnv> Tc<'_, E> {
     ///
     /// This will use the origin of the parameters wrapped in
     /// [`NodeOrigin::InferredFrom`].
-    pub fn args_from_params_as_holes(&self, params_id: ParamsId) -> ArgsId {
+    pub fn args_from_params_as_metas(&self, params_id: ParamsId) -> ArgsId {
         Node::create_at(
             Node::seq(
                 params_id
