@@ -4,7 +4,7 @@ use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceSto
 use hash_tir::{
     intrinsics::{
         definitions::{array_ty, list_ty, usize_ty},
-        utils::{create_term_from_usize_lit, try_use_term_as_integer_lit},
+        utils::{create_term_from_usize_lit, try_use_term_as_machine_integer},
     },
     tir::{
         ArgsId, ArrayTerm, DataDefCtors, IndexTerm, NodeId, NodeOrigin, NodesId, ParamIndex,
@@ -15,7 +15,7 @@ use hash_tir::{
 
 use crate::{
     diagnostics::{TcError, TcResult, WrongTermKind},
-    env::TcEnv,
+    env::{HasTcEnv, TcEnv},
     options::normalisation::{
         normalise_nested, normalised_if, stuck_normalising, NormalisationState, NormaliseResult,
     },
@@ -50,14 +50,9 @@ impl<E: TcEnv> Tc<'_, E> {
     /// Get the term at the given index in the given arguments.
     ///
     /// Assumes that the index is normalised.
-    pub fn get_index_in_args(&self, elements: ArgsId, index: TermId) -> Option<TermId> {
-        Some(
-            try_use_term_as_integer_lit::<_, usize>(self, index)
-                .map(|idx| elements.elements().at(idx).unwrap())?
-                .borrow()
-                .data
-                .value,
-        )
+    pub fn get_index_in_array(&self, elements: ArgsId, index: TermId) -> Option<TermId> {
+        try_use_term_as_machine_integer(self, index)
+            .map(|idx| elements.elements().at(idx).unwrap().borrow().value)
     }
 
     /// Get the term at the given index in the given repeated array. If the
@@ -71,8 +66,8 @@ impl<E: TcEnv> Tc<'_, E> {
         repeat: TermId,
         index: TermId,
     ) -> Option<TermId> {
-        let subject = try_use_term_as_integer_lit::<_, usize>(self, subject)?;
-        let index = try_use_term_as_integer_lit::<_, usize>(self, index)?;
+        let subject = try_use_term_as_machine_integer(self, subject)?;
+        let index = try_use_term_as_machine_integer(self, index)?;
 
         if index >= subject {
             None
@@ -124,7 +119,7 @@ impl<E: TcEnv> Tc<'_, E> {
             ArrayTerm::Normal(elements) => Ok(Some(elements.len())),
             ArrayTerm::Repeated(_, repeat) => {
                 let term = self.normalise_node_fully(repeat)?;
-                let Some(length) = try_use_term_as_integer_lit::<_, usize>(self, term) else {
+                let Some(length) = try_use_term_as_machine_integer(self, term) else {
                     return stuck_normalising();
                 };
                 Ok(Some(length))
@@ -155,7 +150,7 @@ impl<E: TcEnv> OperationsOn<ArrayTerm> for Tc<'_, E> {
         let inferred_len_term = match *array_term {
             ArrayTerm::Normal(elements) => {
                 self.check_unified_args(elements, inner_ty)?;
-                create_term_from_usize_lit(self.target(), elements.len(), array_len_origin)
+                create_term_from_usize_lit(self.env(), elements.len(), array_len_origin)
             }
             ArrayTerm::Repeated(term, repeat) => {
                 self.check_node(term, inner_ty)?;
@@ -283,7 +278,7 @@ impl<E: TcEnv> OperationsOn<IndexTerm> for Tc<'_, E> {
 
         if let Term::Array(array_term) = *index_term.subject.value() {
             let result = match array_term {
-                ArrayTerm::Normal(elements) => self.get_index_in_args(elements, index_term.index),
+                ArrayTerm::Normal(elements) => self.get_index_in_array(elements, index_term.index),
                 ArrayTerm::Repeated(subject, count) => {
                     // Evaluate the count, and the index terms to integers:
                     self.get_index_in_repeat(subject, count, index_term.index)

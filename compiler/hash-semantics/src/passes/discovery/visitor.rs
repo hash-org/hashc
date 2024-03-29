@@ -10,8 +10,7 @@ use hash_storage::store::{statics::SequenceStoreValue, SequenceStoreKey};
 use hash_tir::{
     stack::Stack,
     tir::{
-        DataDef, FnDef, FnTy, ModDef, ModKind, ModMember, Node, NodeOrigin, Param, ParamId,
-        ParamsId, SymbolId, Term, TermId, TupleTy, Ty, VariantData,
+        DataDef, FnDef, FnTy, ModDef, ModKind, ModMember, Node, NodeOrigin, SymbolId, Term, TupleTy, Ty, VariantData,
     },
 };
 

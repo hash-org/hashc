@@ -13,13 +13,15 @@ mod fmt;
 pub mod misc;
 mod translation;
 
+use std::io::Write;
+
 use ctx::CodeGenCtx;
 use error::{CodeGenError, CodegenResult};
 use hash_attrs::builtin::attrs;
 use hash_codegen::{
     backend::{BackendCtx, CodeGenStorage, CompilerBackend},
-    layout::LayoutStorage,
     lower::codegen_ir_body,
+    repr::LayoutStorage,
     symbols::mangle::compute_symbol_name,
     target::{HasTarget, TargetArch},
     traits::{
@@ -36,7 +38,7 @@ use hash_pipeline::{
 use hash_reporting::report::Report;
 use hash_source::{ModuleId, SourceMapUtils};
 use hash_storage::store::{statics::StoreId, Store};
-use hash_utils::{stream_writeln, timing::HasMutMetrics};
+use hash_utils::{profiling::HasMutMetrics, stream_writeln};
 use inkwell as llvm;
 use llvm::{
     context::Context as LLVMContext,
@@ -333,8 +335,8 @@ impl<'b> CompilerBackend<'b> for LLVMBackend<'b> {
             self.codegen_storage,
         );
 
-        self.time_item("predefine", |this| this.predefine_bodies(&ctx));
-        self.time_item("build", |this| this.build_bodies(&ctx));
+        self.record("predefine", |this| this.predefine_bodies(&ctx));
+        self.record("build", |this| this.build_bodies(&ctx));
 
         // Now we define the entry point of the function, if there is one
         if self.ir_storage.entry_point.has() {
@@ -352,8 +354,8 @@ impl<'b> CompilerBackend<'b> for LLVMBackend<'b> {
             );
         }
 
-        self.time_item("optimise", |this| this.optimise(&module))?;
-        self.time_item("write", |this| {
+        self.record("optimise", |this| this.optimise(&module))?;
+        self.record("write", |this| {
             this.write_module(&module, entry_point.into()).map_err(|err| vec![err.into()])
         })
     }

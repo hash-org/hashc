@@ -5,7 +5,7 @@ use hash_abi::{
     ArgAbi, ArgAttributeFlag, ArgAttributes, ArgExtension, CallingConvention, FnAbi, PassMode,
 };
 use hash_ir::ty::{Instance, InstanceId, Mutability, RefKind, ReprTy, ReprTyId};
-use hash_layout::compute::LayoutError;
+use hash_repr::compute::LayoutError;
 use hash_storage::store::statics::StoreId;
 use hash_target::abi::{Scalar, ScalarKind};
 

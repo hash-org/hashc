@@ -571,7 +571,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
                 // Here we want to create a switch statement that will match on all of the
                 // specified discriminants of the ADT.
-                let discriminant_ty = discriminant_ty.to_ir_ty();
+                let discriminant_ty = discriminant_ty.to_repr_ty();
                 let targets = adt.map(|adt| {
                     // Map over all of the discriminants of the ADT, and filter out those that
                     // are not in the `options` set.

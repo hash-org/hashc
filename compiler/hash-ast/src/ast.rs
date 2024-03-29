@@ -8,7 +8,7 @@ use std::{
 };
 
 use hash_source::{
-    constant::InternedStr,
+    constant::AllocId,
     identifier::Identifier,
     location::{ByteRange, Span},
     SourceId,
@@ -884,7 +884,7 @@ define_tree! {
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
     #[node]
     pub struct StrLit {
-        pub data: InternedStr
+        pub data: AllocId
     }
 
     /// A character literal.
@@ -915,6 +915,15 @@ define_tree! {
 
         /// Whether the literal has an ascription
         pub kind: IntLitKind,
+    }
+
+    impl IntLit {
+        /// Check whether that value is negative.
+        ///
+        /// **Note**: For raw values, we just check if the value starts with a `-`.
+        pub fn is_negative(&self) -> bool {
+            self.hunk.span().map_contents(|s| s.starts_with('-'))
+        }
     }
 
     /// A float literal.
@@ -2023,7 +2032,7 @@ define_tree! {
     #[derive(Debug, PartialEq, Eq, Clone)]
     #[node]
     pub struct Import {
-        pub path: InternedStr,
+        pub path: AllocId,
         pub source: SourceId,
     }
 

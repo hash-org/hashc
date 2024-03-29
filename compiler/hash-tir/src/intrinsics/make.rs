@@ -1,5 +1,6 @@
 use std::iter::once;
 
+use hash_repr::HasLayout;
 /// Generation macros for intrinsics and primitives.
 use hash_source::identifier::Identifier;
 use hash_storage::store::statics::SequenceStoreValue;
@@ -17,7 +18,7 @@ use crate::{
 };
 
 /// Functionality that is available to invoke from within intrinsics.
-pub trait IntrinsicAbilities: HasContext + HasTarget {
+pub trait IntrinsicAbilities: HasContext + HasTarget + HasLayout {
     /// Normalise a term fully.
     fn normalise_term(&self, term: TermId) -> Result<Option<TermId>, String>;
 }

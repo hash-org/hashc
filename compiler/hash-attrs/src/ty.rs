@@ -3,9 +3,13 @@
 //! later use to programatically check attribute annotations.
 
 use hash_ast_utils::attr::AttrTarget;
-use hash_source::identifier::Identifier;
+use hash_repr::ty::{ReprTyId, COMMON_REPR_TYS};
+use hash_source::{identifier::Identifier, Size};
 use hash_storage::store::statics::StoreId;
-use hash_tir::tir::{ParamIndex, ParamsId, TyId};
+use hash_tir::tir::{
+    DataDefCtors, DataTy, NumericCtorBits, NumericCtorInfo, ParamIndex, ParamsId,
+    PrimitiveCtorInfo, Ty, TyId,
+};
 use hash_utils::{
     fxhash::FxHashMap,
     index_vec::{define_index_type, IndexVec},
@@ -97,4 +101,83 @@ impl AttrTy {
     pub fn ty_of_param(&self, index: ParamIndex) -> Option<TyId> {
         self.params.at_index(index).map(|param| param.borrow().ty)
     }
+}
+
+fn repr_ty_from_primitive_ctor(ctor: PrimitiveCtorInfo) -> Option<ReprTyId> {
+    Some(match ctor {
+        PrimitiveCtorInfo::Numeric(NumericCtorInfo { bits, flags }) => {
+            if flags.is_float() {
+                match bits {
+                    NumericCtorBits::Bounded(32) => COMMON_REPR_TYS.f32,
+                    NumericCtorBits::Bounded(64) => COMMON_REPR_TYS.f64,
+
+                    // Other bits widths are not supported.
+                    _ => unreachable!(),
+                }
+            } else {
+                match bits {
+                    NumericCtorBits::Bounded(bits) => {
+                        let size = Size::from_bits(bits);
+
+                        if flags.is_signed() {
+                            match size.bytes() {
+                                // If this is a platform type, return `isize`
+                                _ if flags.is_platform() => COMMON_REPR_TYS.isize,
+                                1 => COMMON_REPR_TYS.i8,
+                                2 => COMMON_REPR_TYS.i16,
+                                4 => COMMON_REPR_TYS.i32,
+                                8 => COMMON_REPR_TYS.i64,
+                                16 => COMMON_REPR_TYS.i128,
+                                _ => unreachable!(), /* Other bits widths are not
+                                                      * supported. */
+                            }
+                        } else {
+                            match size.bytes() {
+                                // If this is a platform type, return `usize`
+                                _ if flags.is_platform() => COMMON_REPR_TYS.usize,
+                                1 => COMMON_REPR_TYS.u8,
+                                2 => COMMON_REPR_TYS.u16,
+                                4 => COMMON_REPR_TYS.u32,
+                                8 => COMMON_REPR_TYS.u64,
+                                16 => COMMON_REPR_TYS.u128,
+                                _ => unreachable!(), /* Other bits widths are not
+                                                      * supported. */
+                            }
+                        }
+                    }
+                    NumericCtorBits::Unbounded => {
+                        if flags.is_signed() {
+                            COMMON_REPR_TYS.ibig
+                        } else {
+                            COMMON_REPR_TYS.ubig
+                        }
+                    }
+                }
+            }
+        }
+
+        // @@Temporary: `str` implies that it is a `&str`
+        PrimitiveCtorInfo::Str => COMMON_REPR_TYS.str,
+        PrimitiveCtorInfo::Char => COMMON_REPR_TYS.char,
+        PrimitiveCtorInfo::Array(..) => return None,
+    })
+}
+
+/// This is a utility that assumes a [ReprTy] can be derived from the
+/// given [TyId] that is primitive. The assumption is that this type is
+/// a primitive (non-array).
+///
+/// @@Hack: This is primarily being used for attribute type lowerings. Ideally,
+/// we should be able ti use the standard type lowering infrastructure in order
+/// to fully support all types in attributes in the future. For now, since
+/// attributes can only be literals, therefore we can rely on this method to
+/// lower the supported subset of types.
+pub fn repr_ty_from_primitive_ty(ty: TyId) -> Option<ReprTyId> {
+    if let Ty::DataTy(DataTy { data_def, .. }) = ty.value().data {
+        if let DataDefCtors::Primitive(ctor) = data_def.value().ctors {
+            return repr_ty_from_primitive_ctor(ctor);
+        }
+    }
+
+    None
 }

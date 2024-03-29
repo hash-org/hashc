@@ -9,6 +9,7 @@
 //! keeping the crate dependency graph clean.
 #![feature(let_chains, thread_id_value)]
 pub mod driver;
+mod metrics;
 
 use std::collections::HashSet;
 
@@ -19,7 +20,6 @@ use hash_ast_expand::{AstExpansionCtx, AstExpansionCtxQuery, AstExpansionPass};
 use hash_backend::{BackendCtxQuery, CodeGenPass};
 use hash_codegen::backend::{BackendCtx, CodeGenStorage};
 use hash_ir::IrStorage;
-use hash_layout::LayoutStorage;
 use hash_link::{CompilerLinker, LinkerCtx, LinkerCtxQuery};
 use hash_lower::{IrGen, IrOptimiser, LoweringCtx, LoweringCtxQuery};
 use hash_parser::{Parser, ParserCtx, ParserCtxQuery};
@@ -30,6 +30,7 @@ use hash_pipeline::{
     workspace::Workspace,
 };
 use hash_reporting::report::Report;
+use hash_repr::LayoutStorage;
 use hash_semantics::{
     storage::SemanticStorage, SemanticAnalysis, SemanticAnalysisCtx, SemanticAnalysisCtxQuery,
 };
@@ -88,6 +89,8 @@ impl CompilerBuilder {
 }
 
 pub mod utils {
+    use std::io::Write;
+
     use hash_pipeline::interface::CompilerOutputStream;
     use hash_reporting::report::Report;
     use hash_utils::stream_writeln;
@@ -319,6 +322,8 @@ impl SemanticAnalysisCtxQuery for Compiler {
         SemanticAnalysisCtx {
             workspace: &mut self.workspace,
             semantic_storage: &mut self.semantic_storage,
+            lcx: &self.lcx,
+            ir_ctx: &self.icx.ctx,
             settings: &self.settings,
         }
     }

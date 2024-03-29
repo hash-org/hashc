@@ -3,7 +3,7 @@
 
 use hash_abi::ArgAbi;
 use hash_ir::{intrinsics::Intrinsic, lang_items::LangItem, ty::InstanceId};
-use hash_layout::TyInfo;
+use hash_repr::TyInfo;
 use hash_target::abi;
 
 use super::{operands::OperandRef, place::PlaceRef, FnBuilder};

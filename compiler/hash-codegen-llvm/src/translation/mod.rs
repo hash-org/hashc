@@ -6,7 +6,7 @@ use std::ffi::{c_char, CStr};
 
 use hash_codegen::{
     backend::CodeGenStorage,
-    layout::compute::LayoutComputer,
+    repr::compute::LayoutComputer,
     target::{HasTarget, Target},
     traits::{BackendTypes, Codegen, HasCtxMethods},
 };

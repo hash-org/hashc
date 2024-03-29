@@ -2,7 +2,7 @@
 use std::{collections::HashSet, ops::ControlFlow};
 
 use hash_storage::store::{
-    statics::{SequenceStoreValue, StoreId},
+    statics::{StoreId},
     TrivialSequenceStoreKey,
 };
 use hash_tir::{
@@ -10,7 +10,7 @@ use hash_tir::{
     context::HasContext,
     sub::Sub,
     tir::{
-        AccessTerm, Arg, ArgsId, Meta, Node, NodeId, NodeOrigin, Param, ParamId, ParamIndex,
+        AccessTerm, Arg, ArgsId, NodeId, NodeOrigin, ParamId, ParamIndex,
         ParamsId, SymbolId, Term, TermId, Ty, VarTerm,
     },
     visitor::{Atom, Map, Visit, Visitor},

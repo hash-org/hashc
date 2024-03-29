@@ -6,7 +6,7 @@ use std::{
 };
 
 /// Function to apply formatting onto a path when printing it.
-// #[cfg(not(target_os = "windows"))]
+#[cfg(not(target_os = "windows"))]
 pub fn adjust_canonicalisation<P: AsRef<Path>>(p: P) -> PathBuf {
     canonicalize(p.as_ref()).unwrap_or_else(|_| p.as_ref().to_path_buf())
 }

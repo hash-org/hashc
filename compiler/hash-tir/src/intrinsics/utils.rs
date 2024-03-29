@@ -1,11 +1,9 @@
-/// Various utility functions for working with intrinsics and primitives.
-use hash_ast::ast;
-use hash_source::constant::{
-    FloatConstant, FloatConstantValue, FloatTy, IntConstant, IntConstantValue, IntTy,
-    InternedFloat, InternedInt, SIntTy, UIntTy,
-};
+//! Various utility functions for working with intrinsics and primitives.
+
+use hash_const_eval::Const;
+use hash_source::constant::{FloatTy, IntTy, SIntTy, UIntTy};
 use hash_storage::store::statics::{SequenceStoreValue, StoreId};
-use hash_target::{primitives::BigIntTy, HasTarget};
+use hash_target::{data_layout::HasDataLayout, primitives::BigIntTy, HasTarget};
 use hash_utils::derive_more::From;
 
 use super::{
@@ -15,8 +13,8 @@ use super::{
 use crate::{
     context::HasContext,
     tir::{
-        Arg, ArrayCtorInfo, CharLit, CtorDefId, CtorTerm, DataDefCtors, IntLit, Lit, Node,
-        NodeOrigin, PrimitiveCtorInfo, Term, TermId, Ty, TyId,
+        Arg, ArrayCtorInfo, CtorDefId, CtorTerm, DataDefCtors, Lit, Node, NodeOrigin,
+        PrimitiveCtorInfo, Term, TermId, Ty, TyId,
     },
 };
 
@@ -204,15 +202,6 @@ pub fn try_use_ty_as_lit_ty<T: HasTarget>(env: &T, ty: TyId) -> Option<LitTy> {
     }
 }
 
-/// Get the given term as a float literal if possible.
-pub fn create_term_from_float_lit<L: Into<FloatConstantValue>>(
-    lit: L,
-    origin: NodeOrigin,
-) -> TermId {
-    let lit = Lit::Float(InternedFloat::create(FloatConstant::new(lit.into(), None)).into());
-    Node::create_at(Term::Lit(Node::create_at(lit, origin)), origin)
-}
-
 /// Helper struct to represent a float value which can be freely converted
 /// between `f32` and `f64`.
 #[derive(Clone, Copy, PartialEq, PartialOrd, From)]
@@ -239,29 +228,19 @@ impl From<Float> for f64 {
     }
 }
 
-/// Get the given term as a float literal if possible.
-pub fn try_use_term_as_float_lit<L: From<Float>>(term: TermId) -> Option<L> {
-    match *term.value() {
-        Term::Lit(lit) => match *lit.value() {
-            Lit::Float(i) => Some(L::from(Float::from(i.value()))),
-            _ => None,
-        },
-        _ => None,
-    }
-}
-
 /// Create a term from the given usize integer literal.
-pub fn create_term_from_usize_lit<T: HasTarget>(env: &T, lit: usize, origin: NodeOrigin) -> TermId {
-    let lit: IntLit = InternedInt::create_usize(lit, env.target().ptr_size()).into();
-    Node::create_at(Term::Lit(Node::create_at(Lit::Int(lit), origin)), origin)
+pub fn create_term_from_usize_lit<C: HasDataLayout>(
+    ctx: &C,
+    lit: usize,
+    origin: NodeOrigin,
+) -> TermId {
+    let lit = Const::usize(lit.try_into().unwrap(), ctx);
+    Node::create_at(Term::Lit(Node::create_at(Lit::Const(lit), origin)), origin)
 }
 
 /// Create a term from the given integer literal.
-pub fn create_term_from_integer_lit<L: Into<IntConstantValue>>(
-    lit: L,
-    origin: NodeOrigin,
-) -> TermId {
-    let lit = Lit::Int(InternedInt::create(IntConstant::new(lit.into(), None)).into());
+pub fn create_term_from_const<L: Into<Const>>(lit: L, origin: NodeOrigin) -> TermId {
+    let lit = Lit::Const(lit.into());
     Node::create_at(Term::Lit(Node::create_at(lit, origin)), origin)
 }
 
@@ -269,47 +248,45 @@ pub fn create_term_from_integer_lit<L: Into<IntConstantValue>>(
 pub fn try_use_term_as_char_lit(term: TermId) -> Option<char> {
     match *term.value() {
         Term::Lit(lit) => match *lit.value() {
-            Lit::Char(c) => Some(c.underlying.data),
+            Lit::Const(c) => c.as_scalar().try_into().ok(),
             _ => None,
         },
         _ => None,
     }
 }
 
-/// Get the given term as a character literal if possible.
-pub fn create_term_from_char_lit(lit: char, origin: NodeOrigin) -> TermId {
-    let val = Lit::Char(CharLit { underlying: ast::CharLit { data: lit } });
-    Node::create_at(Term::Lit(Node::create_at(val, origin)), origin)
-}
-
 /// Try to use a term as an integer literal, but returning the [IntConstant]
 /// instead of specifically casting to a type.
-pub fn try_use_term_as_int_const<T: HasContext + HasTarget>(
-    env: &T,
-    term: TermId,
-) -> Option<IntConstant> {
+pub fn try_use_term_as_const<T: HasContext + HasTarget>(env: &T, term: TermId) -> Option<Const> {
     match *term.value() {
         Term::Lit(lit) => match *lit.value() {
-            Lit::Int(i) => Some(i.value()),
+            Lit::Const(val) => Some(val),
             _ => None,
         },
         Term::Var(var) => env
             .context()
             .try_get_decl_value(var.symbol)
-            .and_then(|result| try_use_term_as_int_const(env, result)),
+            .and_then(|result| try_use_term_as_const(env, result)),
         _ => None,
     }
 }
 
 /// Get the given term as an integer literal if possible.
-pub fn try_use_term_as_integer_lit<
-    T: HasContext + HasTarget,
-    L: for<'a> TryFrom<&'a IntConstant>,
->(
+pub fn try_use_term_as_integer_lit<T: HasContext + HasTarget, L: for<'a> TryFrom<&'a Const>>(
     env: &T,
     term: TermId,
 ) -> Option<L> {
-    try_use_term_as_int_const(env, term).and_then(|val| (&val).try_into().ok())
+    try_use_term_as_const(env, term).and_then(|val| (&val).try_into().ok())
+}
+
+/// Special case for machine sized integers, we have to first normalise
+/// the type based on the compilation [Target] and then we can convert
+/// the [Term] into that value.
+pub fn try_use_term_as_machine_integer<T: HasContext + HasTarget>(
+    env: &T,
+    term: TermId,
+) -> Option<usize> {
+    try_use_term_as_const(env, term).and_then(|val| val.try_to_target_usize(env))
 }
 
 /// Get the given term as a float literal if possible.

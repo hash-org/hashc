@@ -3,7 +3,7 @@ use std::ops::ControlFlow;
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
     context::{HasContext, ScopeKind},
-    tir::{NodeId, Param, TermId, TupleTerm, TupleTy, Ty, TyId},
+    tir::{NodeId, TermId, TupleTerm, TupleTy, Ty, TyId},
     visitor::Map,
 };
 

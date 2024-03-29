@@ -26,7 +26,7 @@
 //! A similar process occurs with all other wildcard types,
 use std::fmt::{self, Debug};
 
-use hash_source::constant::InternedStr;
+use hash_source::constant::AllocId;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_tir::tir::{CtorDefId, DataTy, NodesId, TupleTy, Ty};
 use hash_utils::smallvec::{smallvec, SmallVec};
@@ -53,7 +53,7 @@ pub enum DeconstructedCtor {
     IntRange(IntRange),
 
     /// String literals.
-    Str(InternedStr),
+    Str(AllocId),
 
     /// Array patterns
     Array(Array),

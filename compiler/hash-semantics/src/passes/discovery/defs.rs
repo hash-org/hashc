@@ -1,5 +1,5 @@
 //! Utilities for keeping track of definitions during the discovery pass.
-use std::{fmt::Display, option::Option};
+use std::fmt::Display;
 
 use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef, OwnsAstNode};
 use hash_reporting::macros::panic_on_span;

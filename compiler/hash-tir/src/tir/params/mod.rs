@@ -1,6 +1,6 @@
 //! Definitions related to parameters to data types, functions, etc.
 use core::fmt;
-use std::{fmt::Debug, option::Option};
+use std::fmt::Debug;
 
 use hash_source::identifier::Identifier;
 use hash_storage::store::{
@@ -14,7 +14,7 @@ use crate::{
     stores::tir_stores,
     tir::{
         ArgsId, CtorDefId, DataDefId, FnDefId, FnTy, HasAstNodeId, Node, NodeId, NodeOrigin,
-        NodesId, SymbolId, TermId, TupleTy, Ty, TyId,
+        NodesId, SymbolId, TermId, TupleTy, TyId,
     },
     tir_node_sequence_store_direct,
 };
@@ -23,7 +23,6 @@ pub mod utils;
 
 pub use utils::*;
 
-use super::Term;
 
 /// A parameter, declaring a potentially named variable with a given type and
 /// possibly a default value.

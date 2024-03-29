@@ -2,6 +2,7 @@
 //! intrinsic functions.
 
 use hash_reporting::diagnostic::Diagnostics;
+use hash_repr::{compute::LayoutComputer, HasLayout};
 use hash_target::{HasTarget, Target};
 use hash_tir::{
     context::{Context, HasContext},
@@ -31,6 +32,12 @@ impl<T: TcEnv> HasContext for IntrinsicAbilitiesImpl<'_, T> {
 impl<T: TcEnv> HasTarget for IntrinsicAbilitiesImpl<'_, T> {
     fn target(&self) -> &Target {
         self.tc.target()
+    }
+}
+
+impl<T: TcEnv> HasLayout for IntrinsicAbilitiesImpl<'_, T> {
+    fn layout_computer(&self) -> LayoutComputer {
+        self.tc.layout_computer()
     }
 }
 

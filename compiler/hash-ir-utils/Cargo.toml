@@ -11,8 +11,9 @@ doctest = false
 html-escape = "0.2.12"
 
 hash-ast = { path = "../hash-ast" }
+hash-const-eval = { path = "../hash-const-eval" }
 hash-ir = { path = "../hash-ir" }
-hash-layout = { path = "../hash-layout" }
+hash-repr = {path = "../hash-repr" }
 hash-source = { path = "../hash-source" }
 hash-storage = { path = "../hash-storage" }
 hash-target = { path = "../hash-target" }

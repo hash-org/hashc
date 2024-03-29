@@ -107,7 +107,7 @@ impl<E: TcEnv> OperationsOn<MatchTerm> for Tc<'_, E> {
         let pats =
             match_term.cases.elements().borrow().iter().map(|case| case.bind_pat).collect_vec();
         let mut eck = self.exhaustiveness_checker(match_term.subject);
-        self.env.time_item("exhaustiveness", |_| {
+        self.env.record("exhaustiveness", |_| {
             eck.is_match_exhaustive(&pats, match_subject_ty);
         });
         self.append_exhaustiveness_diagnostics(eck);

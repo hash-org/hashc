@@ -1,11 +1,12 @@
 //! Defines the lowering process for Hash IR operands into the
 //! target backend.
 
-use hash_ir::{
-    constant::{AllocId, AllocRange, Const, ConstKind},
-    ir,
+use hash_ir::ir;
+use hash_repr::{
+    constant::{Const, ConstKind},
+    TyInfo,
 };
-use hash_layout::TyInfo;
+use hash_source::constant::{AllocId, AllocRange};
 use hash_storage::store::statics::StoreId;
 use hash_target::{
     abi::{self, AbiRepresentation},

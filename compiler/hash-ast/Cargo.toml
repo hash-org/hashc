@@ -8,7 +8,6 @@ edition = "2021"
 doctest = false
 
 [dependencies]
-num-bigint = "0.4"
 replace_with = "0.1.7"
 once_cell = "1.17"
 

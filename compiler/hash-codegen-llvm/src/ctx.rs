@@ -5,7 +5,7 @@ use std::cell::{Cell, RefCell};
 
 use hash_codegen::{
     backend::CodeGenStorage,
-    layout::{compute::LayoutComputer, LayoutStorage},
+    repr::{compute::LayoutComputer, LayoutStorage},
     symbols::{push_string_encoded_count, ALPHANUMERIC_BASE},
     target::{HasTarget, Target},
     traits::{BackendTypes, HasCtxMethods},
@@ -15,7 +15,7 @@ use hash_ir::{
     IrCtx,
 };
 use hash_pipeline::settings::CompilerSettings;
-use hash_source::constant::InternedStr;
+use hash_source::constant::AllocId;
 use hash_utils::fxhash::FxHashMap;
 use inkwell as llvm;
 use llvm::{
@@ -71,7 +71,7 @@ pub struct CodeGenCtx<'b, 'm> {
 
     /// A map which stores the created [AnyValueEnum]s for the constant
     /// strings [InternedStr] that have been created.
-    pub(crate) str_consts: RefCell<FxHashMap<InternedStr, llvm::values::GlobalValue<'m>>>,
+    pub(crate) str_consts: RefCell<FxHashMap<AllocId, llvm::values::GlobalValue<'m>>>,
 
     /// A map between values, and their corresponding constant global.
     pub(crate) global_consts:

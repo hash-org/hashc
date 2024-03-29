@@ -13,7 +13,7 @@ num_cpus = "1.13.0"
 hash-ast = { path = "../hash-ast" }
 hash-codegen = { path = "../hash-codegen" }
 hash-ir = { path = "../hash-ir" }
-hash-layout = { path = "../hash-layout" }
+hash-repr = {path = "../hash-repr" }
 hash-pipeline = { path = "../hash-pipeline" }
 hash-reporting = { path = "../hash-reporting" }
 hash-source = { path = "../hash-source" }
@@ -30,3 +30,6 @@ hash-lower = { path = "../hash-lower" }
 hash-parser = { path = "../hash-parser" }
 hash-semantics = { path = "../hash-semantics" }
 hash-untyped-semantics = { path = "../hash-untyped-semantics" }
+
+[features]
+llvm = ["hash-backend/llvm"]

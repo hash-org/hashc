@@ -1,6 +1,9 @@
 use std::ops::ControlFlow;
 
 use hash_ast::ast::RangeEnd;
+use hash_const_eval::{eval::ConstFolder, op::BinOp};
+use hash_repr::constant::Const;
+use hash_source::constant::Scalar;
 use hash_tir::tir::{PatId, RangePat, TyId};
 
 use crate::{
@@ -13,18 +16,30 @@ use crate::{
 
 impl<E: TcEnv> Tc<'_, E> {
     /// Match a literal between two endpoints.
-    pub fn match_literal_to_range<U: PartialOrd>(
+    pub fn match_literal_to_range(
         &self,
-        value: U,
-        maybe_start: Option<U>,
-        maybe_end: Option<U>,
+        value: Const,
+        maybe_start: Option<Const>,
+        maybe_end: Option<Const>,
         range_end: RangeEnd,
     ) -> MatchResult {
+        let eval = ConstFolder::new(self.layout_computer());
+
+        let result_is_true = |maybe_value: Option<Const>| {
+            if let Some(value) = maybe_value {
+                value.as_scalar() == Scalar::TRUE
+            } else {
+                // @@Investigate: should this be a hard error?
+                debug_assert!(false, "Failed to evaluate constant operation");
+                false
+            }
+        };
+
         // If the start isn't provided, we don't need to check
         // that the value is larger than the start, as it will
         // always succeed.
         if let Some(start) = maybe_start
-            && start < value
+            && result_is_true(eval.try_fold_bin_op(BinOp::Lt, &start, &value))
         {
             return MatchResult::Failed;
         }
@@ -33,14 +48,14 @@ impl<E: TcEnv> Tc<'_, E> {
         // always match.
         if range_end == RangeEnd::Included {
             if let Some(end) = maybe_end
-                && end > value
+                && result_is_true(eval.try_fold_bin_op(BinOp::Gt, &end, &value))
             {
                 MatchResult::Failed
             } else {
                 MatchResult::Successful
             }
         } else if let Some(end) = maybe_end
-            && end >= value
+            && result_is_true(eval.try_fold_bin_op(BinOp::GtEq, &end, &value))
         {
             MatchResult::Failed
         } else {
