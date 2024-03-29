@@ -23,16 +23,17 @@ impl<E: TcEnv> OperationsOn<RefTerm> for Tc<'_, E> {
         annotation_ty: Self::AnnotNode,
         original_term_id: Self::Node,
     ) -> crate::diagnostics::TcResult<()> {
-        self.normalise_and_check_ty(annotation_ty)?;
-        let annotation_ref_ty = match *annotation_ty.value() {
-            Ty::RefTy(ref_ty) => ref_ty,
-            Ty::Meta(_) => RefTy {
-                kind: ref_term.kind,
-                mutable: ref_term.mutable,
-                ty: self.fresh_meta_for(ref_term.subject),
-            },
-            _ => {
-                return Err(TcError::MismatchingTypes {
+        let annotation_ref_ty =
+            self.try_or_normalise(annotation_ty, |annotation_ty, meta_call| match *annotation_ty
+                .value()
+            {
+                Ty::RefTy(ref_ty) => Ok(ref_ty),
+                _ if meta_call.is_some() => Ok(RefTy {
+                    kind: ref_term.kind,
+                    mutable: ref_term.mutable,
+                    ty: self.fresh_meta_for(ref_term.subject), // UNIFY!! @@Todo
+                }),
+                _ => Err(TcError::MismatchingTypes {
                     expected: annotation_ty,
                     actual: Ty::from(
                         RefTy {
@@ -42,15 +43,14 @@ impl<E: TcEnv> OperationsOn<RefTerm> for Tc<'_, E> {
                         },
                         original_term_id.origin().inferred(),
                     ),
-                })
-            }
-        };
+                }),
+            })?;
 
         self.check_node(ref_term.subject, annotation_ref_ty.ty)?;
 
         let ty =
             Ty::expect_is(original_term_id, Ty::from(annotation_ref_ty, annotation_ty.origin()));
-        self.check_by_unify(ty, annotation_ty)?;
+        self.unify_nodes(ty, annotation_ty)?;
         Ok(())
     }
 
@@ -99,7 +99,7 @@ impl<E: TcEnv> OperationsOn<DerefTerm> for Tc<'_, E> {
             }
         };
 
-        self.check_by_unify(dereferenced_ty, annotation_ty)?;
+        self.unify_nodes(dereferenced_ty, annotation_ty)?;
         Ok(())
     }
 

@@ -463,7 +463,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
         // Type annotation:
         let ty = match node.ty.as_ref() {
             Some(ty) => self.try_or_add_error(self.make_ty_from_ast_ty(ty.ast_ref())),
-            None => Some(Ty::unresolved(NodeOrigin::InferredFrom(node.value.id()))),
+            None => Some(Ty::fresh_hole(NodeOrigin::InferredFrom(node.value.id()))),
         };
 
         match (pat, ty, value) {

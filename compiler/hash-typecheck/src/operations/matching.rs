@@ -30,7 +30,6 @@ impl<E: TcEnv> OperationsOn<MatchTerm> for Tc<'_, E> {
         annotation_ty: Self::AnnotNode,
         _original_node_id: Self::Node,
     ) -> crate::diagnostics::TcResult<()> {
-        self.check_ty(annotation_ty)?;
         let match_subject_ty = self.fresh_meta_for(match_term.subject);
         self.check_node(match_term.subject, match_subject_ty)?;
 
@@ -69,7 +68,8 @@ impl<E: TcEnv> OperationsOn<MatchTerm> for Tc<'_, E> {
                     _ if self.is_uninhabitable(subject_ty_copy)? => {
                         let new_unified_ty = self.fresh_meta_for(case_data.value);
                         self.check_node(case_data.value, new_unified_ty)?;
-                        self.check_by_unify(new_unified_ty, never_ty(NodeOrigin::Expected))?;
+                        let annotation_ty = never_ty(NodeOrigin::Expected);
+                        self.unify_nodes(new_unified_ty, annotation_ty)?;
                     }
                     Some(_) => {
                         self.check_node(case_data.value, new_unified_ty)?;
@@ -99,7 +99,7 @@ impl<E: TcEnv> OperationsOn<MatchTerm> for Tc<'_, E> {
             }
         }
 
-        self.check_by_unify(unified_ty, annotation_ty)?;
+        self.unify_nodes(unified_ty, annotation_ty)?;
 
         // @@Caching: Check if the MatchTerm has already been queued for exhaustiveness,
         // if it hasn't, we can use/make a new ExhaustivenessChecker and then

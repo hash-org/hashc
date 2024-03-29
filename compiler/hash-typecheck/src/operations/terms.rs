@@ -33,6 +33,7 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
 
     fn check_node(&self, term_id: TermId, annotation_ty: Self::AnnotNode) -> TcResult<()> {
         self.register_new_atom(term_id, annotation_ty);
+
         match *term_id.value() {
             Term::Tuple(mut tuple_term) => self.check(&mut tuple_term, annotation_ty, term_id)?,
             Term::Lit(lit_term) => self.check_node(lit_term, annotation_ty)?,
@@ -88,7 +89,6 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
             },
         };
 
-        self.check_ty(annotation_ty)?;
         self.register_atom_inference(term_id, term_id, annotation_ty);
 
         // Potentially evaluate the term.
@@ -104,8 +104,8 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
         }
 
         // Substitute from context
-        let src = self.resolve_metas(src_id).value().data;
-        let target = self.resolve_metas(target_id).value().data;
+        let src = self.resolve_metas(src_id).0.value().data;
+        let target = self.resolve_metas(target_id).0.value().data;
 
         match (self.classify_meta_call(src), self.classify_meta_call(target)) {
             (Some(v1), Some(v2)) if v1.meta == v2.meta => {

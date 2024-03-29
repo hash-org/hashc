@@ -5,11 +5,15 @@
 use std::{cell::Cell, ops::ControlFlow};
 
 use hash_storage::store::statics::SingleStoreId;
-use hash_tir::visitor::{Atom, Map, Visitor};
+use hash_tir::{
+    tir::TermId,
+    visitor::{Atom, Map, Visitor},
+};
 
 use crate::{
     diagnostics::TcResult,
     env::TcEnv,
+    operations::metas::MetaCall,
     options::normalisation::{
         already_normalised, normalisation_result_control_flow_into, NormalisationMode,
         NormalisationState, NormaliseResult, NormaliseSignal,
@@ -19,6 +23,39 @@ use crate::{
 };
 
 impl<'env, T: TcEnv + 'env> Tc<'env, T> {
+    /// Attempt to match on an item, potentially normalising it if it does not
+    /// match the expected item.
+    pub fn try_or_normalise<A>(
+        &self,
+        item: TermId,
+        f: impl Fn(TermId, Option<MetaCall>) -> TcResult<A>,
+    ) -> TcResult<A> {
+        // First, resolve metas:
+        let (item, meta) = self.resolve_metas(item);
+
+        match f(item, meta) {
+            Ok(result) => Ok(result), // Success, no normalisation needed
+            Err(e) => {
+                // Normalise the item and try again
+                match self.potentially_normalise_node_no_signals(item) {
+                    Ok(None) => {
+                        // Already normalised, return the original error
+                        Err(e)
+                    }
+                    Ok(Some(result)) => match f(result, meta) {
+                        Ok(result) => Ok(result),
+                        Err(_) => {
+                            // Return the original error
+                            // @@ErrorReporting: also include the normalised error
+                            Err(e)
+                        }
+                    },
+                    Err(ne) => Err(ne),
+                }
+            }
+        }
+    }
+
     /// Normalise the given atom, in-place.
     ///
     /// Returns `true` if the atom was normalised, `false` if it was already

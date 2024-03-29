@@ -5,7 +5,11 @@
 
 use hash_ast::ast;
 use hash_source::SourceId;
-use hash_tir::{context::Context, visitor::Atom};
+use hash_tir::{
+    context::Context,
+    tir::{NodeId, Term},
+    visitor::Atom,
+};
 use hash_typecheck::{
     diagnostics::{TcError, TcResult},
     env::TcEnv,
@@ -103,10 +107,14 @@ impl<E: SemanticEnv> AnalysisPass for InferencePass<'_, E> {
             _ => unreachable!(),
         });
 
+        let mod_def_id = self.ast_info.mod_defs().get_data_by_node(node.id()).unwrap();
+
+        println!("Module: {}", mod_def_id);
+
         // Infer the whole module
         let _ = self.infer_fully(
             source,
-            self.ast_info.mod_defs().get_data_by_node(node.id()).unwrap(),
+            mod_def_id,
             |mod_def_id| {
                 tc.check_node(mod_def_id, ())?;
                 Ok(mod_def_id)

@@ -39,29 +39,31 @@ impl<E: TcEnv> OperationsOn<CtorTerm> for Tc<'_, E> {
         let copied_ctor_params = self.visitor().copy(ctor.params);
         let copied_ctor_result_args = self.visitor().copy(ctor.result_args);
 
-        // Ensure the annotation is valid
-        self.normalise_and_check_ty(annotation_ty)?;
-
         // Get the annotation as a DataTy, or create a hole one if not given
-        let annotation_data_ty = match *annotation_ty.value() {
-            Ty::DataTy(data) if data.data_def == ctor.data_def_id => DataTy {
-                data_def: ctor.data_def_id,
-                args: if data.args.len() == 0 { hole_args } else { self.visitor().copy(data.args) },
-            },
-            Ty::Meta(_) => DataTy {
-                data_def: ctor.data_def_id,
-                args: self.args_from_params_as_holes(data_def.params),
-            },
-            _ => {
-                return Err(TcError::MismatchingTypes {
+        let annotation_data_ty =
+            self.try_or_normalise(annotation_ty, |annotation_ty, meta_call| match *annotation_ty
+                .value()
+            {
+                Ty::DataTy(data) if data.data_def == ctor.data_def_id => Ok(DataTy {
+                    data_def: ctor.data_def_id,
+                    args: if data.args.len() == 0 {
+                        hole_args
+                    } else {
+                        self.visitor().copy(data.args)
+                    },
+                }),
+                _ if meta_call.is_some() => Ok(DataTy {
+                    data_def: ctor.data_def_id,
+                    args: self.args_from_params_as_holes(data_def.params),
+                }),
+                _ => Err(TcError::MismatchingTypes {
                     expected: annotation_ty,
                     actual: Ty::from(
                         DataTy { args: hole_args, data_def: ctor.data_def_id },
                         original_term_id.origin(),
                     ),
-                });
-            }
-        };
+                }),
+            })?;
 
         // Infer the constructor arguments from the term, using the substituted
         // parameters. Substitute any results to the constructor arguments, the

@@ -182,7 +182,7 @@ impl Term {
         matches!(self, Term::Tuple(tuple_term) if tuple_term.data.value().is_empty())
     }
 
-    pub fn unresolved(origin: NodeOrigin) -> TermId {
+    pub fn fresh_hole(origin: NodeOrigin) -> TermId {
         Node::create(Node::at(Term::Meta(Meta::fresh_hole(origin)), origin))
     }
 

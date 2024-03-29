@@ -2,7 +2,7 @@ use std::ops::ControlFlow;
 
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    tir::{TermId, TyId, TyOfTerm},
+    tir::{NodeId, TermId, Ty, TyId, TyOfTerm},
 };
 
 use crate::{
@@ -25,7 +25,7 @@ impl<E: TcEnv> OperationsOn<TyOfTerm> for Tc<'_, E> {
     ) -> TcResult<()> {
         let inferred_ty = self.fresh_meta_for(ty_of_term.term);
         self.check_node(ty_of_term.term, inferred_ty)?;
-        self.check_node(inferred_ty, annotation_ty)?;
+        self.unify_nodes(annotation_ty, Ty::universe(original_term_id.origin().inferred()))?;
         self.normalise_node_in_place_no_signals(original_term_id)?;
         Ok(())
     }

@@ -31,7 +31,6 @@ impl<E: TcEnv> OperationsOn<VarTerm> for Tc<'_, E> {
             Some(decl) => {
                 if let Some(ty) = decl.ty {
                     let ty = self.visitor().copy(ty);
-                    self.check_ty(ty)?;
                     self.unify_nodes(ty, annotation_ty)?;
                     Ok(())
                 } else if decl.value.is_some() {
@@ -105,7 +104,6 @@ impl<E: TcEnv> OperationsOn<BindingPat> for Tc<'_, E> {
         annotation_ty: Self::AnnotNode,
         _: Self::Node,
     ) -> TcResult<()> {
-        self.check_ty(annotation_ty)?;
         self.context().add_typing_to_closest_stack(var.name, annotation_ty);
         Ok(())
     }

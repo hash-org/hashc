@@ -9,7 +9,7 @@ use crate::{
     env::TcEnv,
     options::normalisation::{already_normalised, NormaliseResult},
     tc::Tc,
-    traits::OperationsOn,
+    traits::{OperationsOn, OperationsOnNode},
 };
 
 impl<E: TcEnv> OperationsOn<Intrinsic> for Tc<'_, E> {
@@ -23,7 +23,8 @@ impl<E: TcEnv> OperationsOn<Intrinsic> for Tc<'_, E> {
         _: Self::Node,
     ) -> crate::diagnostics::TcResult<()> {
         // ##GeneratedOrigin: intrinsics do not belong to the source code
-        self.check_by_unify(Term::from(intrinsic.ty(), NodeOrigin::Generated), annotation_ty)?;
+        let inferred_ty = Term::from(intrinsic.ty(), NodeOrigin::Generated);
+        self.unify_nodes(inferred_ty, annotation_ty)?;
         Ok(())
     }
 
