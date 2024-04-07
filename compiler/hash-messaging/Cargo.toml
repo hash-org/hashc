@@ -9,3 +9,4 @@ doctest = false
 
 [dependencies]
 hash-utils = {path = "../hash-utils" }
+hash-reporting = {path = "../hash-reporting" }

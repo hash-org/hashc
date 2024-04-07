@@ -750,6 +750,7 @@ dependencies = [
 name = "hash-messaging"
 version = "0.1.0"
 dependencies = [
+ "hash-reporting",
  "hash-utils",
 ]
 
