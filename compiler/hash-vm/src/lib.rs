@@ -1,6 +1,4 @@
 //! Hash Compiler VM crate.
-#![feature(unchecked_math)]
-
 mod heap;
 mod stack;
 
