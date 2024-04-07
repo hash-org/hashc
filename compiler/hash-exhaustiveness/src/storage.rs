@@ -10,7 +10,7 @@ define_index_type! {
     /// Id of a [DeconstructedPat] in the [ExhaustivenessCtx].
     pub struct DeconstructedPatId = u32;
 
-    MAX_INDEX = u32::max_value() as usize;
+    MAX_INDEX = u32::MAX as usize;
     DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
 }
 
@@ -18,7 +18,7 @@ define_index_type! {
     /// Id of a [DeconstructedCtor] in the [ExhaustivenessCtx].
     pub struct DeconstructedCtorId = u32;
 
-    MAX_INDEX = u32::max_value() as usize;
+    MAX_INDEX = u32::MAX as usize;
     DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
 }
 

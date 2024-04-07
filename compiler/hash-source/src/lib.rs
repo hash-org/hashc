@@ -32,7 +32,7 @@ define_index_type! {
     /// A [ModuleId] is a [SourceId] which points to a module.
     pub struct ModuleId = u32;
 
-    MAX_INDEX = u32::max_value() as usize;
+    MAX_INDEX = u32::MAX as usize;
     DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
 
     DEBUG_FORMAT = "module:{}";
@@ -42,7 +42,7 @@ define_index_type! {
     /// An [InteractiveId] is a [SourceId] which points to an interactive block.
     pub struct InteractiveId = u32;
 
-    MAX_INDEX = u32::max_value() as usize;
+    MAX_INDEX = u32::MAX as usize;
     DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
 
     DEBUG_FORMAT = "interactive:{}";

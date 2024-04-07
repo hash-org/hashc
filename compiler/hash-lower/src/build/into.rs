@@ -145,7 +145,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             }
             Term::Call(ref fn_term @ CallTerm { subject, args, .. }) => {
                 match self.classify_fn_call_term(fn_term) {
-                    FnCallTermKind::Call(_) => {
+                    FnCallTermKind::Call => {
                         // Get the type of the function into or to to get the
                         // fn-type so that we can enter the scope.
                         let ty = self.ctx.get_inferred_ty(subject);
