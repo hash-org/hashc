@@ -135,7 +135,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 ///
 /// 3. Traverse the control flow graph in post-order and generate each
 /// block in the function.
-pub fn codegen_ir_body<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
+pub fn codegen_body<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
     instance: InstanceId,
     body: &'b ir::Body,
     ctx: &'a Builder::CodegenCtx,
@@ -146,7 +146,7 @@ pub fn codegen_ir_body<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
 
     let abis = ctx.cg_ctx().abis();
 
-    let fn_abi = abis.create_fn_abi(ctx, instance);
+    let fn_abi = abis.create_fn_abi_from_instance(ctx, instance);
     let is_return_indirect = abis.map_fast(fn_abi, |abi| abi.ret_abi.is_indirect());
 
     // create the starting block, this is needed since we always specify

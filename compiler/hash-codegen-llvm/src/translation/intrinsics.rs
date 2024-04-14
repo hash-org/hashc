@@ -11,7 +11,10 @@ use hash_codegen::{
 use hash_ir::ty::ReprTyId;
 use hash_source::identifier::{Identifier, IDENTS};
 use hash_storage::store::statics::StoreId;
-use inkwell::values::{AnyValueEnum, UnnamedAddress};
+use inkwell::{
+    types::AnyType,
+    values::{AnyValue, AnyValueEnum, UnnamedAddress},
+};
 
 use super::LLVMBuilder;
 
@@ -22,15 +25,18 @@ impl<'b, 'm> LLVMBuilder<'_, 'b, 'm> {
         name: &str,
         args: &[AnyValueEnum<'m>],
     ) -> <Self as BackendTypes>::Value {
-        let func = self.get_intrinsic_function(name);
-        self.call(func, args, None)
+        let (ty, func) = self.get_intrinsic_function(name);
+        self.call(ty, func, args, None)
     }
 
     /// Get an intrinsic function type and function pointer value
     /// for the given intrinsic name.
-    pub(crate) fn get_intrinsic_function(&self, name: &str) -> <Self as BackendTypes>::Function {
+    pub(crate) fn get_intrinsic_function(
+        &self,
+        name: &str,
+    ) -> (<Self as BackendTypes>::Type, <Self as BackendTypes>::Value) {
         if let Some(intrinsic) = self.intrinsics.borrow().get(name).cloned() {
-            return intrinsic;
+            return (intrinsic.get_type().as_any_type_enum(), intrinsic.as_any_value_enum());
         }
 
         self.declare_intrinsic(name).unwrap_or_else(|| {
@@ -38,7 +44,10 @@ impl<'b, 'm> LLVMBuilder<'_, 'b, 'm> {
         })
     }
 
-    pub(crate) fn declare_intrinsic(&self, name: &str) -> Option<<Self as BackendTypes>::Function> {
+    pub(crate) fn declare_intrinsic(
+        &self,
+        name: &str,
+    ) -> Option<(<Self as BackendTypes>::Type, <Self as BackendTypes>::Value)> {
         // This macro is used to define the intrinsic based on the function name.
         // If the name of the intrinsic is equal to the specified value, then this
         // type and function pointer value will be returned.
@@ -258,14 +267,14 @@ impl<'b, 'm> LLVMBuilder<'_, 'b, 'm> {
         name: &'static str,
         args: &[<Self as BackendTypes>::Type],
         return_ty: <Self as BackendTypes>::Type,
-    ) -> <Self as BackendTypes>::Function {
+    ) -> (<Self as BackendTypes>::Type, <Self as BackendTypes>::Value) {
         let func_ty = self.type_function(args, return_ty);
         let func = self.declare_c_fn(name, UnnamedAddress::None, func_ty);
 
         // Now we add the function into the "intrinsics" map in order to
         // avoid re-declaring the function or re-resolving the function.
         self.intrinsics.borrow_mut().insert(name, func);
-        func
+        (func_ty.as_any_type_enum(), func.as_any_value_enum())
     }
 
     /// Attempt to resolve an intrinsic function that is "simple" in
@@ -273,7 +282,10 @@ impl<'b, 'm> LLVMBuilder<'_, 'b, 'm> {
     /// to be generated for this intrinsic function, all others are
     /// considered "special" and require additional steps to generate
     /// code for.
-    fn get_simple_intrinsic(&self, name: Identifier) -> Option<<Self as BackendTypes>::Function> {
+    fn get_simple_intrinsic(
+        &self,
+        name: Identifier,
+    ) -> Option<(<Self as BackendTypes>::Type, <Self as BackendTypes>::Value)> {
         let name = match name {
             i if i == IDENTS.sqrt_f32 => "llvm.sqrt.f32",
             i if i == IDENTS.sqrt_f64 => "llvm.sqrt.f64",
@@ -325,8 +337,8 @@ impl<'b, 'm> IntrinsicBuilderMethods<'b> for LLVMBuilder<'_, 'b, 'm> {
         let result_ref = PlaceRef::new(result, fn_abi.ret_abi.info);
 
         // if we can simply resolve the intrinsic then we can just call it directly...
-        let value = if let Some(intrinsic) = self.get_simple_intrinsic(name) {
-            self.call(intrinsic, args, None)
+        let value = if let Some((ty, intrinsic)) = self.get_simple_intrinsic(name) {
+            self.call(ty, intrinsic, args, None)
         } else {
             // @@Todo: deal with more "non-trivial" intrinsics
             unimplemented!("intrinsic function `{name}` is not trivial")

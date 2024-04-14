@@ -11,7 +11,7 @@ use hash_ir::ty::{InstanceHelpers, InstanceId};
 use hash_storage::store::{statics::StoreId, Store};
 use inkwell::{
     module::Linkage,
-    values::{AnyValue, FunctionValue, UnnamedAddress},
+    values::{AnyValue, AnyValueEnum, FunctionValue, UnnamedAddress},
     GlobalVisibility,
 };
 
@@ -32,7 +32,7 @@ impl<'b, 'm> CodeGenCtx<'b, 'm> {
 
         let name = compute_symbol_name(instance);
         let abis = self.cg_ctx().abis();
-        let fn_abi = abis.create_fn_abi(self, instance);
+        let fn_abi = abis.create_fn_abi_from_instance(self, instance);
 
         // See if this item has already been declared in the module
         let func = if let Some(func) = self.module.get_function(name.as_str()) {
@@ -66,8 +66,15 @@ impl<'b, 'm> MiscBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
         self.get_fn_or_create_ref(instance)
     }
 
-    fn get_fn_ptr(&self, instance: InstanceId) -> Self::Function {
-        self.get_fn_or_create_ref(instance)
+    fn get_fn_ptr(&self, instance: InstanceId) -> Self::Value {
+        self.get_fn_or_create_ref(instance).as_any_value_enum()
+    }
+
+    fn get_fn_addr(&self, instance: InstanceId) -> Self::Value {
+        // @@Inkwell: PointerValue(..).as_any_value_enum() is bugged
+        AnyValueEnum::PointerValue(
+            self.get_fn_or_create_ref(instance).as_global_value().as_pointer_value(),
+        )
     }
 
     fn declare_entry_point(&self, fn_ty: Self::Type) -> Option<Self::Function> {

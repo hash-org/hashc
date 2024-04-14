@@ -211,7 +211,7 @@ impl<E: TyLowerEnv> TyLower<'_, E> {
                         .map(|param| self.repr_ty_from_tir_ty(param.ty)),
                 );
                 let return_ty = self.repr_ty_from_tir_ty(return_ty);
-                ReprTy::Fn { params, return_ty }
+                ReprTy::Fn(ty::FnTy { params, return_ty })
             }
             Ty::RefTy(RefTy { kind, mutable, ty }) => {
                 let ty = self.repr_ty_from_tir_ty(ty);

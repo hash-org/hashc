@@ -930,10 +930,6 @@ pub struct Body {
 
     /// The location of the function
     origin: AstNodeId,
-
-    /// Whether the IR Body that is generated should be printed
-    /// when the generation process is finalised.
-    dump: bool,
 }
 
 impl Body {
@@ -954,7 +950,6 @@ impl Body {
             locals,
             arg_count,
             origin,
-            dump: false,
         }
     }
 
@@ -1003,12 +998,12 @@ impl Body {
     /// Set the `dump` flag to `true` so that the IR Body that is generated
     /// will be printed when the generation process is finalised.
     pub fn mark_to_dump(&mut self) {
-        self.dump = true;
+        self.meta.dump = true;
     }
 
     /// Check if the [Body] needs to be dumped.
     pub fn needs_dumping(&self) -> bool {
-        self.dump
+        self.meta.dump
     }
 
     /// Get the [BodyMetadata] for the [Body].
@@ -1054,6 +1049,9 @@ pub struct BodyMetadata {
     /// The source of the body that was lowered, either an item, or a constant.
     pub source: BodySource,
 
+    /// If the body is queued for dumping.
+    pub dump: bool,
+
     /// The type of the body that was lowered
     ty: Option<ReprTyId>,
 }
@@ -1061,7 +1059,7 @@ pub struct BodyMetadata {
 impl BodyMetadata {
     /// Create a new [BodyMetadata] with the given `name`.
     pub fn new(name: Identifier, source: BodySource) -> Self {
-        Self { name, ty: None, source }
+        Self { name, ty: None, source, dump: false }
     }
 
     /// Set the type of the body that was lowered.
