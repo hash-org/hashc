@@ -9,7 +9,7 @@ static BUILD_DIR: &str = env!("CARGO_MANIFEST_DIR");
 
 fn main() {
     inline_stdlib_info();
-    inline_compuler_info();
+    inline_compiler_info();
 }
 
 /// Compute the path to the standard library and inline it into the build of
@@ -25,9 +25,9 @@ fn inline_stdlib_info() {
 }
 
 /// Compute the version of the compiler and inline it into the build of the
-/// compiler. The version incluces the version of the `hash` crate, and the git
+/// compiler. The version includes the version of the `hash` crate, and the git
 /// revision hash of the compiler itself.
-fn inline_compuler_info() {
+fn inline_compiler_info() {
     let git_hash = String::from_utf8(
         std::process::Command::new("git")
             .args(["rev-parse", "HEAD"])
