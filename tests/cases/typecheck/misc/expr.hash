@@ -21,20 +21,20 @@ Expr := enum <T> (
 /// Evaluate an expression of i32.
 eval := (e: Expr<i32>) -> i32 => {
   match e {
-    Expr::Const(t) => t,
-    Expr::BinOp(op, e1, e2) => match op {
-      BinOp::Add => eval(e1) + eval(e2),
-      BinOp::Mul => eval(e1) * eval(e2),
-      BinOp::Sub => eval(e1) - eval(e2),
-      BinOp::Div => eval(e1) / eval(e2),
+    Expr.Const(t) => t,
+    Expr.BinOp(op, e1, e2) => match op {
+      BinOp.Add => eval(e1) + eval(e2),
+      BinOp.Mul => eval(e1) * eval(e2),
+      BinOp.Sub => eval(e1) - eval(e2),
+      BinOp.Div => eval(e1) / eval(e2),
     },
-    Expr::UnOp(op, e1) => match op {
-      UnOp::Neg => -eval(e1),
+    Expr.UnOp(op, e1) => match op {
+      UnOp.Neg => -eval(e1),
     },
   }
 }
 
 main := () => {
-  e := Expr::BinOp(BinOp::Add, Expr::Const(41), Expr::Const(1))
+  e := Expr.BinOp(BinOp.Add, Expr.Const(41), Expr.Const(1))
   n := eval(e)
 }

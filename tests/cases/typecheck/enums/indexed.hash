@@ -7,13 +7,13 @@ Nat := enum(
 
 Fin := enum <n: Nat> (
   Zero(n: Nat): Fin<n>,
-  Succ(n: Nat, f: Fin<n>): Fin<{Nat::Succ(n)}>,
+  Succ(n: Nat, f: Fin<n>): Fin<{Nat.Succ(n)}>,
 )
 
 add := (a: Nat, b: Nat) -> Nat => {
   match a {
-    Nat::Zero => b,
-    Nat::Succ(a) => Nat::Succ(add(a, b))
+    Nat.Zero => b,
+    Nat.Succ(a) => Nat.Succ(add(a, b))
   }
 }
 
@@ -23,11 +23,11 @@ Lt := enum <n: Nat, m: Nat> (
 
 sub := (n: Nat, m: Nat, p: Lt<m, n>) -> Nat => {
   match p {
-    Lt::Diff(_, d) => d
+    Lt.Diff(_, d) => d
   }
 }
 
 Vec := enum <n: Nat, A: Type> (
-  Nil: Vec<Nat::Zero, A>,
-  Cons(n: Nat, x: A, xs: Vec<n, A>): Vec<{Nat::Succ(n)}, A>,
+  Nil: Vec<Nat.Zero, A>,
+  Cons(n: Nat, x: A, xs: Vec<n, A>): Vec<{Nat.Succ(n)}, A>,
 )
