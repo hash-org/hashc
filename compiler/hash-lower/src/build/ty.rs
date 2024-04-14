@@ -33,7 +33,7 @@ use super::BodyBuilder;
 pub enum FnCallTermKind {
     /// A function call, the term doesn't change and should just be
     /// handled as a function call.
-    Call(CallTerm),
+    Call,
 
     /// A cast intrinsic operation, we perform a cast from the type of the
     /// first term into the desired second [ReprTyId].
@@ -174,13 +174,13 @@ impl<'tcx> BodyBuilder<'tcx> {
                     | TirIntrinsic::Memcmp
                     | TirIntrinsic::Memcpy
                     | TirIntrinsic::Abort
-                    | TirIntrinsic::Panic => FnCallTermKind::Call(*term),
+                    | TirIntrinsic::Panic => FnCallTermKind::Call,
                     TirIntrinsic::Eval | TirIntrinsic::UserError | TirIntrinsic::DebugPrint => {
                         panic!("Found unexpected intrinsic {} which should have been evaluated during TC", intrinsic)
                     }
                 }
             }
-            _ => FnCallTermKind::Call(*term),
+            _ => FnCallTermKind::Call,
         }
     }
 

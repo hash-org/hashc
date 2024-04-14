@@ -800,7 +800,7 @@ index_vec::define_index_type! {
     /// Index for [VariantIdx] stores within generated [Body]s.
     pub struct VariantIdx = u32;
 
-    MAX_INDEX = i32::max_value() as usize;
+    MAX_INDEX = i32::MAX as usize;
     DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
 
     DEBUG_FORMAT = "variant#{}";

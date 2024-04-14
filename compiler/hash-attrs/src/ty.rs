@@ -22,7 +22,7 @@ define_index_type! {
     /// map spans to nodes, and vice versa. [AstNodeId]s are unique and
     /// they are always increasing as a new nodes are created.
     pub struct AttrId = u32;
-    MAX_INDEX = i32::max_value() as usize;
+    MAX_INDEX = i32::MAX as usize;
     DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
 }
 
