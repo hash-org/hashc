@@ -4,6 +4,7 @@ pub mod listener;
 pub mod stream;
 
 use hash_reporting::report::Report;
+use hash_utils::schemars::{self, JsonSchema};
 
 /// The [CompilerMessagingFormat] specifies the message mode that the compiler
 /// will use to to emit and receive messages.
@@ -21,13 +22,11 @@ pub enum CompilerMessagingFormat {
     Normal,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, JsonSchema)]
 pub enum CompilerOutputMessage {
     /// A message that is emitted by the compiler, this is any diagnostic.
     Report(Report),
 }
 
-#[derive(Debug, Clone)]
-pub enum CompilerInputMessage {
-    
-}
+#[derive(Debug, Clone, JsonSchema)]
+pub enum CompilerInputMessage {}

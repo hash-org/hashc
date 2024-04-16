@@ -6,11 +6,14 @@ use hash_source::{
     location::{RowColRange, Span},
     SourceMapUtils,
 };
-use hash_utils::highlight::{highlight, Colour, Modifier};
+use hash_utils::{
+    highlight::{highlight, Colour, Modifier},
+    schemars::{self, JsonSchema},
+};
 
 /// A data type representing a comment/message on a specific span in a code
 /// block.
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, JsonSchema)]
 pub struct ReportCodeBlockInfo {
     /// How many characters should be used for line numbers on the side.
     pub indent_width: usize,
@@ -21,7 +24,7 @@ pub struct ReportCodeBlockInfo {
 
 /// Enumeration describing the kind of [Report]; either being a warning, info or
 /// an error.
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, JsonSchema)]
 pub enum ReportKind {
     /// The report is an error.
     Error,
@@ -63,7 +66,7 @@ impl fmt::Display for ReportKind {
 
 /// The kind of [ReportNote], this is primarily used for rendering the label of
 /// the [ReportNote].
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, JsonSchema)]
 pub enum ReportNoteKind {
     /// A help message or a suggestion.
     Help,
@@ -103,7 +106,7 @@ impl fmt::Display for ReportNoteKind {
 
 /// Data type representing a report note which consists of a label and the
 /// message.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, JsonSchema)]
 pub struct ReportNote {
     pub label: ReportNoteKind,
     pub message: String,
@@ -118,10 +121,11 @@ impl ReportNote {
 /// Data structure representing an associated block of code with a report. The
 /// type contains the span of the block, the message associated with a block and
 /// optional [ReportCodeBlockInfo] which adds a message pointed to a code item.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, JsonSchema)]
 pub struct ReportCodeBlock {
     pub span: Span,
     pub code_message: String,
+    #[schemars(skip)]
     pub(crate) info: OnceCell<ReportCodeBlockInfo>,
 }
 
@@ -138,7 +142,7 @@ impl ReportCodeBlock {
 
 /// Enumeration representing types of components of a [Report]. A [Report] can
 /// be made of either [ReportCodeBlock]s or [ReportNote]s.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, JsonSchema)]
 pub enum ReportElement {
     CodeBlock(ReportCodeBlock),
     Note(ReportNote),
@@ -168,7 +172,7 @@ pub macro info {
 /// The report data type represents the entire report which might contain many
 /// [ReportElement]s. The report also contains a general [ReportKind] and a
 /// general message.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, schemars::JsonSchema)]
 pub struct Report {
     /// The general kind of the report.
     pub kind: ReportKind,

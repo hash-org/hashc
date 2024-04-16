@@ -8,5 +8,5 @@ edition = "2021"
 doctest = false
 
 [dependencies]
-hash-utils = {path = "../hash-utils" }
 hash-reporting = {path = "../hash-reporting" }
+hash-utils = {path = "../hash-utils" }
