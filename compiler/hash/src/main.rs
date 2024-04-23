@@ -3,7 +3,7 @@ use std::panic;
 
 use hash_driver::CompilerBuilder;
 use hash_pipeline::settings::CompilerSettings;
-use hash_utils::{clap::Parser, crash::crash_handler, log, logging::CompilerLogger};
+use hash_utils::{crash::crash_handler, log, logging::CompilerLogger};
 
 /// The logger that is used by the compiler for `log!` statements.
 pub static COMPILER_LOGGER: CompilerLogger = CompilerLogger;
@@ -20,7 +20,7 @@ fn main() {
     // Register main thread with the profiler
     profiling::register_thread!("compiler-main");
 
-    let settings = CompilerSettings::parse();
+    let settings = CompilerSettings::new_from_args();
 
     // if debug is specified, we want to log everything that is debug level...
     if settings.debug {
