@@ -73,8 +73,8 @@ impl<Ctx: UntypedSemanticAnalysisCtxQuery> CompilerStage<Ctx> for UntypedSemanti
 
             // Iterate over all of the modules and add the expressions
             // to the queue so it can be distributed over the threads
-            for (id, module) in node_map.iter_modules().enumerate() {
-                let source_id = SourceId::new_module(id as u32);
+            for (id, module) in node_map.iter_modules() {
+                let source_id = SourceId::from(*id);
                 let stage_info = source_stage_info.get(source_id);
 
                 // Skip any modules that have already been checked

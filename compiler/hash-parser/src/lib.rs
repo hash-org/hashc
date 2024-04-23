@@ -109,7 +109,7 @@ impl<Ctx: ParserCtxQuery> CompilerStage<Ctx> for Parser {
                         self.merge_metrics(timings);
 
                         let path = SourceMapUtils::map(id, |source| source.path().to_path_buf());
-                        node_map.add_module(ModuleEntry::new(path, node));
+                        node_map.add_module(id, ModuleEntry::new(path, node));
                     }
                     ParserAction::MergeSpans { spans } => scope.spawn(move |_| {
                         SpanMap::add_local_map(spans);
