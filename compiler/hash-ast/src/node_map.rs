@@ -115,9 +115,9 @@ pub enum SourceRef<'i> {
 /// parsed within the current [Workspace].
 #[derive(Debug, Default)]
 pub struct NodeMap {
-    /// All [Module] nodes that have been parsed. We use a [HashMap] here since the 
-    /// order of the parsed modules will not be guaranteed, hence we have to insert by 
-    /// the [ModuleId] that is reserved during parsing.
+    /// All [Module] nodes that have been parsed. We use a [HashMap] here since
+    /// the order of the parsed modules will not be guaranteed, hence we
+    /// have to insert by the [ModuleId] that is reserved during parsing.
     modules: HashMap<ModuleId, ModuleEntry>,
 
     /// All [InteractiveBlock] nodes that have been parsed.
