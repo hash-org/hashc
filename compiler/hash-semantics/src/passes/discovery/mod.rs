@@ -30,9 +30,6 @@ pub struct DiscoveryPass<'env, E: SemanticEnv> {
     /// currently inside.
     def_state: DefDiscoveryState,
 
-    /// The current source being discovered.
-    source: SourceId,
-
     /// The AST info for the current analysis session.
     ast_info: &'env AstInfo,
 }
@@ -53,7 +50,12 @@ impl<E: SemanticEnv> AnalysisPass for DiscoveryPass<'_, E> {
         self.visit_body_block(node)
     }
 
-    fn pass_module(&self, _: SourceId, node: ast::AstNodeRef<ast::Module>) -> SemanticResult<()> {
+    fn pass_module(
+        &self,
+        source: SourceId,
+        node: ast::AstNodeRef<ast::Module>,
+    ) -> SemanticResult<()> {
+        debug_assert_eq!(source, node.span().id);
         self.visit_module(node)
     }
 
@@ -68,13 +70,12 @@ impl<E: SemanticEnv> AnalysisPass for DiscoveryPass<'_, E> {
 }
 
 impl<'env, E: SemanticEnv> DiscoveryPass<'env, E> {
-    pub fn new(env: &'env E, ast_info: &'env AstInfo, source: SourceId) -> Self {
+    pub fn new(env: &'env E, ast_info: &'env AstInfo) -> Self {
         Self {
             env,
             name_hint: LightState::new(None),
             def_state: DefDiscoveryState::new(),
             ast_info,
-            source,
         }
     }
 

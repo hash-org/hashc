@@ -140,7 +140,7 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
         &self,
         node: ast::AstNodeRef<ast::Module>,
     ) -> Result<Self::ModuleRet, Self::Error> {
-        let mod_def_id = self.create_or_get_module_mod_def(self.source.into());
+        let mod_def_id = self.create_or_get_module_mod_def(node.span().id.into());
 
         // Traverse the module
         self.enter_def(node, mod_def_id, || walk::walk_module(self, node))?;
@@ -448,7 +448,7 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
 
     type ImportRet = ();
     fn visit_import(&self, node: AstNodeRef<ast::Import>) -> Result<Self::ImportRet, Self::Error> {
-        DiscoveryPass::new(self.env, self.ast_info, node.source).pass_source(node.source)?;
+        DiscoveryPass::new(self.env, self.ast_info).pass_source(node.source)?;
         Ok(())
     }
 }
