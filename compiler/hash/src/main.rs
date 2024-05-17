@@ -14,7 +14,7 @@ fn main() {
     log::set_logger(&COMPILER_LOGGER).unwrap_or_else(|_| panic!("couldn't initiate logger"));
 
     // Starting the Tracy client is necessary before any invoking any of its APIs
-    #[cfg(feature = "profile-with-tracy")]
+    #[cfg(feature = "tracy")]
     tracy_client::Client::start();
 
     // Register main thread with the profiler
