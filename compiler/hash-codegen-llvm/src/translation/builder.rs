@@ -672,7 +672,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         let fn_ty = self.type_function(&[src_ty], dest_ty);
         let func = self.declare_c_fn(&name, UnnamedAddress::None, fn_ty).as_any_value_enum();
 
-        self.call(func.get_type(), func, &[value], None)
+        self.call(fn_ty, func, &[value], None)
     }
 
     fn fp_to_ui(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value {
