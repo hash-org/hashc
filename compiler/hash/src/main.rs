@@ -29,7 +29,16 @@ fn main() {
         log::set_max_level(log::LevelFilter::Info);
     }
 
+    // @@TODO: we might need to pre-handle the `--configure` flags as part of the
+    // `build_with_settings`
     let mut compiler = CompilerBuilder::build_with_settings(settings);
+
+    // if `emit_schema` is true, that's the only thing that we should do since this
+    // is a schema generation request.
+    if compiler.settings.emit_schema {
+        compiler.emit_schema();
+        return;
+    }
 
     // Now run on the filename that was specified by the user.
     compiler.run_on_entry_point();

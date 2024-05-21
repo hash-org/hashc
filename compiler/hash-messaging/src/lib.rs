@@ -30,3 +30,15 @@ pub enum CompilerOutputMessage {
 
 #[derive(Debug, Clone, JsonSchema)]
 pub enum CompilerInputMessage {}
+
+///
+///
+/// This is purely a utility struct to help with the JSON schema generation.
+#[derive(Debug, Clone, JsonSchema)]
+pub enum CompilerMessage {
+    /// A message that is emitted by the compiler, this is any diagnostic.
+    Output(CompilerOutputMessage),
+
+    /// A message that is sent to the compiler, this is any request.
+    Input(CompilerInputMessage),
+}

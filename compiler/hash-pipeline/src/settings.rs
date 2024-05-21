@@ -82,6 +82,11 @@ pub struct CompilerSettings {
     #[arg(long, default_value_t = true)]
     pub emit_errors: bool,
 
+    /// Whether the compiler should print out the current messaging schema that
+    /// is used to communicate with the compiler.
+    #[arg(long = "schema", default_value_t = false)]
+    pub emit_schema: bool,
+
     /// Which character set to use when printing information
     /// to the terminal, this affects rendering of characters
     /// such as the arrow in the error messages.
@@ -290,6 +295,7 @@ impl Default for CompilerSettings {
             skip_prelude: false,
             prelude_is_quiet: false,
             emit_errors: true,
+            emit_schema: false,
             character_set: CharacterSet::Unicode,
             worker_count: num_cpus::get(),
             stage: CompilerStageKind::default(),

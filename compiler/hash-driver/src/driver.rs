@@ -8,6 +8,7 @@ use std::{
     thread,
 };
 
+use hash_messaging::CompilerMessage;
 use hash_pipeline::{
     fs::{resolve_path, PRELUDE},
     interface::{CompilerInterface, CompilerOutputStream, CompilerResult, CompilerStage},
@@ -19,6 +20,7 @@ use hash_utils::{
     indexmap::IndexMap,
     log,
     profiling::{get_resident_set_size, timed, MetricEntry, StageMetrics},
+    schemars::schema_for,
     stream_writeln,
 };
 
@@ -240,6 +242,13 @@ impl<I: CompilerInterface> Driver<I> {
                 "compiler terminated with {err_count} error(s), and {warn_count} warning(s)."
             );
         }
+    }
+
+    /// Emit a schema for the compiler messaging system.
+    pub fn emit_schema(&self) {
+        let schema = schema_for!(CompilerMessage);
+        let mut stdout = self.compiler.output_stream();
+        stream_writeln!(stdout, "{}", serde_json::to_string_pretty(&schema).unwrap());
     }
 
     /// Run a job within the compiler pipeline with the provided state, entry
