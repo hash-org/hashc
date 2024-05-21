@@ -4,6 +4,8 @@ use std::fmt;
 
 use hash_utils::{
     clap,
+    schemars::{self, JsonSchema},
+    serde::{self, Deserialize, Serialize},
     tree_writing::{CharacterSet, TreeWriter, TreeWriterConfig},
 };
 
@@ -11,7 +13,10 @@ use crate::{attr::AttrNode, pretty::AstPrettyPrinter, tree::AstTreePrinter};
 
 /// Enum representing the different options for dumping the IR. It can either
 /// be emitted in the pretty-printing format, or in the `graphviz` format.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum, Deserialize, Serialize, JsonSchema,
+)]
+#[serde(crate = "self::serde")]
 pub enum AstDumpMode {
     /// Dump the AST using a pretty-printed format
     Pretty,

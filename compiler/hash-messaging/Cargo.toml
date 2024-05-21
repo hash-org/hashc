@@ -10,3 +10,6 @@ doctest = false
 [dependencies]
 hash-reporting = {path = "../hash-reporting" }
 hash-utils = {path = "../hash-utils" }
+
+# perhaps this isn't ideal to put here?
+hash-pipeline = {path = "../hash-pipeline" }

@@ -3,6 +3,7 @@
 pub mod listener;
 pub mod stream;
 
+use hash_pipeline::settings::CompilerSettings;
 use hash_reporting::report::Report;
 use hash_utils::schemars::{self, JsonSchema};
 
@@ -41,4 +42,7 @@ pub enum CompilerMessage {
 
     /// A message that is sent to the compiler, this is any request.
     Input(CompilerInputMessage),
+
+    /// The configuration of the compiler.
+    Settings(CompilerSettings),
 }

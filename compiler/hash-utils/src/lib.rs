@@ -45,5 +45,6 @@ pub use num_traits;
 pub use parking_lot;
 pub use rayon;
 pub use schemars;
+pub use serde;
 pub use smallvec;
 pub use thin_vec;
