@@ -27,6 +27,9 @@ pub enum CompilerMessagingFormat {
 pub enum CompilerOutputMessage {
     /// A message that is emitted by the compiler, this is any diagnostic.
     Report(Report),
+
+    /// The configuration of the compiler.
+    Settings(CompilerSettings),
 }
 
 #[derive(Debug, Clone, JsonSchema)]
@@ -42,7 +45,4 @@ pub enum CompilerMessage {
 
     /// A message that is sent to the compiler, this is any request.
     Input(CompilerInputMessage),
-
-    /// The configuration of the compiler.
-    Settings(CompilerSettings),
 }
