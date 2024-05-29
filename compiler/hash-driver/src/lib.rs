@@ -345,15 +345,12 @@ impl LoweringCtxQuery for Compiler {
 
 impl BackendCtxQuery for Compiler {
     fn data(&mut self) -> BackendCtx {
-        let output_stream = self.output_stream();
-
         BackendCtx {
             codegen_storage: &self.codegen_storage,
             workspace: &mut self.workspace,
             icx: &self.icx,
             lcx: &self.lcx,
             settings: &self.settings,
-            stdout: output_stream,
             _pool: &self.pool,
         }
     }

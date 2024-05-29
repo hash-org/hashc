@@ -8,7 +8,7 @@
 use hash_ir::IrStorage;
 use hash_pipeline::{interface::CompilerResult, settings::CompilerSettings, workspace::Workspace};
 use hash_repr::LayoutStorage;
-use hash_utils::{rayon, stream::CompilerOutputStream};
+use hash_utils::rayon;
 
 use crate::traits::abi::FnAbiStore;
 
@@ -54,9 +54,6 @@ pub struct BackendCtx<'b> {
 
     /// A reference to the backend settings in the current session.
     pub settings: &'b CompilerSettings,
-
-    /// Reference to the output stream
-    pub stdout: CompilerOutputStream,
 
     /// Reference to the rayon thread pool.
     ///
