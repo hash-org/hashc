@@ -8,11 +8,17 @@ use hash_utils::{
 };
 
 /// The logger that is used by the compiler for `log!` statements.
-pub static COMPILER_LOGGER: CompilerLogger = CompilerLogger;
+pub static COMPILER_LOGGER: CompilerLogger = CompilerLogger::new();
 
 fn main() {
     // Initial grunt work, panic handler and logger setup...
     panic::set_hook(Box::new(crash_handler));
+
+    let output_stream = CompilerOutputStream::stdout;
+    let error_stream = CompilerOutputStream::stderr;
+
+    COMPILER_LOGGER.error_stream.set(error_stream()).unwrap();
+    COMPILER_LOGGER.output_stream.set(output_stream()).unwrap();
     log::set_logger(&COMPILER_LOGGER).unwrap_or_else(|_| panic!("couldn't initiate logger"));
 
     // Starting the Tracy client is necessary before any invoking any of its APIs
@@ -22,8 +28,7 @@ fn main() {
     // Register main thread with the profiler
     profiling::register_thread!("compiler-main");
 
-    let stream = CompilerOutputStream::Stdout(std::io::stdout());
-    let settings = utils::emit_on_fatal_error(stream, CompilerSettings::from_cli);
+    let settings = utils::emit_on_fatal_error(error_stream(), CompilerSettings::from_cli);
 
     // if debug is specified, we want to log everything that is debug level...
     if settings.debug {
