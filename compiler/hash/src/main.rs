@@ -36,8 +36,8 @@ fn main() {
 
     // if `emit_schema` is true, that's the only thing that we should do since this
     // is a schema generation request.
-    if compiler.settings.emit_schema {
-        compiler.emit_schema();
+    if settings.emit_schema {
+        utils::emit_schema_to(output_stream());
         return;
     }
 

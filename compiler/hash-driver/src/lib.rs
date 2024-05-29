@@ -93,7 +93,7 @@ pub mod utils {
 
     use hash_messaging::CompilerMessage;
     use hash_reporting::report::Report;
-    use hash_utils::stream_writeln;
+    use hash_utils::{schemars::schema_for, stream::CompilerOutputStream, stream_writeln};
 
     /// Emit a fatal compiler error and exit the compiler. These kind of errors
     /// are not **panics** but they are neither recoverable. This function
@@ -118,6 +118,12 @@ pub mod utils {
             Ok(value) => value,
             Err(err) => emit_fatal_error(stream, err),
         }
+    }
+
+    /// Emit a schema for the compiler messaging system.
+    pub fn emit_schema_to(mut stream: CompilerOutputStream) {
+        let schema = schema_for!(CompilerMessage);
+        stream_writeln!(stream, "{}", serde_json::to_string_pretty(&schema).unwrap());
     }
 }
 
