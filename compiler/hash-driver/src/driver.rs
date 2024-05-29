@@ -298,81 +298,82 @@ impl<I: CompilerInterface> Driver<I> {
         let settings = self.compiler.settings();
         let workspace = self.compiler.workspace();
 
-        if settings.stage == CompilerStageKind::Exe
-            && workspace.yields_executable(settings)
-            && !self.has_errors()
+        if settings.stage != CompilerStageKind::Exe
+            || !workspace.yields_executable(settings)
+            || self.has_errors()
         {
-            let path = workspace.executable_path(settings);
+            return;
+        }
 
-            // We need to convert the path to a string so that we can pass it
-            // to the `Command` struct.
-            let path = path.to_str().unwrap();
+        let path = workspace.executable_path(settings);
 
-            // @@Hack: in order to catch the stderr and or the stdout
-            // in the event that we specify a custom stream, we have to create
-            // a file-handle, write the contents, and then write the contents
-            // that we're captured to the stream. It is messy, but it doesn't
-            // seem that the Command interface allows us to specify a custom
-            // stream or just some `Write`-able object.
-            let capture_stream = |stream: CompilerOutputStream, is_err| {
-                match stream {
-                    CompilerOutputStream::Stdout(_) | CompilerOutputStream::Stderr(_) => {
-                        (Stdio::inherit(), None)
-                    }
-                    CompilerOutputStream::Owned(_) => {
-                        // Create a directory in the `temp` directory that is unique to
-                        // the process and the thread that is running the compiler.
-                        let mut temp_file = env::temp_dir();
-                        temp_file.push(format!(
-                            "hash-{}-{}",
-                            process::id(),
-                            thread::current().id().as_u64()
-                        ));
+        // We need to convert the path to a string so that we can pass it
+        // to the `Command` struct.
+        let path = path.to_str().unwrap();
 
-                        // We add the filename based on whether this is stderr, or stdout
-                        let name = if is_err { "stderr" } else { "stdout" };
-                        temp_file.push(name);
-
-                        // Create the directory and the file
-                        std::fs::create_dir_all(temp_file.parent().unwrap()).unwrap_or_else(|_| {
-                            panic!("failed to create {} capture directory", name)
-                        });
-                        let file = File::create(&temp_file)
-                            .unwrap_or_else(|_| panic!("failed to create {} capture file", name));
-                        (Stdio::from(file), Some(temp_file))
-                    }
+        // @@Hack: in order to catch the stderr and or the stdout
+        // in the event that we specify a custom stream, we have to create
+        // a file-handle, write the contents, and then write the contents
+        // that we're captured to the stream. It is messy, but it doesn't
+        // seem that the Command interface allows us to specify a custom
+        // stream or just some `Write`-able object.
+        let capture_stream = |stream: CompilerOutputStream, is_err| {
+            match stream {
+                CompilerOutputStream::Stdout(_) | CompilerOutputStream::Stderr(_) => {
+                    (Stdio::inherit(), None)
                 }
-            };
+                CompilerOutputStream::Owned(_) => {
+                    // Create a directory in the `temp` directory that is unique to
+                    // the process and the thread that is running the compiler.
+                    let mut temp_file = env::temp_dir();
+                    temp_file.push(format!(
+                        "hash-{}-{}",
+                        process::id(),
+                        thread::current().id().as_u64()
+                    ));
 
-            let (stdout, stdout_file) = capture_stream(self.compiler.output_stream(), false);
-            let (stderr, stderr_file) = capture_stream(self.compiler.error_stream(), true);
+                    // We add the filename based on whether this is stderr, or stdout
+                    let name = if is_err { "stderr" } else { "stdout" };
+                    temp_file.push(name);
 
-            // @@Todo: ideally, we should be able to parse the arguments that are specified
-            // after `--` into the spawned process.
-            Command::new(path)
-                .stdin(Stdio::inherit())
-                .stdout(stdout)
-                .stderr(stderr)
-                .spawn()
-                .unwrap()
-                .wait()
-                .unwrap();
-
-            // Now we have to read the contents of the `stdout` and `stderr` files, and
-            // write them to our streams...
-            if let Some(stdout_file) = stdout_file
-                && let Ok(mut file) = File::open(stdout_file)
-            {
-                let mut stdout = self.compiler.output_stream();
-                std::io::copy(&mut file, &mut stdout).unwrap();
+                    // Create the directory and the file
+                    std::fs::create_dir_all(temp_file.parent().unwrap())
+                        .unwrap_or_else(|_| panic!("failed to create {} capture directory", name));
+                    let file = File::create(&temp_file)
+                        .unwrap_or_else(|_| panic!("failed to create {} capture file", name));
+                    (Stdio::from(file), Some(temp_file))
+                }
             }
+        };
 
-            if let Some(stderr_file) = stderr_file
-                && let Ok(mut file) = File::open(stderr_file)
-            {
-                let mut stderr = self.compiler.error_stream();
-                std::io::copy(&mut file, &mut stderr).unwrap();
-            }
+        let (stdout, stdout_file) = capture_stream(self.compiler.output_stream(), false);
+        let (stderr, stderr_file) = capture_stream(self.compiler.error_stream(), true);
+
+        // @@Todo: ideally, we should be able to parse the arguments that are specified
+        // after `--` into the spawned process.
+        Command::new(path)
+            .stdin(Stdio::inherit())
+            .stdout(stdout)
+            .stderr(stderr)
+            .spawn()
+            .unwrap()
+            .wait()
+            .unwrap();
+
+        // Now we have to read the contents of the `stdout` and `stderr` files, and
+        // write them to our streams...
+        if let Some(stdout_file) = stdout_file
+            && let Ok(mut file) = File::open(stdout_file)
+        {
+            let mut stdout = self.compiler.output_stream();
+            std::io::copy(&mut file, &mut stdout).unwrap();
+        }
+
+        if let Some(stderr_file) = stderr_file
+            && let Ok(mut file) = File::open(stderr_file)
+        {
+            let mut stderr = self.compiler.error_stream();
+            std::io::copy(&mut file, &mut stderr).unwrap();
         }
     }
 }
