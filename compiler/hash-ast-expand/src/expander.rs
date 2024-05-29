@@ -25,11 +25,11 @@ use hash_ast::{
 };
 use hash_ast_utils::attr::AttrNode;
 use hash_attrs::checks::AttrChecker;
-use hash_pipeline::{interface::CompilerOutputStream, settings::CompilerSettings};
+use hash_pipeline::settings::CompilerSettings;
 use hash_reporting::diagnostic::DiagnosticsMut;
 use hash_source::SourceId;
 use hash_target::data_layout::TargetDataLayout;
-use hash_utils::crossbeam_channel::Sender;
+use hash_utils::{crossbeam_channel::Sender, stream::CompilerOutputStream};
 
 use crate::diagnostics::{
     error::ExpansionError, warning::ExpansionWarning, ExpansionDiagnostic, ExpansionDiagnostics,

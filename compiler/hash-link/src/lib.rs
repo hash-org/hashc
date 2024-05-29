@@ -17,9 +17,7 @@ use std::{
 use command::{EscapeArg, LinkCommand};
 use error::{escape_returned_error, AdditionalFailureInfo, LinkerError};
 use hash_pipeline::{
-    interface::{
-        CompilerInterface, CompilerOutputStream, CompilerResult, CompilerStage, StageMetrics,
-    },
+    interface::{CompilerInterface, CompilerResult, CompilerStage, StageMetrics},
     settings::{CompilerSettings, CompilerStageKind},
     workspace::Workspace,
 };
@@ -28,7 +26,7 @@ use hash_target::{
     link::{Cc, LinkerFlavour, Lld},
     HasTarget,
 };
-use hash_utils::profiling::HasMutMetrics;
+use hash_utils::{profiling::HasMutMetrics, stream::CompilerOutputStream};
 use linker::{build_linker_args, get_linker};
 use platform::flush_linked_file;
 

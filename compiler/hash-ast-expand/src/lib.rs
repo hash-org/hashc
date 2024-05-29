@@ -7,14 +7,14 @@ use diagnostics::ExpansionDiagnostic;
 use expander::AstExpander;
 use hash_ast::ast::{AstVisitorMutSelf, OwnsAstNode};
 use hash_pipeline::{
-    interface::{CompilerInterface, CompilerOutputStream, CompilerStage},
+    interface::{CompilerInterface, CompilerStage},
     settings::{CompilerSettings, CompilerStageKind},
     workspace::{SourceStageInfo, Workspace},
 };
 use hash_reporting::reporter::Reports;
 use hash_source::SourceId;
 use hash_target::data_layout::TargetDataLayout;
-use hash_utils::{crossbeam_channel::unbounded, rayon};
+use hash_utils::{crossbeam_channel::unbounded, rayon, stream::CompilerOutputStream};
 
 mod attr;
 mod diagnostics;

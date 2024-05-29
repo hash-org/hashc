@@ -20,9 +20,7 @@ use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_ir::IrStorage;
 use hash_ir_utils::{graphviz, pretty};
 use hash_pipeline::{
-    interface::{
-        CompilerInterface, CompilerOutputStream, CompilerResult, CompilerStage, StageMetrics,
-    },
+    interface::{CompilerInterface, CompilerResult, CompilerStage, StageMetrics},
     settings::{CompilerSettings, CompilerStageKind, IrDumpMode},
     workspace::{SourceStageInfo, Workspace},
 };
@@ -31,7 +29,7 @@ use hash_semantics::storage::SemanticStorage;
 use hash_source::SourceId;
 use hash_storage::store::{statics::StoreId, Store};
 use hash_tir::{stores::tir_stores, tir::HasAstNodeId};
-use hash_utils::{profiling::HasMutMetrics, rayon};
+use hash_utils::{profiling::HasMutMetrics, rayon, stream::CompilerOutputStream};
 use optimise::Optimiser;
 
 /// The Hash IR builder compiler stage.

@@ -4,7 +4,7 @@
 use std::io::Write;
 
 use hash_ir::{ty::ReprTyId, HasIrCtx, IrCtx};
-use hash_pipeline::{interface::CompilerOutputStream, settings::CompilerSettings};
+use hash_pipeline::settings::CompilerSettings;
 use hash_repr::{
     compute::{LayoutComputer, LayoutError},
     write::{LayoutWriter, LayoutWriterConfig},
@@ -19,7 +19,7 @@ use hash_tir::{
     tir::{Arg, DataDefId, DataTy, ModDefId, Node, NodeId},
 };
 use hash_tir_utils::lower::{HasTyCache, TyCache, TyLowerEnv};
-use hash_utils::stream_writeln;
+use hash_utils::{stream::CompilerOutputStream, stream_writeln};
 
 use crate::LoweringCtx;
 

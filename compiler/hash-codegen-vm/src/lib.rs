@@ -8,12 +8,11 @@ use hash_codegen::{
     repr::LayoutStorage,
 };
 use hash_ir::IrStorage;
-use hash_pipeline::{
-    interface::{CompilerOutputStream, CompilerResult},
-    settings::CompilerSettings,
-    workspace::Workspace,
+use hash_pipeline::{interface::CompilerResult, settings::CompilerSettings, workspace::Workspace};
+use hash_utils::{
+    profiling::{HasMutMetrics, StageMetrics},
+    stream::CompilerOutputStream,
 };
-use hash_utils::profiling::{HasMutMetrics, StageMetrics};
 
 pub struct VMBackend<'b> {
     /// The stream to use for printing out the results

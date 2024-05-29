@@ -325,7 +325,7 @@ fn handle_test(test: TestingInput) {
         settings,
         // @@Future: we might want to directly compare `stderr` rather than
         // rendering diagnostics and then comparing them.
-        || CompilerOutputStream::Stderr(io::stderr()),
+        || CompilerOutputStream::stderr(),
         {
             let output_stream = output_stream.clone();
             move || CompilerOutputStream::Owned(output_stream.clone())

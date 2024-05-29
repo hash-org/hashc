@@ -11,7 +11,7 @@ use std::{
 use hash_messaging::CompilerMessage;
 use hash_pipeline::{
     fs::{resolve_path, PRELUDE},
-    interface::{CompilerInterface, CompilerOutputStream, CompilerResult, CompilerStage},
+    interface::{CompilerInterface, CompilerResult, CompilerStage},
     settings::CompilerStageKind,
 };
 use hash_reporting::reporter::Reporter;
@@ -21,6 +21,7 @@ use hash_utils::{
     log,
     profiling::{get_resident_set_size, timed, MetricEntry, StageMetrics},
     schemars::schema_for,
+    stream::CompilerOutputStream,
     stream_writeln,
 };
 

@@ -31,14 +31,14 @@ use hash_codegen::{
 };
 use hash_ir::{ir::BodySource, ty::InstanceHelpers, IrStorage};
 use hash_pipeline::{
-    interface::{CompilerOutputStream, CompilerResult, StageMetrics},
+    interface::{CompilerResult, StageMetrics},
     settings::CompilerSettings,
     workspace::Workspace,
 };
 use hash_reporting::report::Report;
 use hash_source::{ModuleId, SourceMapUtils};
 use hash_storage::store::{statics::StoreId, Store};
-use hash_utils::{profiling::HasMutMetrics, stream_writeln};
+use hash_utils::{profiling::HasMutMetrics, stream::CompilerOutputStream, stream_writeln};
 use inkwell as llvm;
 use llvm::{
     context::Context as LLVMContext,

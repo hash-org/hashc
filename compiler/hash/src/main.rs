@@ -2,8 +2,10 @@
 use std::panic;
 
 use hash_driver::{utils, CompilerBuilder};
-use hash_pipeline::{interface::CompilerOutputStream, settings::CompilerSettings};
-use hash_utils::{crash::crash_handler, log, logging::CompilerLogger};
+use hash_pipeline::settings::CompilerSettings;
+use hash_utils::{
+    crash::crash_handler, log, logging::CompilerLogger, stream::CompilerOutputStream,
+};
 
 /// The logger that is used by the compiler for `log!` statements.
 pub static COMPILER_LOGGER: CompilerLogger = CompilerLogger;
