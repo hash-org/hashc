@@ -37,14 +37,14 @@ fn main() {
         log::set_max_level(log::LevelFilter::Info);
     }
 
-    let mut compiler = CompilerBuilder::build_with_settings(settings);
-
     // if `emit_schema` is true, that's the only thing that we should do since this
     // is a schema generation request.
     if settings.emit_schema {
         utils::emit_schema_to(output_stream());
         return;
     }
+
+    let mut compiler = CompilerBuilder::build_with_settings(settings, error_stream, output_stream);
 
     // Now run on the filename that was specified by the user.
     compiler.run_on_entry_point();

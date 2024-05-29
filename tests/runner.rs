@@ -32,18 +32,14 @@ use std::{
 
 use clap::Parser;
 use hash_driver::{Compiler, CompilerBuilder};
-use hash_pipeline::{
-    interface::{CompilerInterface, CompilerOutputStream},
-    settings::CompilerSettings,
-    workspace::Workspace,
-};
+use hash_pipeline::{interface::CompilerInterface, settings::CompilerSettings};
 use hash_reporting::report::Report;
 use hash_testing_internal::{
     metadata::{HandleWarnings, TestResult},
     TestingInput,
 };
 use hash_testing_macros::generate_tests;
-use hash_utils::path::adjust_canonicalisation;
+use hash_utils::{path::adjust_canonicalisation, stream::CompilerOutputStream};
 use regex::Regex;
 
 use crate::{ANSI_REGEX, REGENERATE_OUTPUT};
@@ -314,14 +310,11 @@ fn handle_test(test: TestingInput) {
     // avoid creating "target" directories within the test runner tree.
     settings.output_directory = Some(Path::new("./target").to_path_buf());
 
-    let workspace = Workspace::new(&settings).unwrap();
-
     // we create an error and output stream so that we can later
     // compare the output of the compiler to the expected output
     let output_stream = Arc::new(Mutex::new(Vec::new()));
 
     let interface = Compiler::with(
-        workspace,
         settings,
         // @@Future: we might want to directly compare `stderr` rather than
         // rendering diagnostics and then comparing them.
@@ -330,7 +323,8 @@ fn handle_test(test: TestingInput) {
             let output_stream = output_stream.clone();
             move || CompilerOutputStream::Owned(output_stream.clone())
         },
-    );
+    )
+    .unwrap();
 
     let mut compiler = CompilerBuilder::build_with_interface(interface);
 
