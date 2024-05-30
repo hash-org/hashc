@@ -60,11 +60,10 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     /// with the next block. The conditions for merging two blocks
     /// must be:
     ///
-    /// 1. The current block must be the only predecessor of the next
-    ///   block.
+    /// 1. The current block must be the only predecessor of the next block.
     ///
-    /// 2. The current block must only have a single successor which
-    /// leads to the block that is a candidate for merging.
+    /// 2. The current block must only have a single successor which leads to
+    ///    the block that is a candidate for merging.
     pub(super) fn codegen_terminator(
         &mut self,
         builder: &mut Builder,

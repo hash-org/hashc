@@ -8,21 +8,18 @@
 //! identify the function in the generated object file. The
 //! mangling algorithm first deals with the following cases:
 //!
-//! 1. If the function is not generic, then the mangle symbol
-//! name is the same as the function name, with the module
-//! path prepended as a namespace that is relative to the
-//! entry_point module.
+//! 1. If the function is not generic, then the mangle symbol name is the same
+//!    as the function name, with the module path prepended as a namespace that
+//!    is relative to the entry_point module.
 //!
-//! 2. If the function is generic, the type parameters of the
-//! function are needed to create a unique name such that they
-//! distinguish the function from other functions with the same
-//! name. The type parameters are encoded into the final symbol
-//! name.
+//! 2. If the function is generic, the type parameters of the function are
+//!    needed to create a unique name such that they distinguish the function
+//!    from other functions with the same name. The type parameters are encoded
+//!    into the final symbol name.
 //!
-//!
-//! 3. If there are any attributes that are set on the instance
-//! which prevent the function function from being "mangled", then
-//! we have to avoid mangling the symbol name.
+//! 3. If there are any attributes that are set on the instance which prevent
+//!    the function function from being "mangled", then we have to avoid
+//!    mangling the symbol name.
 
 use hash_attrs::builtin::attrs;
 use hash_ir::ty::{InstanceHelpers, InstanceId};

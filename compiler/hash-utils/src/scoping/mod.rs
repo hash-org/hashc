@@ -8,12 +8,15 @@
 //! and a member index.
 //!
 //! The context is parameterized by three types:
+//!
 //! - `ScopeKind`: The type of the scope kind. This is used to distinguish
-//!  different kinds of scopes, e.g. a module scope vs. a function scope.
+//!   different kinds of scopes, e.g. a module scope vs. a function scope.
+//!
 //! - `Value`: The type of the value associated with each member.
-//! - `Symbol`: The type of the symbol associated with each member.
-//! These types are collected into a `ContextTypes` trait, which is then
-//! used as a bound on all relevant structures.
+//!
+//! - `Symbol`: The type of the symbol associated with each member. These types
+//!   are collected into a `ContextTypes` trait, which is then used as a bound
+//!   on all relevant structures.
 use std::{
     fmt::Debug,
     hash::{Hash, Hasher},
