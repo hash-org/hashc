@@ -318,7 +318,7 @@ impl Workspace {
             dump_ast(node.into(), mode, character_set, writer)?;
         }
 
-        for module in self.node_map.iter_modules() {
+        for (_, module) in self.node_map.iter_modules() {
             dump_ast(module.node_ref().into(), mode, character_set, writer)?;
         }
 

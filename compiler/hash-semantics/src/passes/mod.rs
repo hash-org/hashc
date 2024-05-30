@@ -30,7 +30,7 @@ impl<'env, E: SemanticEnv> Analyser<'env, E> {
         let ast_info = AstInfo::new();
 
         // Discover all definitions in the source.
-        DiscoveryPass::new(self.env, &ast_info, source).pass_source(source)?;
+        DiscoveryPass::new(self.env, &ast_info).pass_source(source)?;
 
         // Resolve all symbols in the source and create TIR terms.
         ResolutionPass::new(self.env, &ast_info).pass_source(source)?;
