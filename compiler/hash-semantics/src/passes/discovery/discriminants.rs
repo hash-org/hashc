@@ -31,7 +31,7 @@ impl<'env, E: SemanticEnv> DiscoveryPass<'env, E> {
     /// The algorithm follows the following rules:
     ///
     /// 1. If the enum has a `repr` attribute, then we use the type that is
-    ///   specified in the attribute.
+    ///    specified in the attribute.
     ///
     /// 2. Otherwise, loop over all of the variants, and find the largest
     ///    discriminant value.

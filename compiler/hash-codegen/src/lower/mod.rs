@@ -71,16 +71,16 @@ pub struct FnBuilder<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> {
     /// the following:
     ///
     /// 1. The type of the local must be judged as an "immediate" by the
-    /// backend.
+    ///    backend.
     ///
     /// 2. The operand should not be referenced indirectly:
     ///
     ///    - It's address should not be taken by the `&` operator.
     ///
-    ///   - It cannot appear in a projection (e.g. `x.field`).
+    ///    - It cannot appear in a projection (e.g. `x.field`).
     ///
     /// 3. The operand must be defined by an [ir::RValue] that can generate
-    /// immediate values as judged by [`Self::rvalue_creates_operand`].
+    ///    immediate values as judged by [`Self::rvalue_creates_operand`].
     locals: IndexVec<Local, LocalRef<Builder::Value>>,
 
     /// A map that denotes the "lowering" status of each block from an
@@ -126,15 +126,15 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 /// This is the main entry point for converting the IR body into the
 /// target backend. The process is as follows:
 ///
-/// 1. Analyse what locals are declared and what kind of locals they
-/// are. This is done so that we can avoid allocating space on the stack
-/// for locals that are possibly immediate values or just temporaries.
+/// 1. Analyse what locals are declared and what kind of locals they are. This
+///    is done so that we can avoid allocating space on the stack for locals
+///    that are possibly immediate values or just temporaries.
 ///
-/// 2. Generate debug information for the function, and any of the locals
-/// that are used within the function.
+/// 2. Generate debug information for the function, and any of the locals that
+///    are used within the function.
 ///
-/// 3. Traverse the control flow graph in post-order and generate each
-/// block in the function.
+/// 3. Traverse the control flow graph in post-order and generate each block in
+///    the function.
 pub fn codegen_body<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
     instance: InstanceId,
     body: &'b ir::Body,

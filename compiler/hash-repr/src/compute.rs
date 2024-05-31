@@ -368,15 +368,15 @@ impl<'l> LayoutComputer<'l> {
     /// 1. Compute the layout of all of the fields of the type.
     ///
     /// 2. push all of the ZST-like fields to the start of the struct to avoid
-    /// dealing with them between other fields.
+    ///    dealing with them between other fields.
     ///
     /// 3. Sort the remaining fields in order of "effective" alignment of each
-    /// field, essentially the largest fields by size and alignment are
-    /// grouped first, and then descending down.
+    ///    field, essentially the largest fields by size and alignment are
+    ///    grouped first, and then descending down.
     ///
     /// 4. try and optimise the ABI of the given type to represent it as a
-    /// scalar which means it can reach more optimisations when code is
-    /// generated for this kind.
+    ///    scalar which means it can reach more optimisations when code is
+    ///    generated for this kind.
     ///
     /// N.B. If layout optimisations are not applicable, then steps 2-3 are not
     /// applied.
@@ -678,15 +678,15 @@ impl<'l> LayoutComputer<'l> {
     /// 1. Figure out the type layout of the enum "prefix" tag.
     ///
     /// 2. Compute the layouts of each variant sub-structure, with the applied
-    /// prefix offset.
+    ///    prefix offset.
     ///
     /// 3. Check if the tag can be neatly aligned with the smallest alignment
-    /// from all the variants, which means that the tag is expanded to align
-    /// the type and avoid redundant padding being created when performing
-    /// `load` / `store` operations.
+    ///    from all the variants, which means that the tag is expanded to align
+    ///    the type and avoid redundant padding being created when performing
+    ///    `load` / `store` operations.
     ///
     /// 4. Attempt to optimise the ABI of the enum by looking at if it can be
-    /// represented as a scalar value.
+    ///    represented as a scalar value.
     ///
     /// 5. Then, collect all of the variant layouts, and build the final layout.
     fn compute_layout_of_enum(

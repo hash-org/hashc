@@ -153,8 +153,8 @@ impl CompilerSettings {
     ///    entry point with an appended `out` directory.
     ///
     /// 3. If the user has not specified an entry point, use the operating
-    /// system    temporary directory with an appended `hash-#session-id`
-    /// directory.
+    ///    system temporary directory with an appended `hash-#session-id`
+    ///    directory.
     pub fn output_directory(&self) -> Result<PathBuf, PipelineError> {
         // For the `temp` directory case, we want to create a folder within the
         // temporary directory that is unique to this session.

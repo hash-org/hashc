@@ -7,9 +7,9 @@
 //! full range of patterns (most of this will go away with the new
 //! pattern representation). Notably, the following problems persist:
 //!
-//! 1. `if-guards` that are located on sub-patterns are not properly
-//! handled, it is assumed there is an outermost 'if-guard' that is
-//! used to determine the control flow, amongst other things.
+//! 1. `if-guards` that are located on sub-patterns are not properly handled, it
+//!    is assumed there is an outermost 'if-guard' that is used to determine the
+//!    control flow, amongst other things.
 
 use std::{borrow::Borrow, mem};
 
