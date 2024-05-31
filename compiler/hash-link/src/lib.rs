@@ -8,8 +8,7 @@ pub(crate) mod linker;
 pub(crate) mod platform;
 
 use std::{
-    fs,
-    io::{self, Write},
+    fs, io,
     path::{Path, PathBuf},
     process::{Output, Stdio},
 };
@@ -26,7 +25,7 @@ use hash_target::{
     link::{Cc, LinkerFlavour, Lld},
     HasTarget,
 };
-use hash_utils::{profiling::HasMutMetrics, stream::CompilerOutputStream};
+use hash_utils::{log, profiling::HasMutMetrics};
 use linker::{build_linker_args, get_linker};
 use platform::flush_linked_file;
 
@@ -39,9 +38,6 @@ pub struct LinkerCtx<'ctx> {
 
     /// A reference to the backend settings in the current session.
     pub settings: &'ctx CompilerSettings,
-
-    /// Reference to the output stream
-    pub stdout: CompilerOutputStream,
 }
 
 /// The Hash compiler linking stage. This stage is responsible for
@@ -80,7 +76,7 @@ impl<Ctx: LinkerCtxQuery> CompilerStage<Ctx> for CompilerLinker {
     }
 
     fn run(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
-        let LinkerCtx { workspace, settings, mut stdout } = ctx.data();
+        let LinkerCtx { workspace, settings } = ctx.data();
 
         // If we are not emitting an executable, then we can
         if !workspace.yields_executable(settings) || workspace.code_map.objects().next().is_none() {
@@ -103,7 +99,7 @@ impl<Ctx: LinkerCtxQuery> CompilerStage<Ctx> for CompilerLinker {
 
         // print out link-line if specified via `-Cdump=link-line`
         if settings.codegen_settings.dump_link_line {
-            writeln!(stdout, "{linker_command}").map_err(|err| vec![err.into()])?;
+            log::info!("link line: {linker_command}")
         }
 
         // Run the linker

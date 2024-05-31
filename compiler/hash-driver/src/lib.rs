@@ -356,9 +356,7 @@ impl BackendCtxQuery for Compiler {
 
 impl LinkerCtxQuery for Compiler {
     fn data(&mut self) -> hash_link::LinkerCtx<'_> {
-        let stdout = self.output_stream();
-
-        LinkerCtx { workspace: &self.workspace, settings: &self.settings, stdout }
+        LinkerCtx { workspace: &self.workspace, settings: &self.settings }
     }
 }
 
