@@ -12,7 +12,7 @@ pub mod pretty;
 
 use std::{fmt, ops::Deref};
 
-use hash_const_eval::print::pretty_print_const;
+use hash_const_eval::print::ConstWriter;
 use hash_ir::{
     ir::{
         AggregateKind, AssertKind, BodyInfo, Operand, Place, PlaceProjection, RValue, Statement,
@@ -23,7 +23,6 @@ use hash_ir::{
 use hash_repr::{compute::LayoutComputer, constant::Const};
 use hash_storage::store::statics::StoreId;
 use hash_target::data_layout::HasDataLayout;
-use hash_utils::temp_writer::TempWriter;
 
 /// Struct that is used to write interned IR components.
 pub struct IrWriter<'ctx, T> {
@@ -139,9 +138,7 @@ impl fmt::Display for IrWriter<'_, &Operand> {
                     write!(f, "const ")?;
                 }
 
-                let mut buf = TempWriter::default();
-                pretty_print_const(&mut buf, constant, self.lc).unwrap();
-                write!(f, "{}", buf.into_string())
+                write!(f, "{}", ConstWriter::new(constant, self.lc))
             }
         }
     }
@@ -285,11 +282,7 @@ impl fmt::Display for IrWriter<'_, &Terminator> {
                         let value =
                             Const::from_scalar_like(value, target_ty, self.lc.data_layout());
 
-                        let mut buf = TempWriter::default();
-                        pretty_print_const(&mut buf, &value, self.lc).unwrap();
-                        write!(f, "{}", buf.into_string())?;
-
-                        write!(f, " -> {target:?}")?;
+                        write!(f, "{} -> {target:?}", ConstWriter::new(&value, self.lc))?;
                     }
 
                     // Write the default case

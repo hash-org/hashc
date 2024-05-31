@@ -330,14 +330,12 @@ impl SemanticAnalysisCtxQuery for Compiler {
 
 impl LoweringCtxQuery for Compiler {
     fn data(&mut self) -> LoweringCtx {
-        let output_stream = self.output_stream();
         LoweringCtx {
             semantic_storage: &self.semantic_storage,
             workspace: &mut self.workspace,
             settings: &self.settings,
             lcx: &self.lcx,
             icx: &mut self.icx,
-            stdout: output_stream,
             _pool: &self.pool,
         }
     }
