@@ -1,4 +1,4 @@
-
+info: IR dump:
 IR dump for function `frobulate` defined at $DIR/aggregates.hash:8:14-10:2
 frobulate := (_1: Foo, _2: Foo) -> i32 {
     mut _0: i32;
@@ -54,4 +54,5 @@ main := () -> () {
         return;
     }
 }
+
 

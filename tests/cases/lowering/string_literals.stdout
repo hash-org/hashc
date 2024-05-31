@@ -1,4 +1,4 @@
-
+info: IR dump:
 IR dump for function `main` defined at $DIR/string_literals.hash:4:9-11:2
 main := () -> () {
     mut _0: ();
@@ -38,4 +38,5 @@ main := () -> () {
         return;
     }
 }
+
 

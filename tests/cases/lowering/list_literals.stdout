@@ -1,4 +1,4 @@
-
+info: IR dump:
 IR dump for function `foo` defined at $DIR/list_literals.hash:3:8-5:2
 foo := (_1: &[i32]) -> () {
     mut _0: ();
@@ -40,4 +40,5 @@ main := () -> () {
         return;
     }
 }
+
 

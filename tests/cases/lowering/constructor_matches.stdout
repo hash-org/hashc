@@ -1,4 +1,4 @@
-
+info: IR dump:
 IR dump for function `maybe_add` defined at $DIR/constructor_matches.hash:3:14-10:2
 maybe_add := (_1: Option<i32>, _2: Option<i32>) -> i32 {
     mut _0: i32;
@@ -69,4 +69,5 @@ maybe_add := (_1: Option<i32>, _2: Option<i32>) -> i32 {
         return;
     }
 }
+
 

@@ -1,4 +1,4 @@
-
+info: IR dump:
 IR dump for function `main` defined at $DIR/dataless_closures.hash:4:9-12:2
 main := () -> () {
     mut _0: ();
@@ -46,4 +46,5 @@ _ := () -> () {
         return;
     }
 }
+
 

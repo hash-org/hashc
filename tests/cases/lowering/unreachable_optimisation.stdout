@@ -1,4 +1,4 @@
-
+info: IR dump:
 IR dump for function `main` defined at $DIR/unreachable_optimisation.hash:3:9-15:2
 main := () -> () {
     mut _0: ();
@@ -11,4 +11,5 @@ main := () -> () {
         goto -> bb1;
     }
 }
+
 

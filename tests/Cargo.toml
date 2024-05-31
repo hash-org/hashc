@@ -38,5 +38,5 @@ hash-testing-macros = { path = "../tests/testing-macros" }
 hash-testing-internal = { path = "../tests/testing-internal" }
 
 [dev-dependencies]
-rusty-fork = "0.3"
 clap = { version = "4.3.8", features = ["derive"] }
+rusty-fork = "0.3"

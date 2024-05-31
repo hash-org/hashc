@@ -39,7 +39,9 @@ use hash_testing_internal::{
     TestingInput,
 };
 use hash_testing_macros::generate_tests;
-use hash_utils::{path::adjust_canonicalisation, stream::CompilerOutputStream};
+use hash_utils::{
+    log, logging::CompilerLogger, path::adjust_canonicalisation, stream::CompilerOutputStream,
+};
 use regex::Regex;
 
 use crate::{ANSI_REGEX, REGENERATE_OUTPUT};
@@ -280,12 +282,30 @@ fn handle_pass_case(
     compare_stream(&test, OutputKind::Stdout, output_stream)
 }
 
+/// The logger that is used by the compiler for `log!` statements.
+pub static COMPILER_LOGGER: CompilerLogger = CompilerLogger::new();
+
 /// Generic test handler in the event whether a case should pass or fail.
 fn handle_test(test: TestingInput) {
+    // we create an error and output stream so that we can later
+    // compare the output of the compiler to the expected output
+    let raw_output_stream = Arc::new(Mutex::new(Vec::new()));
+
+    let output_stream = || {
+        let output_stream = raw_output_stream.clone();
+        CompilerOutputStream::Owned(output_stream.clone())
+    };
+    let error_stream = CompilerOutputStream::stderr;
+
+    COMPILER_LOGGER.error_stream.set(error_stream()).unwrap();
+    COMPILER_LOGGER.output_stream.set(output_stream()).unwrap();
+    log::set_logger(&COMPILER_LOGGER).unwrap_or_else(|_| panic!("couldn't initiate logger"));
+    log::set_max_level(log::LevelFilter::Info);
+
     // We also need to potentially apply any additional configuration options
     // that are specified by the test onto the compiler settings
     let mut settings = if !test.metadata.args.items.is_empty() {
-        // @@Hack: v push an extra argument to the start of the list to pretend that it
+        // @@Hack: push an extra argument to the start of the list to pretend that it
         // is the "program name" that is being executed.
         let mut args = test.metadata.args.items.clone();
         args.insert(0, String::from(""));
@@ -310,18 +330,14 @@ fn handle_test(test: TestingInput) {
     // avoid creating "target" directories within the test runner tree.
     settings.output_directory = Some(Path::new("./target").to_path_buf());
 
-    // we create an error and output stream so that we can later
-    // compare the output of the compiler to the expected output
-    let output_stream = Arc::new(Mutex::new(Vec::new()));
-
     let interface = Compiler::with(
         settings,
         // @@Future: we might want to directly compare `stderr` rather than
         // rendering diagnostics and then comparing them.
-        || CompilerOutputStream::stderr(),
+        error_stream,
         {
-            let output_stream = output_stream.clone();
-            move || CompilerOutputStream::Owned(output_stream.clone())
+            let os = raw_output_stream.clone();
+            move || CompilerOutputStream::Owned(os.clone())
         },
     )
     .unwrap();
@@ -338,9 +354,9 @@ fn handle_test(test: TestingInput) {
     // Based on the specified metadata within the test case itself, we know
     // whether the test should fail or not
     if test.metadata.completion == TestResult::Fail {
-        handle_failure_case(test, diagnostics, &output_stream).unwrap();
+        handle_failure_case(test, diagnostics, &raw_output_stream).unwrap();
     } else {
-        handle_pass_case(test, diagnostics, &output_stream).unwrap();
+        handle_pass_case(test, diagnostics, &raw_output_stream).unwrap();
     }
 }
 
