@@ -84,10 +84,7 @@ impl<I: CompilerInterface> Driver<I> {
     /// Function to report the collected metrics on the stages within the
     /// compiler.
     fn report_metrics(&self) {
-        log::info!("compiler pipeline metrics:");
-        let metrics = MetricReporter::new(&self.metrics);
-        let mut stdout = self.compiler.output_stream();
-        metrics.report(&mut stdout);
+        log::info!("compiler pipeline metrics:\n{}", AggregateMetricReporter::new(&self.metrics));
     }
 
     fn run_stage(&mut self, entry_point: SourceId, index: usize) -> CompilerResult<()> {

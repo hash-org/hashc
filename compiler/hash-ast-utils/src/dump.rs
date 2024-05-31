@@ -58,7 +58,7 @@ impl fmt::Display for AstDump<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Self { node, mode, character_set } = self;
 
-        writeln!(f, "AST for {}:", node.id().span().fmt_path(),)?;
+        writeln!(f, "AST for {}:", node.id().span().fmt_path())?;
 
         match mode {
             AstDumpMode::Pretty => {
@@ -73,7 +73,7 @@ impl fmt::Display for AstDump<'_> {
             AstDumpMode::Tree => {
                 let tree = node.visit(AstTreePrinter).unwrap();
                 let config = TreeWriterConfig::from_character_set(*character_set);
-                writeln!(f, "{}", TreeWriter::new_with_config(&tree, config))
+                write!(f, "{}", TreeWriter::new_with_config(&tree, config))
             }
         }
     }
