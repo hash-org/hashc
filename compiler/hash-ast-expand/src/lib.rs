@@ -128,14 +128,13 @@ impl<Ctx: AstExpansionCtxQuery> CompilerStage<Ctx> for AstExpansionPass {
 
     /// Check whether the compiler settings specify that the generated
     /// AST needs to be dumped.
-    fn cleanup(&mut self, entry_point: SourceId, ctx: &mut Ctx) {
+    fn cleanup(&mut self, _: SourceId, ctx: &mut Ctx) {
         let settings = ctx.settings();
-        let mut stdout = ctx.output_stream();
 
         if settings.stage > CompilerStageKind::Parse && settings.ast_settings().dump {
             let set = settings.character_set;
             let mode = settings.ast_settings.dump_mode;
-            ctx.workspace().print_sources(entry_point, mode, set, &mut stdout).unwrap();
+            ctx.workspace().print_sources(mode, set);
         }
     }
 }
