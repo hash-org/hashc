@@ -3,8 +3,7 @@
 //! and information. In practise, this is used by some of the following items:
 //!
 //! - The [CompilerOutputStream] for the "test" compiler is wrapped in such a
-//!   way
-//! that it can capture both `stdout` and `stderr` output.
+//!   way that it can capture both `stdout` and `stderr` output.
 //!
 //! - It might be potentially used in the future with the meta-program to send
 //!   and receive messages from the compiler.
