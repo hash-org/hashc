@@ -23,7 +23,7 @@ use hash_utils::{
     stream_writeln,
 };
 
-use crate::metrics::{MetricReporter, Metrics, StageMetricEntry};
+use crate::metrics::{AggregateMetricReporter, Metrics, StageMetricEntry};
 
 /// The Hash Compiler interface. This interface allows a caller to create a
 /// [Driver] with a `compiler` and a collection of stages which will access

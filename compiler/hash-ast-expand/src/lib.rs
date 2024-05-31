@@ -14,7 +14,7 @@ use hash_pipeline::{
 use hash_reporting::reporter::Reports;
 use hash_source::SourceId;
 use hash_target::data_layout::TargetDataLayout;
-use hash_utils::{crossbeam_channel::unbounded, rayon, stream::CompilerOutputStream};
+use hash_utils::{crossbeam_channel::unbounded, rayon};
 
 mod attr;
 mod diagnostics;
@@ -36,9 +36,6 @@ pub struct AstExpansionCtx<'ctx> {
 
     /// Settings to the compiler
     pub settings: &'ctx CompilerSettings,
-
-    /// Reference to the output stream
-    pub stdout: CompilerOutputStream,
 
     /// Information about the current target data layout.
     pub data_layout: &'ctx TargetDataLayout,
@@ -67,14 +64,13 @@ impl<Ctx: AstExpansionCtxQuery> CompilerStage<Ctx> for AstExpansionPass {
         entry_point: SourceId,
         ctx: &mut Ctx,
     ) -> hash_pipeline::interface::CompilerResult<()> {
-        let AstExpansionCtx { workspace, data_layout, settings, stdout, pool } = ctx.data();
+        let AstExpansionCtx { workspace, data_layout, settings, pool } = ctx.data();
         let (sender, receiver) = unbounded::<ExpansionDiagnostic>();
 
         let node_map = &mut workspace.node_map;
         let source_stage_info = &mut workspace.source_stage_info;
 
-        let make_expander =
-            |source| AstExpander::new(source, settings, data_layout, stdout.clone());
+        let make_expander = |source| AstExpander::new(source, settings, data_layout);
 
         pool.scope(|scope| {
             let source_info = source_stage_info.get(entry_point);

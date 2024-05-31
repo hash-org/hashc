@@ -29,7 +29,7 @@ use hash_pipeline::settings::CompilerSettings;
 use hash_reporting::diagnostic::DiagnosticsMut;
 use hash_source::SourceId;
 use hash_target::data_layout::TargetDataLayout;
-use hash_utils::{crossbeam_channel::Sender, stream::CompilerOutputStream};
+use hash_utils::crossbeam_channel::Sender;
 
 use crate::diagnostics::{
     error::ExpansionError, warning::ExpansionWarning, ExpansionDiagnostic, ExpansionDiagnostics,
@@ -44,8 +44,6 @@ pub struct AstExpander<'ctx> {
     /// A reference to the compiler settings.
     pub settings: &'ctx CompilerSettings,
 
-    pub stdout: CompilerOutputStream,
-
     /// Any diagnostics that have been emitted during the expansion stage.
     pub(crate) diagnostics: ExpansionDiagnostics,
 }
@@ -57,11 +55,9 @@ impl<'ctx> AstExpander<'ctx> {
         id: SourceId,
         settings: &'ctx CompilerSettings,
         data_layout: &'ctx TargetDataLayout,
-        stdout: CompilerOutputStream,
     ) -> Self {
         Self {
             settings,
-            stdout,
             diagnostics: ExpansionDiagnostics::new(),
             checker: AttrChecker::new(id, data_layout),
         }

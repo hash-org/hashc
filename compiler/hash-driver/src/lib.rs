@@ -305,11 +305,9 @@ impl UntypedSemanticAnalysisCtxQuery for Compiler {
 
 impl AstExpansionCtxQuery for Compiler {
     fn data(&mut self) -> AstExpansionCtx {
-        let output_stream = self.output_stream();
         AstExpansionCtx {
             workspace: &mut self.workspace,
             settings: &self.settings,
-            stdout: output_stream,
             data_layout: &self.lcx.data_layout,
             pool: &self.pool,
         }
