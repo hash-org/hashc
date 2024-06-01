@@ -109,7 +109,13 @@ impl Display for Lit {
                     ConstKind::Pair { data, .. } if ty.is_str() => {
                         write!(f, "\"{}\"", data.to_str())
                     }
-                    _ => panic!("unexpected constant kind"),
+                    ConstKind::Pair { .. } => {
+                        write!(f, "OPAQUE(pair)")
+                    }
+                    ConstKind::Alloc { .. } => {
+                        // @@Todo: fixme
+                        write!(f, "OPAQUE(alloc)")
+                    }
                 }
             }
         }

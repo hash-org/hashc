@@ -14,6 +14,7 @@ use hash_storage::store::{
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     context::{HasContext, ScopeKind},
+    sub::Sub,
     tir::{
         validate_and_reorder_args_against_params, Arg, ArgsId, Node, NodeId, ParamsId, PatArgsId,
         SymbolId, TermId,
@@ -46,17 +47,25 @@ impl<E: TcEnv> ScopedOperationsOnNode<ArgsId> for Tc<'_, E> {
 
         let (result, shadowed_sub) =
             self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
+                let mut running_sub = Sub::identity();
+
                 for (arg, param_id) in args.iter().zip(annotation_params.iter()) {
                     let param = param_id.value();
                     let param_ty = self.visitor().copy(param.ty);
+                    self.substituter().apply_sub_in_place(param_ty, &running_sub);
+                    println!("args {}", args);
+                    println!("running_sub: {:?}", running_sub);
+
+                    // @@Todo: fix this mess
+
                     // Check each argument against the corresponding parameter type
                     let arg = arg.value();
                     self.check_node(arg.value, param_ty)?;
-                    self.substituter().apply_sub_from_context(param_ty);
+
                     if self.has_effects(arg.value) == Some(false)
                         && let Some(value) = arg.value.use_as_non_pat()
                     {
-                        self.context().add_assignment(param.name, param_ty, value);
+                        running_sub.insert(param.name, value);
                     }
                 }
                 let result = in_arg_scope(reordered_args_id)?;

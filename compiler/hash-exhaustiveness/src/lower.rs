@@ -1,6 +1,6 @@
 //! Lowering utilities from a [Pat] into a [DeconstructedPat] and
 //! vice versa.
-use std::{iter::once, mem::size_of};
+use std::mem::size_of;
 
 use hash_ast::ast::RangeEnd;
 use hash_repr::{
@@ -245,55 +245,53 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
                         let variant_idx = match ctor {
                             DeconstructedCtor::Single => 0,
                             DeconstructedCtor::Variant(idx) => *idx,
-                            _ => unreachable!()
+                            _ => unreachable!(),
                         };
+
                         let ctor = CtorDefId::new(ctor_def_id.elements(), variant_idx);
                         let pats = self.construct_pat_args(fields, ctor.borrow().params);
 
-                        Term::Ctor(CtorTerm { ctor, ctor_args: pats  })
+                        Term::Ctor(CtorTerm { ctor, ctor_args: pats })
                     }
                     Ty::TupleTy(TupleTy { data }) => {
                         let pats = self.construct_pat_args(fields, data);
                         Term::Tuple(TupleTerm { data: pats })
                     }
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 }
             }
             DeconstructedCtor::IntRange(range) => self.construct_pat_from_range(*ty, *range),
-            DeconstructedCtor::Str(str) => Term::Lit(Node::create_gen(Lit::Const(Const::alloc(*str, COMMON_REPR_TYS.str)))),
+            DeconstructedCtor::Str(str) => {
+                Term::Lit(Node::create_gen(Lit::Const(Const::alloc(*str, COMMON_REPR_TYS.str))))
+            }
             DeconstructedCtor::Array(Array { kind }) => {
                 let children = fields.iter_patterns().map(|p| self.construct_pat(p)).collect_vec();
+                let pats = Arg::seq_positional(children, NodeOrigin::Generated);
 
                 match kind {
-                    ArrayKind::Fixed(_) => {
-                        let pats = Arg::seq_positional(children, NodeOrigin::Generated);
-                        Term::Array(ArrayTerm::Normal(pats))
-                    }
-                    ArrayKind::Var(prefix, _suffix) => {
-                        let xs = &children[..*prefix];
-                        let ys = &children[*prefix..];
-                        let pats = Arg::seq_positional(
-                            xs.iter()
-                                .copied()
-                                .chain(once(Term::pat(
-                                    Spread { name: SymbolId::fresh(NodeOrigin::Generated), index: *prefix },
-                                    NodeOrigin::Generated,
-                                )))
-                                .chain(ys.iter().copied())
-                                .collect_vec(),
-                            NodeOrigin::Generated,
-                        );
+                    ArrayKind::Fixed(_) => Term::Array(ArrayTerm::Normal(pats)),
+                    ArrayKind::Var(_, _) => {
+                        // @@Todo: handle spread
                         Term::Array(ArrayTerm::Normal(pats))
                     }
                 }
             }
-            DeconstructedCtor::Wildcard | DeconstructedCtor::NonExhaustive => Term::Pat(BindingPat { name: SymbolId::fresh_underscore(NodeOrigin::Generated), is_mutable: false }.into()),
+            DeconstructedCtor::Wildcard | DeconstructedCtor::NonExhaustive => Term::Pat(
+                BindingPat {
+                    name: SymbolId::fresh_underscore(NodeOrigin::Generated),
+                    is_mutable: false,
+                }
+                .into(),
+            ),
             DeconstructedCtor::Or => {
                 panic!("cannot convert an `or` deconstructed pat back into pat")
             }
-            DeconstructedCtor::Missing => panic!(
-                "trying to convert a `Missing` constructor into a `Pat`; this is probably a bug, `Missing` should have been processed in `apply_ctors`"
-            ),
+            DeconstructedCtor::Missing => {
+                // @@Dumbness: rustfmt fails to format the whole file if the string below is
+                // inside `panic`...
+                let message = "trying to convert a `Missing` constructor into a `Pat`; this is probably a bug, `Missing` should have been processed in `apply_ctors`";
+                panic!("{message}")
+            }
         };
 
         // Now put the pat on the store and return it

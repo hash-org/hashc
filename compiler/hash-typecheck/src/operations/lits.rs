@@ -165,7 +165,7 @@ impl<E: TcEnv> OperationsOnNode<LitId> for Tc<'_, E> {
             lit.origin(),
         );
 
-        self.unify_nodes(inferred_ty, annotation_ty)?;;
+        self.unify_nodes(inferred_ty, annotation_ty)?;
         self.bake_lit_repr(lit, inferred_ty)?;
         Ok(())
     }

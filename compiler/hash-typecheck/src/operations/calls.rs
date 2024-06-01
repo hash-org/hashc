@@ -36,69 +36,64 @@ impl<E: TcEnv> OperationsOn<CallTerm> for Tc<'_, E> {
             let inferred_subject_ty = self.fresh_meta_for(call_term.subject);
             self.check_node(call_term.subject, inferred_subject_ty)?;
 
-            match *inferred_subject_ty.value() {
-                Ty::FnTy(fn_ty) => {
-                    // Potentially fill-in implicit args
-                    if let Ty::FnTy(_) = *fn_ty.return_ty.value()
-                        && fn_ty.implicit
-                        && !call_term.implicit
-                    {
-                        let applied_args = self.args_from_params_as_holes(fn_ty.params);
-                        let copied_subject =
-                            Term::inherited_from(call_term.subject, *call_term.subject.value());
-                        let new_subject = CallTerm {
-                            args: applied_args,
-                            subject: copied_subject,
-                            implicit: fn_ty.implicit,
-                        };
-                        call_term
-                            .subject
-                            .set(call_term.subject.value().with_data(new_subject.into()));
-                        return self.check(call_term, annotation_ty, original_term_id);
+            let fn_ty = self.try_or_normalise(inferred_subject_ty, |inferred_subject_ty, _| {
+                match *inferred_subject_ty.value() {
+                    Ty::FnTy(fn_ty) => Ok(fn_ty),
+                    _ => {
+                        // Not a function type.
+                        Err(TcError::WrongTerm {
+                            kind: WrongTermKind::NotAFunction,
+                            inferred_term_ty: inferred_subject_ty,
+                            term: original_term_id,
+                        })
                     }
-
-                    // Check that the function call is of the correct kind.
-                    if fn_ty.implicit != call_term.implicit {
-                        return Err(TcError::WrongCallKind {
-                            site: original_term_id,
-                            expected_implicit: fn_ty.implicit,
-                            actual_implicit: call_term.implicit,
-                        });
-                    }
-
-                    let copied_params = self.visitor().copy(fn_ty.params);
-                    let copied_return_ty = self.visitor().copy(fn_ty.return_ty);
-
-                    let mut fn_call_term = *call_term;
-                    self.check_node_scoped(
-                        fn_call_term.args,
-                        copied_params,
-                        |inferred_fn_call_args| {
-                            fn_call_term.args = inferred_fn_call_args;
-                            original_term_id
-                                .set(original_term_id.value().with_data(fn_call_term.into()));
-
-                            self.substituter().apply_sub_from_context(copied_return_ty);
-                            self.unify_nodes(copied_return_ty, annotation_ty)?;
-
-                            Ok(())
-                        },
-                    )?;
-
-                    self.substituter().apply_sub_from_context(fn_call_term.subject);
-                    self.potentially_monomorphise_fn_call(original_term_id, fn_ty, annotation_ty)?;
-
-                    Ok(())
                 }
-                _ => {
-                    // Not a function type.
-                    Err(TcError::WrongTerm {
-                        kind: WrongTermKind::NotAFunction,
-                        inferred_term_ty: inferred_subject_ty,
-                        term: original_term_id,
-                    })
-                }
+            })?;
+
+            // Potentially fill-in implicit args
+            if let Ty::FnTy(_) = *fn_ty.return_ty.value()
+                && fn_ty.implicit
+                && !call_term.implicit
+            {
+                let applied_args = self.args_from_params_as_metas(fn_ty.params);
+                let copied_subject =
+                    Term::inherited_from(call_term.subject, *call_term.subject.value());
+                let new_subject = CallTerm {
+                    args: applied_args,
+                    subject: copied_subject,
+                    implicit: fn_ty.implicit,
+                };
+                call_term.subject.set(call_term.subject.value().with_data(new_subject.into()));
+                return self.check(call_term, annotation_ty, original_term_id);
             }
+
+            // Check that the function call is of the correct kind.
+            if fn_ty.implicit != call_term.implicit {
+                return Err(TcError::WrongCallKind {
+                    site: original_term_id,
+                    expected_implicit: fn_ty.implicit,
+                    actual_implicit: call_term.implicit,
+                });
+            }
+
+            let copied_params = self.visitor().copy(fn_ty.params);
+            let copied_return_ty = self.visitor().copy(fn_ty.return_ty);
+
+            let mut fn_call_term = *call_term;
+            self.check_node_scoped(fn_call_term.args, copied_params, |inferred_fn_call_args| {
+                fn_call_term.args = inferred_fn_call_args;
+                original_term_id.set(original_term_id.value().with_data(fn_call_term.into()));
+
+                self.substituter().apply_sub_from_context(copied_return_ty);
+                self.unify_nodes(copied_return_ty, annotation_ty)?;
+
+                Ok(())
+            })?;
+
+            self.substituter().apply_sub_from_context(fn_call_term.subject);
+            self.potentially_monomorphise_fn_call(original_term_id, fn_ty, annotation_ty)?;
+
+            Ok(())
         })
     }
 

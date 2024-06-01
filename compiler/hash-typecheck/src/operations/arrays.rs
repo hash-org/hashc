@@ -52,7 +52,7 @@ impl<E: TcEnv> Tc<'_, E> {
     /// Assumes that the index is normalised.
     pub fn get_index_in_array(&self, elements: ArgsId, index: TermId) -> Option<TermId> {
         try_use_term_as_machine_integer(self, index)
-            .map(|idx| elements.elements().at(idx).unwrap().value().value)
+            .map(|idx| elements.elements().at(idx).unwrap().borrow().value)
     }
 
     /// Get the term at the given index in the given repeated array. If the
@@ -80,7 +80,7 @@ impl<E: TcEnv> Tc<'_, E> {
         let mismatch = || {
             Err(TcError::MismatchingTypes {
                 expected: annotation_ty,
-                actual: list_ty(self.fresh_meta(NodeOrigin::Expected), NodeOrigin::Expected),
+                actual: list_ty(Term::fresh_hole(NodeOrigin::Expected), NodeOrigin::Expected),
             })
         };
 
@@ -242,23 +242,25 @@ impl<E: TcEnv> OperationsOn<IndexTerm> for Tc<'_, E> {
 
         self.normalise_node_in_place_no_signals(subject_ty)?;
         // Ensure that the subject is array-like
-        let inferred_ty = match *subject_ty.value() {
-            Ty::DataTy(data_ty) => {
-                let data_def = data_ty.data_def.value();
-                if let DataDefCtors::Primitive(PrimitiveCtorInfo::Array(array_primitive)) =
-                    data_def.ctors
-                {
-                    let sub = self
-                        .substituter()
-                        .create_sub_from_args_of_params(data_ty.args, data_def.params);
-                    let array_ty = self.substituter().apply_sub(array_primitive.element_ty, &sub);
-                    Ok(array_ty)
-                } else {
-                    wrong_subject_ty()
+        let inferred_ty =
+            self.try_or_normalise(subject_ty, |subject_ty, _| match *subject_ty.value() {
+                Ty::DataTy(data_ty) => {
+                    let data_def = data_ty.data_def.value();
+                    if let DataDefCtors::Primitive(PrimitiveCtorInfo::Array(array_primitive)) =
+                        data_def.ctors
+                    {
+                        let sub = self
+                            .substituter()
+                            .create_sub_from_args_of_params(data_ty.args, data_def.params);
+                        let array_ty =
+                            self.substituter().apply_sub(array_primitive.element_ty, &sub);
+                        Ok(array_ty)
+                    } else {
+                        wrong_subject_ty()
+                    }
                 }
-            }
-            _ => wrong_subject_ty(),
-        }?;
+                _ => wrong_subject_ty(),
+            })?;
 
         self.unify_nodes(inferred_ty, annotation_ty)?;
         Ok(())

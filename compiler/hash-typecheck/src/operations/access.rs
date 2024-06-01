@@ -24,46 +24,45 @@ impl<E: TcEnv> OperationsOn<AccessTerm> for Tc<'_, E> {
         annotation_ty: Self::AnnotNode,
         item_node: Self::Node,
     ) -> TcResult<()> {
+        // Infer the type of the subject of the access term
         let subject_ty = self.fresh_meta_for(access_term.subject);
         self.check_node(access_term.subject, subject_ty)?;
-        let subject_ty = self.resolve_metas(subject_ty);
 
         // Check that the subject is a record type, and acquire its
         // parameters.
-        let params = match *subject_ty.value() {
-            Ty::TupleTy(tuple_ty) => tuple_ty.data,
-            Ty::DataTy(data_ty) => {
-                match data_ty.data_def.borrow().get_single_ctor() {
-                    Some(ctor) => {
-                        let ctor = ctor.value();
-                        // Here we need to substitute the data type's parameters
-                        // into the constructor's parameters.
-                        let data_def = data_ty.data_def.value();
-                        let sub = self
-                            .substituter()
-                            .create_sub_from_args_of_params(data_ty.args, data_def.params);
-                        self.substituter().apply_sub(ctor.params, &sub)
-                    }
-                    None => {
-                        // Not a record type because it has more than one constructor
-                        // @@ErrorReporting: more information about the error
-                        return Err(TcError::WrongTerm {
-                            kind: WrongTermKind::NotARecord,
-                            inferred_term_ty: subject_ty,
-                            term: item_node,
-                        });
+        let params =
+            self.try_or_normalise(subject_ty, |subject_ty, _| match *subject_ty.value() {
+                Ty::TupleTy(tuple_ty) => Ok(tuple_ty.data),
+                Ty::DataTy(data_ty) => {
+                    match data_ty.data_def.borrow().get_single_ctor() {
+                        Some(ctor) => {
+                            let ctor = ctor.value();
+                            // Here we need to substitute the data type's parameters
+                            // into the constructor's parameters.
+                            let data_def = data_ty.data_def.value();
+                            let sub = self
+                                .substituter()
+                                .create_sub_from_args_of_params(data_ty.args, data_def.params);
+                            Ok(self.substituter().apply_sub(ctor.params, &sub))
+                        }
+                        None => {
+                            // Not a record type because it has more than one constructor
+                            // @@ErrorReporting: more information about the error
+                            Err(TcError::WrongTerm {
+                                kind: WrongTermKind::NotARecord,
+                                inferred_term_ty: subject_ty,
+                                term: item_node,
+                            })
+                        }
                     }
                 }
-            }
-            // Not a record type.
-            _ => {
-                return Err(TcError::WrongTerm {
+                // Not a record type.
+                _ => Err(TcError::WrongTerm {
                     kind: WrongTermKind::NotARecord,
                     inferred_term_ty: subject_ty,
                     term: item_node,
-                })
-            }
-        };
+                }),
+            })?;
 
         if let Some(param) = params.at_index(access_term.field) {
             // Create a substitution that maps the parameters of the record

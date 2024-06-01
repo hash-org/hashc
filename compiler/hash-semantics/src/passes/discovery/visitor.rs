@@ -190,7 +190,7 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
         let struct_def_id = DataDef::struct_def(
             struct_name,
             self.create_unresolved_params_from_ty_params(node.ty_params.as_ref(), node.id()),
-            self.create_unresolved_params_from_params(Some(&node.fields), node.id()),
+            self.create_unresolved_params_from(&node.fields.params, |field| &field.name),
             NodeOrigin::Given(node.id()),
         );
 
@@ -271,7 +271,7 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
         let fn_def_id = Node::create_at(
             FnDef {
                 name: fn_def_name,
-                body: Term::unresolved(NodeOrigin::Given(node.fn_body.id())),
+                body: Term::fresh_hole(NodeOrigin::Given(node.fn_body.id())),
                 ty: FnTy {
                     implicit: false,
                     is_unsafe: false,
@@ -281,9 +281,9 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
                     return_ty: node
                         .return_ty
                         .as_ref()
-                        .map(|ty| Ty::unresolved(NodeOrigin::Given(ty.id())))
+                        .map(|ty| Ty::fresh_hole(NodeOrigin::Given(ty.id())))
                         .unwrap_or_else(|| {
-                            Ty::unresolved(NodeOrigin::InferredFrom(node.fn_body.id()))
+                            Ty::fresh_hole(NodeOrigin::InferredFrom(node.fn_body.id()))
                         }),
                 },
             },
@@ -310,7 +310,7 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
         let fn_def_id = Node::create_at(
             FnDef {
                 name: fn_def_name,
-                body: Term::unresolved(NodeOrigin::Given(node.fn_body.id())),
+                body: Term::fresh_hole(NodeOrigin::Given(node.fn_body.id())),
                 ty: FnTy {
                     implicit: true,
                     is_unsafe: false,
@@ -322,9 +322,9 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
                     return_ty: node
                         .return_ty
                         .as_ref()
-                        .map(|ty| Ty::unresolved(NodeOrigin::Given(ty.id())))
+                        .map(|ty| Ty::fresh_hole(NodeOrigin::Given(ty.id())))
                         .unwrap_or_else(|| {
-                            Ty::unresolved(NodeOrigin::InferredFrom(node.fn_body.id()))
+                            Ty::fresh_hole(NodeOrigin::InferredFrom(node.fn_body.id()))
                         }),
                 },
             },
@@ -388,7 +388,7 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
                 params: self
                     .create_unresolved_params_from_ty_params(Some(&node.params), node.params.id()),
                 pure: true,
-                return_ty: Ty::unresolved(NodeOrigin::Given(node.return_ty.id())),
+                return_ty: Ty::fresh_hole(NodeOrigin::Given(node.return_ty.id())),
             },
             NodeOrigin::Given(node.id()),
         );
@@ -409,7 +409,7 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
                 params: self
                     .create_unresolved_params_from_params(Some(&node.params), node.params.id()),
                 pure: false,
-                return_ty: Ty::unresolved(NodeOrigin::Given(node.return_ty.id())),
+                return_ty: Ty::fresh_hole(NodeOrigin::Given(node.return_ty.id())),
             },
             NodeOrigin::Given(node.id()),
         );

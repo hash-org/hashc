@@ -80,7 +80,7 @@ impl<E: TcEnv> OperationsOn<BlockTerm> for Tc<'_, E> {
                         // If it diverges, we can just infer the return type as `never`.
                         let block_term_ty =
                             Ty::expect_is(original_term_id, never_ty(NodeOrigin::Expected));
-                        self.unify_nodes(block_term_ty, annotation_ty)?;;
+                        self.unify_nodes(block_term_ty, annotation_ty)?;
                     }
                     _ => {
                         // Infer the return value

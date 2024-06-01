@@ -21,13 +21,13 @@ impl<'env, E: SemanticEnv> DiscoveryPass<'env, E> {
                         Some(name) => Param {
                             name: ParamIndex::Name(name.ident)
                                 .into_symbol(NodeOrigin::Given(name.id())),
-                            ty: Term::unresolved(NodeOrigin::Given(name.id())),
+                            ty: Term::fresh_hole(NodeOrigin::Given(name.id())),
                             default: None,
                         },
                         None => Param {
                             name: ParamIndex::Position(i as u32)
                                 .into_symbol(NodeOrigin::Given(param.id())),
-                            ty: Term::unresolved(NodeOrigin::Given(param.id())),
+                            ty: Term::fresh_hole(NodeOrigin::Given(param.id())),
                             default: None,
                         },
                     },

@@ -34,43 +34,56 @@ impl<E: TcEnv> OperationsOn<CtorTerm> for Tc<'_, E> {
         let ctor_def_id = term.ctor;
         let ctor = ctor_def_id.value();
         let data_def = ctor.data_def_id.value();
-        let hole_args = self.args_from_params_as_holes(data_def.params);
+        let hole_args = self.args_from_params_as_metas(data_def.params);
 
         let copied_ctor_params = self.visitor().copy(ctor.params);
         let copied_ctor_result_args = self.visitor().copy(ctor.result_args);
 
         // Get the annotation as a DataTy, or create a hole one if not given
-        let annotation_data_ty = match *annotation_ty.value() {
-            Ty::DataTy(data) if data.data_def == ctor.data_def_id => DataTy {
-                data_def: ctor.data_def_id,
-                args: if data.args.len() == 0 { hole_args } else { self.visitor().copy(data.args) },
-            },
-            Ty::Meta(_) => DataTy {
-                data_def: ctor.data_def_id,
-                args: self.args_from_params_as_holes(data_def.params),
-            },
-            _ => {
-                return Err(TcError::MismatchingTypes {
+        let annotation_data_ty =
+            self.try_or_normalise(annotation_ty, |annotation_ty, meta_call| match *annotation_ty
+                .value()
+            {
+                Ty::DataTy(data) if data.data_def == ctor.data_def_id => Ok(DataTy {
+                    data_def: ctor.data_def_id,
+                    args: if data.args.len() == 0 {
+                        hole_args // @@Reconsider: surely we should error here
+                                  // instead?
+                    } else {
+                        self.visitor().copy(data.args)
+                    },
+                }),
+                _ if meta_call.is_some() => Ok(DataTy {
+                    data_def: ctor.data_def_id,
+                    args: self.args_from_params_as_metas(data_def.params),
+                }),
+                _ => Err(TcError::MismatchingTypes {
                     expected: annotation_ty,
                     actual: Ty::from(
                         DataTy { args: hole_args, data_def: ctor.data_def_id },
                         original_term_id.origin(),
                     ),
-                });
-            }
-        };
+                }),
+            })?;
+
+        // Substitute constructor data arguments into the constructor's parameters
+        let sub = self
+            .substituter()
+            .create_sub_from_args_of_params(annotation_data_ty.args, data_def.params);
+        let subbed_ctor_params = self.substituter().apply_sub(copied_ctor_params, &sub);
+        let subbed_ctor_result_args = self.substituter().apply_sub(copied_ctor_result_args, &sub);
 
         // Infer the constructor arguments from the term, using the substituted
         // parameters. Substitute any results to the constructor arguments, the
         // result arguments of the constructor, and the constructor data
         // arguments.
         self.context().enter_scope(ScopeKind::Sub, || {
-            self.check_node_scoped(term.ctor_args, copied_ctor_params, |inferred_term_ctor_args| {
+            self.check_node_scoped(term.ctor_args, subbed_ctor_params, |inferred_term_ctor_args| {
                 term.ctor_args = inferred_term_ctor_args;
                 original_term_id.set(original_term_id.value().with_data(term.into()));
 
-                self.substituter().apply_sub_from_context(copied_ctor_params);
-                self.unify_nodes_scoped(copied_ctor_result_args, annotation_data_ty.args, |_| {
+                self.substituter().apply_sub_from_context(subbed_ctor_params);
+                self.unify_nodes_scoped(subbed_ctor_result_args, annotation_data_ty.args, |_| {
                     Ok(())
                 })?;
 

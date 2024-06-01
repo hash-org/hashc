@@ -75,8 +75,7 @@ impl<E: TcEnv> OperationsOn<LoopControlTerm> for Tc<'_, E> {
         _: Self::Node,
     ) -> crate::diagnostics::TcResult<()> {
         // Always `never`.
-        let inferred_ty = never_ty(NodeOrigin::Expected);
-        self.unify_nodes(inferred_ty, annotation_ty)
+        self.unify_nodes(never_ty(NodeOrigin::Expected), annotation_ty)
     }
 
     fn try_normalise(
@@ -116,7 +115,7 @@ impl<E: TcEnv> OperationsOn<LoopTerm> for Tc<'_, E> {
         original_term_id: Self::Node,
     ) -> crate::diagnostics::TcResult<()> {
         // Forward to the inner term.
-        self.check_node(loop_term.inner, self.fresh_meta(loop_term.inner.origin().inferred()))?;
+        self.check_node(loop_term.inner, self.fresh_meta_for(loop_term.inner))?;
         let loop_term =
             Ty::expect_is(original_term_id, Ty::unit_ty(original_term_id.origin().inferred()));
         self.unify_nodes(loop_term, annotation_ty)?;

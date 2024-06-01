@@ -16,7 +16,7 @@ use crate::{
     traits::OperationsOn,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct MetaCall {
     pub meta: Meta,
     pub args: ArgsId,
@@ -77,11 +77,25 @@ impl<E: TcEnv> Tc<'_, E> {
     }
 
     /// Fill metas in a term with their solutions.
+    ///
+    /// Returns the
     /// This is shallow.
-    pub(crate) fn resolve_metas(&self, term: TermId) -> TermId {
-        match term.value().data {
-            Term::Meta(meta) => self.get_meta(meta).map(|s| self.resolve_metas(s)).unwrap_or(term),
-            _ => term,
+    pub(crate) fn resolve_metas(&self, term: TermId) -> (TermId, Option<MetaCall>) {
+        match self.classify_meta_call(term.value().data) {
+            Some(call) => {
+                let resolved = self.get_meta(call.meta).map(|s| self.resolve_metas(s));
+                match resolved {
+                    Some(resolved) => (
+                        Term::from(
+                            CallTerm { subject: resolved.0, args: call.args, implicit: false },
+                            term.origin(),
+                        ),
+                        None,
+                    ),
+                    None => (term, Some(call)),
+                }
+            }
+            None => (term, None),
         }
     }
 }
@@ -101,7 +115,9 @@ impl<E: TcEnv> OperationsOn<Meta> for Tc<'_, E> {
             Meta::Hole(h) => {
                 item_node.set(self.fresh_meta(h.origin().inferred()).value());
             }
-            Meta::Generated(_) => {}
+            Meta::Generated(_) => {
+                panic!("Generated metas should not be checked: {}", item);
+            }
         }
         Ok(())
     }

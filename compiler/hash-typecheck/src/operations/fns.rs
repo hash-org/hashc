@@ -69,7 +69,6 @@ impl<E: TcEnv> Tc<'_, E> {
     ) -> TcResult<FnTy> {
         let fn_def = fn_def_id.value();
         let fn_ty = Ty::from(fn_def.ty, fn_def_id.origin());
-        self.check_node(annotation_ty, Ty::universe_of(annotation_ty))?;
         self.check_node(fn_ty, Ty::universe_of(fn_ty))?;
         self.unify_nodes(fn_ty, annotation_ty)?;
 
@@ -105,7 +104,6 @@ impl<E: TcEnv> OperationsOn<FnDefId> for Tc<'_, E> {
             // If we are only inferring the header, then we also want to check for
             // immediate body functions.
             self.check_node_scoped(fn_def.ty.params, (), |()| {
-                self.check_node(fn_def.ty.return_ty, Ty::universe_of(fn_def.ty.return_ty))?;
                 if let Term::Fn(mut immediate_body_fn) = *fn_def.body.value() {
                     self.check(
                         &mut immediate_body_fn,

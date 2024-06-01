@@ -71,7 +71,7 @@ pub trait OperationsOnNode<X: Copy>: HasTcEnv {
     fn unify_nodes(&self, src: X, target: X) -> TcResult<()>;
 }
 
-/// Each `OperationsOnNode` is also an `Operations`.
+/// Each `OperationsOnNode` is also an `OperationsOn`.
 impl<X: Copy, T: HasTcEnv + OperationsOnNode<X>> OperationsOn<X> for T {
     type AnnotNode = T::AnnotNode;
     type Node = X;

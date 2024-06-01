@@ -1,6 +1,6 @@
 use std::ops::ControlFlow;
 
-use hash_tir::tir::{AnnotTerm, NodeId, Term, TermId, TyId};
+use hash_tir::tir::{AnnotTerm, NodeId, Term, TermId, Ty, TyId};
 
 use crate::{
     env::TcEnv,
@@ -19,9 +19,9 @@ impl<E: TcEnv> OperationsOn<AnnotTerm> for Tc<'_, E> {
         annotation_ty: Self::AnnotNode,
         _: Self::Node,
     ) -> crate::diagnostics::TcResult<()> {
+        self.check_node(cast_term.target_ty, Ty::universe_of(cast_term.target_ty))?;
         self.check_node(cast_term.subject_term, cast_term.target_ty)?;
-        let inferred_ty = cast_term.target_ty;
-        self.unify_nodes(inferred_ty, annotation_ty);
+        self.unify_nodes(cast_term.target_ty, annotation_ty)?;
         Ok(())
     }
 
