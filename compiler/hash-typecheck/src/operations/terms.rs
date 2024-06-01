@@ -1,9 +1,12 @@
-use std::ops::ControlFlow;
+use std::{fmt::Display, ops::ControlFlow};
 
-use hash_storage::store::statics::StoreId;
+use hash_storage::store::{statics::StoreId, StoreKey};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    tir::{ArgsId, BindingPat, NodesId, Pat, Term, TermId, Ty, TyId, VarTerm},
+    tir::{
+        ArgsId, BindingPat, NodeId, NodeOrigin, NodesId, Pat, SymbolId, Term, TermId, Ty, TyId,
+        VarTerm,
+    },
     visitor::{Atom, Map, Visitor},
 };
 
@@ -99,22 +102,40 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
     }
 
     fn unify_nodes(&self, src_id: TermId, target_id: TermId) -> TcResult<()> {
-        if src_id == target_id {
-            return Ok(());
-        }
+        // if src_id == target_id {
+        //     return Ok(());
+        // }
 
         // Substitute from context
-        let src = self.resolve_metas(src_id).0.value().data;
-        let target = self.resolve_metas(target_id).0.value().data;
+        let src = self.resolve_metas_and_vars(src_id).0.value().data;
+        let target = self.resolve_metas_and_vars(target_id).0.value().data;
+
+        println!("Unifying {} with {:?}", src, target);
 
         match (self.classify_meta_call(src), self.classify_meta_call(target)) {
             (Some(v1), Some(v2)) if v1.meta == v2.meta => {
                 return self.unify_nodes_scoped(v1.args, v2.args, |_| Ok(()));
             }
-            (Some(v1), None) => return self.solve(v1, target_id, src_id, target_id),
-            (None, Some(v2)) => return self.solve(v2, src_id, src_id, target_id),
+            (Some(v1), None) => {
+                println!("Solving {} with {}", v1.meta, target_id);
+                return self.solve(v1, target_id, src_id, target_id);
+            }
+            (None, Some(v2)) => {
+                println!("Solving {} with {}", v2.meta, src_id);
+                return self.solve(v2, src_id, src_id, target_id);
+            }
             _ => {}
         }
+
+        println!("Unifying {} with {}", src, target);
+
+        let unfold = || {
+            println!("Unfolding terms: {} and {}", src, target);
+            self.normalise_and_unify_nodes(
+                Term::from(src, src_id.origin().computed()),
+                Term::from(target, target_id.origin().computed()),
+            )
+        };
 
         match (src, target) {
             (
@@ -123,10 +144,14 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
                 Term::Var(VarTerm { symbol: b })
                 | Term::Pat(Pat::Binding(BindingPat { name: b, .. })),
             ) if a == b => Ok(()),
-            (Term::Var(a), _) => self.unify_var_with(a, src_id, target_id),
-            (_, Term::Var(b)) => self.unify_var_with(b, target_id, src_id),
-            (Term::Pat(Pat::Binding(a)), _) => self.unify_binding_with(a, target_id),
-            (_, Term::Pat(Pat::Binding(b))) => self.unify_binding_with(b, src_id),
+            (Term::Var(a), _) => self.unify_var_with(a, src_id, target_id).or_else(|_| unfold()),
+            (_, Term::Var(b)) => self.unify_var_with(b, target_id, src_id).or_else(|_| unfold()),
+            (Term::Pat(Pat::Binding(a)), _) => {
+                self.unify_binding_with(a, target_id).or_else(|_| unfold())
+            }
+            (_, Term::Pat(Pat::Binding(b))) => {
+                self.unify_binding_with(b, src_id).or_else(|_| unfold())
+            }
 
             // If the source is uninhabitable, then we can unify it with
             // anything
@@ -206,7 +231,7 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
             (Term::Pat(Pat::Range(mut r1)), Term::Pat(Pat::Range(mut r2))) => {
                 self.unify(&mut r1, &mut r2, src_id, target_id)
             }
-            _ => self.normalise_and_unify_nodes(src_id, target_id),
+            _ => unfold(),
         }
     }
 
@@ -251,16 +276,30 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
 impl<E: TcEnv> Tc<'_, E> {
     pub(crate) fn normalise_and_unify_nodes<N>(&self, src_id: N, target_id: N) -> TcResult<()>
     where
-        N: Copy + Into<Atom>,
+        N: Copy + Into<Atom> + Display,
         Visitor: Map<N>,
         Self: OperationsOnNode<N>,
     {
-        match self.potentially_normalise_node_no_signals(src_id)? {
-            Some(src_id_new) => self.unify_nodes(src_id_new, target_id),
-            None => match self.potentially_normalise_node_no_signals(target_id)? {
-                Some(target_id_new) => self.unify_nodes(src_id, target_id_new),
-                None => self.mismatching_atoms(src_id, target_id),
-            },
+        match (
+            self.potentially_normalise_node_no_signals(src_id)?,
+            self.potentially_normalise_node_no_signals(target_id)?,
+        ) {
+            (Some(src_id_new), Some(target_id_new)) => {
+                println!("Both norm: {} and {}", src_id_new, target_id_new);
+                self.unify_nodes(src_id_new, target_id_new)
+            }
+            (Some(src_id_new), None) => {
+                println!("Src norm: {}", src_id_new);
+                self.unify_nodes(src_id_new, target_id)
+            }
+            (None, Some(target_id_new)) => {
+                println!("Target norm: {}", target_id_new);
+                self.unify_nodes(src_id, target_id_new)
+            }
+            (None, None) => {
+                println!("No norm");
+                self.mismatching_atoms(src_id, target_id)
+            }
         }
     }
 }

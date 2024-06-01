@@ -77,14 +77,17 @@ impl<E: TcEnv> Tc<'_, E> {
         var_term: TermId,
         term: TermId,
     ) -> TcResult<()> {
+        println!("CTX {}", self.context());
+        println!("Unifying nodes: {} and {}", var, term);
+
         if self.in_pat.get() {
             self.context().add_untyped_assignment(var.symbol, term);
             Ok(())
         } else {
-            match self.context().try_get_decl_value(var.symbol) {
-                Some(v) => self.unify_nodes(v, term),
-                None => self.mismatching_atoms(var_term, term),
-            }
+            // match self.context().try_get_decl_value(var.symbol) {
+            //     Some(v) => self.unify_nodes(v, term),
+            self.mismatching_atoms(var_term, term)
+            // }
         }
     }
 

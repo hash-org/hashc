@@ -45,40 +45,36 @@ impl<E: TcEnv> ScopedOperationsOnNode<ArgsId> for Tc<'_, E> {
         // Reorder the arguments to match the annotation parameters:
         let reordered_args_id = validate_and_reorder_args_against_params(args, annotation_params)?;
 
-        let (result, shadowed_sub) =
-            self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
-                let mut running_sub = Sub::identity();
+        // let mut running_sub = Sub::identity();
 
-                for (arg, param_id) in args.iter().zip(annotation_params.iter()) {
-                    let param = param_id.value();
-                    let param_ty = self.visitor().copy(param.ty);
-                    self.substituter().apply_sub_in_place(param_ty, &running_sub);
-                    println!("args {}", args);
-                    println!("running_sub: {:?}", running_sub);
+        for (arg, param_id) in args.iter().zip(annotation_params.iter()) {
+            let param = param_id.value();
+            let param_ty = self.visitor().copy(param.ty);
+            // self.substituter().apply_sub_in_place(param_ty, &running_sub);
+            println!("Checking  ({}) : ({})", arg, param_id);
+            println!("context: {}", self.context());
 
-                    // @@Todo: fix this mess
+            // Check each argument against the corresponding parameter type
+            let arg = arg.value();
+            self.check_node(arg.value, param_ty)?;
 
-                    // Check each argument against the corresponding parameter type
-                    let arg = arg.value();
-                    self.check_node(arg.value, param_ty)?;
+            println!(
+                "{} | {:?} | {:?}",
+                arg.value,
+                self.has_effects(arg.value),
+                arg.value.use_as_non_pat().is_some()
+            );
+            if self.has_effects(arg.value) == Some(false)
+                && let Some(value) = arg.value.use_as_non_pat()
+            {
+                println!("Here");
+                self.context().add_assignment(param.name, param_ty, value);
+            }
+        }
+        let result = in_arg_scope(reordered_args_id)?;
 
-                    if self.has_effects(arg.value) == Some(false)
-                        && let Some(value) = arg.value.use_as_non_pat()
-                    {
-                        running_sub.insert(param.name, value);
-                    }
-                }
-                let result = in_arg_scope(reordered_args_id)?;
-
-                // Only keep the substitutions that do not refer to the parameters
-                let scope_sub = self.substituter().create_sub_from_current_scope();
-                let shadowed_sub =
-                    self.substituter().hide_param_binds(annotation_params.iter(), &scope_sub);
-                Ok((result, shadowed_sub))
-            })?;
-
-        // Add the shadowed substitutions to the ambient scope
-        self.context().add_sub_to_scope(&shadowed_sub);
+        // // Add the shadowed substitutions to the ambient scope
+        // self.context().add_sub_to_scope(&shadowed_sub);
 
         Ok(result)
     }

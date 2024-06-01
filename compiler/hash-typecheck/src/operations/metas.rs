@@ -80,10 +80,10 @@ impl<E: TcEnv> Tc<'_, E> {
     ///
     /// Returns the
     /// This is shallow.
-    pub(crate) fn resolve_metas(&self, term: TermId) -> (TermId, Option<MetaCall>) {
+    pub(crate) fn resolve_metas_and_vars(&self, term: TermId) -> (TermId, Option<MetaCall>) {
         match self.classify_meta_call(term.value().data) {
             Some(call) => {
-                let resolved = self.get_meta(call.meta).map(|s| self.resolve_metas(s));
+                let resolved = self.get_meta(call.meta).map(|s| self.resolve_metas_and_vars(s));
                 match resolved {
                     Some(resolved) => (
                         Term::from(
@@ -95,7 +95,17 @@ impl<E: TcEnv> Tc<'_, E> {
                     None => (term, Some(call)),
                 }
             }
-            None => (term, None),
+            None => match *term.value() {
+                Term::Var(v) => {
+                    if let Some(val) = self.context.try_get_decl_value(v.symbol) {
+                        println!("Resolving var {}: {}", v, val);
+                        self.resolve_metas_and_vars(val)
+                    } else {
+                        (term, None)
+                    }
+                }
+                _ => (term, None),
+            },
         }
     }
 }

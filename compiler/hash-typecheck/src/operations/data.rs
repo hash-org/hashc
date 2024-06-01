@@ -77,12 +77,14 @@ impl<E: TcEnv> OperationsOn<CtorTerm> for Tc<'_, E> {
         // parameters. Substitute any results to the constructor arguments, the
         // result arguments of the constructor, and the constructor data
         // arguments.
+
         self.context().enter_scope(ScopeKind::Sub, || {
             self.check_node_scoped(term.ctor_args, subbed_ctor_params, |inferred_term_ctor_args| {
                 term.ctor_args = inferred_term_ctor_args;
                 original_term_id.set(original_term_id.value().with_data(term.into()));
 
                 self.substituter().apply_sub_from_context(subbed_ctor_params);
+
                 self.unify_nodes_scoped(subbed_ctor_result_args, annotation_data_ty.args, |_| {
                     Ok(())
                 })?;
@@ -127,6 +129,8 @@ impl<E: TcEnv> OperationsOn<DataTy> for Tc<'_, E> {
     ) -> TcResult<()> {
         let data_def = data_ty.data_def.value();
         let copied_params = self.visitor().copy(data_def.params);
+        println!("Data args: {}", data_ty.args);
+        println!("Copied params: {}", copied_params);
         self.check_node_scoped(data_ty.args, copied_params, |inferred_data_ty_args| {
             data_ty.args = inferred_data_ty_args;
             term_id.set(term_id.value().with_data((*data_ty).into()));

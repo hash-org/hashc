@@ -31,7 +31,7 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
         f: impl Fn(TermId, Option<MetaCall>) -> TcResult<A>,
     ) -> TcResult<A> {
         // First, resolve metas:
-        let (item, meta) = self.resolve_metas(item);
+        let (item, meta) = self.resolve_metas_and_vars(item);
 
         match f(item, meta) {
             Ok(result) => Ok(result), // Success, no normalisation needed

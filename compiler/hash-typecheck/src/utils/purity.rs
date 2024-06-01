@@ -67,37 +67,52 @@ impl<E: TcEnv> Tc<'_, E> {
                 | Term::Block(_) => ControlFlow::Continue(()),
 
                 Term::Call(fn_call) => {
-                    // Get its inferred type and check if it is pure
-                    match self.try_get_inferred_ty(fn_call.subject) {
-                        Some(fn_ty) => {
-                            match *fn_ty.value() {
-                                Ty::FnTy(fn_ty) => {
-                                    // If it is a function, check if it is pure
-                                    if fn_ty.pure {
-                                        // Check its args too
-                                        visitor.visit(fn_call.args, &mut |atom| {
-                                            self.atom_has_effects_once(visitor, atom, has_effects)
-                                        });
-                                        ControlFlow::Break(())
-                                    } else {
-                                        *has_effects = Some(true);
-                                        ControlFlow::Break(())
-                                    }
-                                }
-                                _ => {
-                                    // If it is not a function, it is a function reference, which is
-                                    // pure
-                                    info!(
+                    match self.classify_meta_call(Term::Call(fn_call)) {
+                        None => {
+                            // Get its inferred type and check if it is pure
+                            match self.try_get_inferred_ty(fn_call.subject) {
+                                Some(fn_ty) => {
+                                    match *fn_ty.value() {
+                                        Ty::FnTy(fn_ty) => {
+                                            // If it is a function, check if it is pure
+                                            if fn_ty.pure {
+                                                // Check its args too
+                                                visitor.visit(fn_call.args, &mut |atom| {
+                                                    self.atom_has_effects_once(
+                                                        visitor,
+                                                        atom,
+                                                        has_effects,
+                                                    )
+                                                });
+                                                ControlFlow::Break(())
+                                            } else {
+                                                *has_effects = Some(true);
+                                                ControlFlow::Break(())
+                                            }
+                                        }
+                                        _ => {
+                                            // If it is not a function, it is a function reference,
+                                            // which is
+                                            // pure
+                                            info!(
                                         "Found a function term that is not typed as a function: {}",
                                         fn_call.subject
                                     );
+                                            ControlFlow::Break(())
+                                        }
+                                    }
+                                }
+                                None => {
+                                    // Unknown
+                                    *has_effects = None;
                                     ControlFlow::Break(())
                                 }
                             }
                         }
-                        None => {
-                            // Unknown
-                            *has_effects = None;
+                        Some(_) => {
+                            // If it is a meta call, we treat it as if it doesn't have effects
+                            // @@Correctness: this is not sound!
+                            *has_effects = Some(false);
                             ControlFlow::Break(())
                         }
                     }

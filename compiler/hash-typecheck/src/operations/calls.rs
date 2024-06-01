@@ -113,9 +113,8 @@ impl<E: TcEnv> OperationsOn<CallTerm> for Tc<'_, E> {
         // Beta-reduce:
         if let Term::Fn(fn_def_id) = subject {
             let fn_def = fn_def_id.value();
-            if (fn_def.ty.pure
-                || matches!(self.normalisation_opts.mode.get(), NormalisationMode::Full))
-                && self.try_get_inferred_ty(fn_def_id).is_some()
+            if fn_def.ty.pure
+                || matches!(self.normalisation_opts.mode.get(), NormalisationMode::Full)
             {
                 return self.context().enter_scope(fn_def_id.into(), || {
                     // Add argument bindings:
