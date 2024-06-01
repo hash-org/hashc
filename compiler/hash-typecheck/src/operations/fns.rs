@@ -91,11 +91,10 @@ impl<E: TcEnv> OperationsOn<FnDefId> for Tc<'_, E> {
         original_term_id: Self::Node,
     ) -> TcResult<()> {
         let fn_def_id = *fn_def_id;
-        self.check_ty(annotation_ty)?;
         if let Some(fn_ty) = self.try_get_inferred_ty(fn_def_id) {
             let expected =
                 Ty::expect_is(original_term_id, Ty::from(fn_ty, fn_def_id.origin().inferred()));
-            self.check_by_unify(expected, annotation_ty)?;
+            self.unify_nodes(expected, annotation_ty)?;
             return Ok(());
         }
 
@@ -137,7 +136,7 @@ impl<E: TcEnv> OperationsOn<FnDefId> for Tc<'_, E> {
 
         let fn_ty_id =
             Ty::expect_is(original_term_id, Ty::from(fn_def.ty, fn_def_id.origin().inferred()));
-        self.check_by_unify(fn_ty_id, annotation_ty)?;
+        self.unify_nodes(fn_ty_id, annotation_ty)?;
 
         self.register_atom_inference(fn_def_id, fn_def_id, fn_def.ty);
 

@@ -23,7 +23,7 @@ impl<E: TcEnv> OperationsOn<RefTerm> for Tc<'_, E> {
         annotation_ty: Self::AnnotNode,
         original_term_id: Self::Node,
     ) -> crate::diagnostics::TcResult<()> {
-        self.normalise_and_check_ty(annotation_ty)?;
+        self.normalise_node_in_place_no_signals(annotation_ty)?;
         let annotation_ref_ty = match *annotation_ty.value() {
             Ty::RefTy(ref_ty) => ref_ty,
             Ty::Meta(_) => RefTy {
@@ -50,7 +50,7 @@ impl<E: TcEnv> OperationsOn<RefTerm> for Tc<'_, E> {
 
         let ty =
             Ty::expect_is(original_term_id, Ty::from(annotation_ref_ty, annotation_ty.origin()));
-        self.check_by_unify(ty, annotation_ty)?;
+        self.unify_nodes(ty, annotation_ty)?;;
         Ok(())
     }
 
@@ -99,7 +99,7 @@ impl<E: TcEnv> OperationsOn<DerefTerm> for Tc<'_, E> {
             }
         };
 
-        self.check_by_unify(dereferenced_ty, annotation_ty)?;
+        self.unify_nodes(dereferenced_ty, annotation_ty)?;;
         Ok(())
     }
 

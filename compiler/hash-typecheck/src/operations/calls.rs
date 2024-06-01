@@ -33,7 +33,6 @@ impl<E: TcEnv> OperationsOn<CallTerm> for Tc<'_, E> {
         original_term_id: Self::Node,
     ) -> TcResult<()> {
         self.context().enter_scope(ScopeKind::Sub, || {
-            // self.normalise_and_check_ty(annotation_ty)?;
             let inferred_subject_ty = self.fresh_meta_for(call_term.subject);
             self.check_node(call_term.subject, inferred_subject_ty)?;
 

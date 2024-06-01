@@ -47,7 +47,7 @@ impl<E: TcEnv> OperationsOn<BlockTerm> for Tc<'_, E> {
             for statement in block_term.statements.iter() {
                 let ty_to_check_divergence = match *statement.value() {
                     BlockStatement::Decl(decl) => {
-                        self.check_ty(decl.ty)?;
+                        self.check_node(decl.ty, Ty::universe_of(decl.ty))?;
                         self.check_node(decl.value, decl.ty)?;
                         self.in_pat.enter(true, || self.check_node(decl.bind_pat, decl.ty))?;
 
@@ -80,7 +80,7 @@ impl<E: TcEnv> OperationsOn<BlockTerm> for Tc<'_, E> {
                         // If it diverges, we can just infer the return type as `never`.
                         let block_term_ty =
                             Ty::expect_is(original_term_id, never_ty(NodeOrigin::Expected));
-                        self.check_by_unify(block_term_ty, annotation_ty)?;
+                        self.unify_nodes(block_term_ty, annotation_ty)?;;
                     }
                     _ => {
                         // Infer the return value

@@ -39,9 +39,6 @@ impl<E: TcEnv> OperationsOn<CtorTerm> for Tc<'_, E> {
         let copied_ctor_params = self.visitor().copy(ctor.params);
         let copied_ctor_result_args = self.visitor().copy(ctor.result_args);
 
-        // Ensure the annotation is valid
-        self.normalise_and_check_ty(annotation_ty)?;
-
         // Get the annotation as a DataTy, or create a hole one if not given
         let annotation_data_ty = match *annotation_ty.value() {
             Ty::DataTy(data) if data.data_def == ctor.data_def_id => DataTy {

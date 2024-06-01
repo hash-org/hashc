@@ -37,7 +37,7 @@ impl<E: TcEnv> OperationsOn<ReturnTerm> for Tc<'_, E> {
                 self.check_node(return_term.expression, closest_fn_def_return_ty)?;
 
                 let inferred_ty = Ty::expect_is(original_term_id, never_ty(NodeOrigin::Expected));
-                self.check_by_unify(inferred_ty, annotation_ty)?;
+                self.unify_nodes(inferred_ty, annotation_ty)?;
                 Ok(())
             }
             None => panic!("no fn def found in scope for return term"),
@@ -75,7 +75,8 @@ impl<E: TcEnv> OperationsOn<LoopControlTerm> for Tc<'_, E> {
         _: Self::Node,
     ) -> crate::diagnostics::TcResult<()> {
         // Always `never`.
-        self.check_by_unify(never_ty(NodeOrigin::Expected), annotation_ty)
+        let inferred_ty = never_ty(NodeOrigin::Expected);
+        self.unify_nodes(inferred_ty, annotation_ty)
     }
 
     fn try_normalise(
@@ -118,7 +119,7 @@ impl<E: TcEnv> OperationsOn<LoopTerm> for Tc<'_, E> {
         self.check_node(loop_term.inner, self.fresh_meta(loop_term.inner.origin().inferred()))?;
         let loop_term =
             Ty::expect_is(original_term_id, Ty::unit_ty(original_term_id.origin().inferred()));
-        self.check_by_unify(loop_term, annotation_ty)?;
+        self.unify_nodes(loop_term, annotation_ty)?;
         Ok(())
     }
 
@@ -164,11 +165,11 @@ impl<E: TcEnv> OperationsOn<AssignTerm> for Tc<'_, E> {
         let value_ty = self.fresh_meta_for(assign_term.value);
         self.check_node(assign_term.value, value_ty)?;
 
-        self.check_by_unify(value_ty, subject_ty)?;
+        self.unify_nodes(value_ty, subject_ty)?;
 
         let inferred_ty =
             Ty::expect_is(original_term_id, Ty::unit_ty(original_term_id.origin().inferred()));
-        self.check_by_unify(inferred_ty, annotation_ty)?;
+        self.unify_nodes(inferred_ty, annotation_ty)?;
         Ok(())
     }
 

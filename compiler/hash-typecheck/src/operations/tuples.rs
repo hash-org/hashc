@@ -12,7 +12,7 @@ use crate::{
     env::TcEnv,
     options::normalisation::{normalise_nested, NormaliseResult},
     tc::Tc,
-    traits::{OperationsOn, ScopedOperationsOnNode},
+    traits::{OperationsOn, OperationsOnNode, ScopedOperationsOnNode},
 };
 
 impl<E: TcEnv> OperationsOn<TupleTerm> for Tc<'_, E> {
@@ -26,7 +26,7 @@ impl<E: TcEnv> OperationsOn<TupleTerm> for Tc<'_, E> {
         original_term_id: Self::Node,
     ) -> TcResult<()> {
         self.context().enter_scope(ScopeKind::Sub, || {
-            self.normalise_and_check_ty(annotation_ty)?;
+            self.normalise_node_in_place_no_signals(annotation_ty)?;
             let params = match *annotation_ty.value() {
                 Ty::TupleTy(tuple_ty) => self.visitor().copy(tuple_ty.data),
                 Ty::Meta(_) => self.params_from_args_with_hole_types(tuple_term.data),
@@ -53,7 +53,7 @@ impl<E: TcEnv> OperationsOn<TupleTerm> for Tc<'_, E> {
                 original_term_id,
                 Ty::from(TupleTy { data: params }, annotation_ty.origin()),
             );
-            self.check_by_unify(tuple_ty, annotation_ty)?;
+            self.unify_nodes(tuple_ty, annotation_ty)?;
             // @@Review: why is this needed? Shouldn't the substitution be applied during
             // `check_by_unify`?
             self.substituter().apply_sub_from_context(annotation_ty);

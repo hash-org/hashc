@@ -74,7 +74,7 @@ impl<E: TcEnv> OperationsOn<AccessTerm> for Tc<'_, E> {
                 self.substituter().create_sub_from_param_access(params, access_term.subject);
             let subbed_param_ty =
                 self.substituter().apply_sub(param.borrow().ty, &param_access_sub);
-            self.check_by_unify(subbed_param_ty, annotation_ty)?;
+            self.unify_nodes(subbed_param_ty, annotation_ty)?;
             Ok(())
         } else {
             Err(TcError::PropertyNotFound {

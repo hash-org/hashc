@@ -20,7 +20,8 @@ impl<E: TcEnv> OperationsOn<AnnotTerm> for Tc<'_, E> {
         _: Self::Node,
     ) -> crate::diagnostics::TcResult<()> {
         self.check_node(cast_term.subject_term, cast_term.target_ty)?;
-        self.check_by_unify(cast_term.target_ty, annotation_ty)?;
+        let inferred_ty = cast_term.target_ty;
+        self.unify_nodes(inferred_ty, annotation_ty);
         Ok(())
     }
 

@@ -138,8 +138,6 @@ impl<E: TcEnv> OperationsOn<ArrayTerm> for Tc<'_, E> {
         annotation_ty: Self::AnnotNode,
         _: Self::Node,
     ) -> TcResult<()> {
-        self.normalise_and_check_ty(annotation_ty)?;
-
         let array_len_origin = array_term.length_origin();
         let (inner_ty, array_len) = self
             .use_ty_as_array_ty(annotation_ty)?
@@ -182,7 +180,7 @@ impl<E: TcEnv> OperationsOn<ArrayTerm> for Tc<'_, E> {
                 ArrayTerm::Repeated(_, repeat) => array_ty(inner_ty, *repeat, NodeOrigin::Expected),
             };
 
-            self.check_by_unify(default_annotation, annotation_ty)?
+            self.unify_nodes(default_annotation, annotation_ty)?;
         };
 
         Ok(())
@@ -226,11 +224,8 @@ impl<E: TcEnv> OperationsOn<IndexTerm> for Tc<'_, E> {
         annotation_ty: Self::AnnotNode,
         original_term_id: Self::Node,
     ) -> TcResult<()> {
-        self.check_ty(annotation_ty)?;
-
         let subject_ty = self.fresh_meta_for(index_term.subject);
         self.check_node(index_term.subject, subject_ty)?;
-        self.normalise_and_check_ty(subject_ty)?;
 
         // Ensure the index is a usize
         let index_ty =
@@ -245,6 +240,7 @@ impl<E: TcEnv> OperationsOn<IndexTerm> for Tc<'_, E> {
             })
         };
 
+        self.normalise_node_in_place_no_signals(subject_ty)?;
         // Ensure that the subject is array-like
         let inferred_ty = match *subject_ty.value() {
             Ty::DataTy(data_ty) => {
@@ -264,7 +260,7 @@ impl<E: TcEnv> OperationsOn<IndexTerm> for Tc<'_, E> {
             _ => wrong_subject_ty(),
         }?;
 
-        self.check_by_unify(inferred_ty, annotation_ty)?;
+        self.unify_nodes(inferred_ty, annotation_ty)?;
         Ok(())
     }
 
