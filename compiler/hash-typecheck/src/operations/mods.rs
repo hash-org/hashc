@@ -4,7 +4,7 @@ use hash_reporting::diagnostic::ErrorState;
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     context::HasContext,
-    tir::{ModDefId, ModMemberId, ModMemberValue, NodeId, Term, Ty},
+    tir::{ModDefId, ModMemberId, ModMemberValue, NodeId, Term},
 };
 
 use crate::{

@@ -21,7 +21,7 @@ use crate::{error::PipelineError, fs::resolve_path};
 /// Various settings that are present on the compiler pipeline when initially
 /// launching.
 #[derive(Parser, Debug, Clone)]
-#[command(name = "hashc", version, about = "", author)]
+#[command(name = "hashc", version = env!("COMPILER_VERSION"), about = "", author)]
 pub struct CompilerSettings {
     /// An optionally specified entry point for the compiler.
     ///
@@ -121,6 +121,12 @@ impl CompilerSettings {
         Self::default()
     }
 
+    pub fn new_from_args() -> Self {
+        let mut this = Self::parse();
+        this.apply_optimisation_level(this.optimisation_level);
+        this
+    }
+
     /// Get the entry point filename from the [CompilerSettings]. If
     /// [`None`] was provided, it is assumed that this is then an interactive
     /// session.
@@ -147,8 +153,8 @@ impl CompilerSettings {
     ///    entry point with an appended `out` directory.
     ///
     /// 3. If the user has not specified an entry point, use the operating
-    /// system    temporary directory with an appended `hash-#session-id`
-    /// directory.
+    ///    system temporary directory with an appended `hash-#session-id`
+    ///    directory.
     pub fn output_directory(&self) -> Result<PathBuf, PipelineError> {
         // For the `temp` directory case, we want to create a folder within the
         // temporary directory that is unique to this session.
@@ -202,9 +208,18 @@ impl CompilerSettings {
     /// `checked_operations` are disabled.
     pub fn set_optimisation_level(&mut self, level: OptimisationLevel) {
         self.optimisation_level = level;
+        self.apply_optimisation_level(level);
+    }
 
-        if self.optimisation_level == OptimisationLevel::Release {
-            self.lowering_settings.checked_operations = false;
+    pub fn apply_optimisation_level(&mut self, level: OptimisationLevel) {
+        match level {
+            OptimisationLevel::Debug => {
+                self.lowering_settings.checked_operations = true;
+            }
+            OptimisationLevel::Release => {
+                self.lowering_settings.checked_operations = false;
+            }
+            OptimisationLevel::Size | OptimisationLevel::MinSize => {}
         }
     }
 
@@ -400,7 +415,7 @@ pub struct LoweringSettings {
 
     /// Use checked operations when emitting IR, this is usually derived whether
     /// the compiler is building a debug variant or not.
-    #[arg(long = "ir-checked-operations", default_value_t = true)]
+    #[arg(long = "ir-checked-operations", default_value_t = true, action = clap::ArgAction::Set)]
     pub checked_operations: bool,
 }
 
@@ -472,7 +487,7 @@ pub struct CodeGenSettings {
     /// be that some functions/expressions are evaluated at compile-time via the
     /// Hash VM which may mean that the code generation backend for that one
     /// might differ from the overall code generation backend.
-    #[arg(long="backend", default_value_t = CodeGenBackend::LLVM)]
+    #[arg(long="backend", default_value_t = CodeGenBackend::default())]
     pub backend: CodeGenBackend,
 
     /// An optionally specified path to a file that should be used to
@@ -537,21 +552,49 @@ impl Default for CodeGenSettings {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum CodeGenBackend {
     /// The LLVM backend is target for code generation.
+    #[cfg(feature = "llvm")]
     LLVM,
 
     /// The Hash VM interpreter is being targeted.
     VM,
 }
 
+impl CodeGenBackend {
+    /// Check if the code generation backend is the LLVM backend.
+    #[cfg(feature = "llvm")]
+    pub fn is_llvm(&self) -> bool {
+        matches!(self, Self::LLVM)
+    }
+
+    #[cfg(not(feature = "llvm"))]
+    pub fn is_llvm(&self) -> bool {
+        false
+    }
+
+    /// Check if the code generation backend is the Hash VM backend.
+    pub fn is_vm(&self) -> bool {
+        matches!(self, Self::VM)
+    }
+}
+
+#[cfg(feature = "llvm")]
 impl Default for CodeGenBackend {
     fn default() -> Self {
         Self::LLVM
     }
 }
 
+#[cfg(not(feature = "llvm"))]
+impl Default for CodeGenBackend {
+    fn default() -> Self {
+        Self::VM
+    }
+}
+
 impl fmt::Display for CodeGenBackend {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            #[cfg(feature = "llvm")]
             Self::LLVM => write!(f, "llvm"),
             Self::VM => write!(f, "vm"),
         }

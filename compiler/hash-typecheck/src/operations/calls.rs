@@ -5,7 +5,7 @@ use hash_tir::{
     atom_info::ItemInAtomInfo,
     context::{HasContext, ScopeKind},
     intrinsics::make::IsIntrinsic,
-    tir::{Arg, CallTerm, NodeId, NodesId, Term, TermId, Ty, TyId},
+    tir::{CallTerm, NodeId, NodesId, Term, TermId, Ty, TyId},
     visitor::Map,
 };
 use itertools::Itertools;
@@ -33,7 +33,7 @@ impl<E: TcEnv> OperationsOn<CallTerm> for Tc<'_, E> {
         original_term_id: Self::Node,
     ) -> TcResult<()> {
         self.context().enter_scope(ScopeKind::Sub, || {
-            self.normalise_and_check_ty(annotation_ty)?;
+            // self.normalise_and_check_ty(annotation_ty)?;
             let inferred_subject_ty = self.fresh_meta_for(call_term.subject);
             self.check_node(call_term.subject, inferred_subject_ty)?;
 

@@ -1,5 +1,6 @@
 //! Definitions for errors and warnings that can occur during typechecking.
-use hash_ast::lit::LitParseError;
+
+use hash_ast_utils::lit::LitParseError;
 use hash_reporting::diagnostic::IntoCompound;
 use hash_tir::{
     tir::{

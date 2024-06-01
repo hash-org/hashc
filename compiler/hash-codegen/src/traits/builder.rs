@@ -20,8 +20,8 @@ use crate::{
     common::{
         AtomicOrdering, CheckedOp, IntComparisonKind, MemFlags, RealComparisonKind, TypeKind,
     },
-    layout::LayoutId,
     lower::{operands::OperandRef, place::PlaceRef},
+    repr::LayoutId,
 };
 
 /// This trait defines all methods required to convert a Hash IR `BasicBlock`
@@ -94,7 +94,8 @@ pub trait BlockBuilderMethods<'a, 'b>:
     /// function.
     fn call(
         &mut self,
-        fn_ptr: Self::Function,
+        fn_ty: Self::Type,
+        fn_ptr: Self::Value,
         args: &[Self::Value],
         fn_abi: Option<FnAbiId>,
     ) -> Self::Value;

@@ -11,7 +11,7 @@ use hash_ir::{
     traversal,
     visitor::{ImmutablePlaceCtx, IrVisitorCtx, IrVisitorMut, MutablePlaceCtx, PlaceCtx},
 };
-use hash_layout::TyInfo;
+use hash_repr::TyInfo;
 use hash_storage::store::SequenceStoreKey;
 use hash_utils::{graph::dominators::Dominators, index_vec::IndexVec};
 
@@ -176,15 +176,14 @@ impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> LocalKindAnalyser<'ir, '
     /// change the previous kind of memory with the following rules:
     ///
     /// - If the previous kind of memory was a [LocalMemoryKind::Zst] or
-    /// [LocalMemoryKind::Memory] then no changes occur since these cannot
-    /// in any way be promoted.
+    ///   [LocalMemoryKind::Memory] then no changes occur since these cannot in
+    ///   any way be promoted.
     ///
-    /// - If the previous kind of memory is [LocalMemoryKind::Unused] then it
-    /// is converted into a [LocalMemoryKind::Ssa] with an associated [IrRef].
+    /// - If the previous kind of memory is [LocalMemoryKind::Unused] then it is
+    ///   converted into a [LocalMemoryKind::Ssa] with an associated [IrRef].
     ///
-    /// - If the previous kind of memory is [LocalMemoryKind::SSA] then it
-    /// is converted into a [LocalMemoryKind::Memory] since it is no longer
-    /// SSA.
+    /// - If the previous kind of memory is [LocalMemoryKind::SSA] then it is
+    ///   converted into a [LocalMemoryKind::Memory] since it is no longer SSA.
     pub fn assign(&mut self, local: Local, reference: ir::IrRef) {
         let local_kind = &mut self.locals[local];
 

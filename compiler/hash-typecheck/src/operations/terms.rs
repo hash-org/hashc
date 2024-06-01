@@ -88,7 +88,6 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
             },
         };
 
-        self.check_ty(annotation_ty)?;
         self.register_atom_inference(term_id, term_id, annotation_ty);
 
         // Potentially evaluate the term.

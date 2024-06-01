@@ -1,11 +1,14 @@
-/// Declaratively defines all the primitives and intrinsics of the language at
-/// the TIR level.
+//! Declaratively defines all the primitives and intrinsics of the language at
+//! the TIR level.
 use std::process;
 
+use hash_const_eval::{
+    eval::ConstFolder,
+    op::{BinOp, UnOp},
+};
 use hash_source::identifier::Identifier;
 use hash_storage::store::statics::StoreId;
 use hash_utils::stream_less_writeln;
-use num_enum::{IntoPrimitive, TryFromPrimitive};
 use paste::paste;
 
 use crate::{
@@ -13,112 +16,40 @@ use crate::{
         args, indexed_enum_def, params, primitive_with_params, ref_ty, sym, term, ty, unit_term,
         Type,
     },
-    intrinsics::{
-        make::{IntrinsicAbilities, IsIntrinsic, IsPrimitive},
-        utils::{
-            bool_term, create_term_from_float_lit, create_term_from_integer_lit,
-            try_use_term_as_bool, try_use_term_as_char_lit, try_use_term_as_float_lit,
-            try_use_term_as_integer_lit, try_use_ty_as_lit_ty, LitTy,
-        },
-    },
+    intrinsics::utils::{try_use_term_as_const, try_use_term_as_integer_lit},
     make_intrinsics, make_primitives,
     tir::{
-        numeric_ctors, ArrayCtorInfo, CtorDefId, DataDefId, FnTy, Lit, ModMember, NodeId,
-        NodeOrigin, NumericCtorFlags, PrimitiveCtorInfo, RefKind, Term, TermId, TyId,
+        numeric_ctors, ArrayCtorInfo, CtorDefId, DataDefId, FnTy, Lit, ModMember, Node, NodeOrigin,
+        NumericCtorFlags, PrimitiveCtorInfo, RefKind, Term, TermId, TyId,
     },
 };
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
-#[repr(u8)]
-pub enum UnOp {
-    /// Logical negation (!)
-    Not,
-    /// Bitwise negation (~)
-    BitNot,
-    /// Negation (-)
-    Neg,
-}
-
-/// A boolean-valued binary operator.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
-#[repr(u8)]
-pub enum CondBinOp {
-    /// '=='
-    EqEq,
-    /// '!='
-    NotEq,
-    /// '>'
-    Gt,
-    /// '>='
-    GtEq,
-    /// '<'
-    Lt,
-    /// '<='
-    LtEq,
-}
-
-/// This represents the result of a short-circuiting binary operators
-/// that can occur as intrinsics.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
-#[repr(u8)]
-pub enum ShortCircuitingBoolOp {
-    /// '||'
-    Or,
-    /// '&&'
-    And,
-}
-
-/// A binary operator whose result is the same type as its arguments.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
-#[repr(u8)]
-pub enum BinOp {
-    /// '|'
-    BitOr,
-    /// '&'
-    BitAnd,
-    /// '^'
-    BitXor,
-    /// '**'
-    Exp,
-    /// '>>'
-    Shr,
-    /// '<<'
-    Shl,
-    /// '+'
-    Add,
-    /// '-'
-    Sub,
-    /// '*'
-    Mul,
-    /// '/'
-    Div,
-    /// '%'
-    Mod,
-}
+const INVALID_OP: &str = "Invalid cond-binary operation parameters";
+const NON_CONST_OPERAND: &str = "no-const operand";
 
 make_intrinsics! {
     size_of := (T: Type()) -> usize_gen_ty() => |env| {
-        // @@Todo: actually return the size
+        // @@Todo: actually return the size.
         Ok(None)
     };
 
     align_of := (T: Type()) -> usize_gen_ty() => |env| {
-        // @@Todo: actually return the size
+        // @@Todo: actually return the alignment.
         Ok(None)
     };
 
     ptr_offset := (bytes: ref_ty(u8_gen_ty(), RefKind::Raw, false), len: usize_gen_ty()) -> ref_ty(u8_gen_ty(), RefKind::Raw, false) => |env| {
-        // @@Todo: actually calculate the offset
+        // @@Todo: actually calculate the offset.
         Ok(None)
     };
 
     memcpy := (dest: ref_ty(u8_gen_ty(), RefKind::Raw, false), src: ref_ty(u8_gen_ty(), RefKind::Raw, false), len: usize_gen_ty()) -> ref_ty(u8_gen_ty(), RefKind::Raw, false) => |env| {
-        // @@Todo: actually perform memcpy (Probably on an `AllocId`)
+        // @@Todo: actually perform memcpy (Probably on an `AllocId`).
         Ok(None)
     };
 
     memcmp := (a: ref_ty(u8_gen_ty(), RefKind::Raw, false), b: ref_ty(u8_gen_ty(), RefKind::Raw, false), len: usize_gen_ty()) -> i32_gen_ty() => |env| {
-        // @@Todo: actually perform memcmp (Probably on an `AllocId`)
+        // @@Todo: actually perform memcmp (Probably on an `AllocId`).
         Ok(None)
     };
 
@@ -146,8 +77,8 @@ make_intrinsics! {
     };
 
     user_error := (message: str_gen_ty()) -> never_gen_ty() => |env| {
-        if let Term::Lit(lit) = *message.value() && let Lit::Str(str_lit) = *lit.value() {
-            Err(str_lit.value().to_string())
+        if let Term::Lit(lit) = *message.value() && let Lit::Const(value) = *lit.value() {
+            Err(value.as_alloc().to_str())
         } else {
             Err("`user_error` expects a string literal as argument".to_string())
         }
@@ -160,151 +91,40 @@ make_intrinsics! {
 
     // Condition binary operations (i.e. returning booleans)
     cond_bin_op := (T: Type(), op: u8_gen_ty(), a: ty(T), b: ty(T)) -> bool_gen_ty() => |env| {
-        const INVALID_OP: &str = "Invalid cond-binary operation parameters";
-
         // Parse the operator.
-        let parsed_op = CondBinOp::try_from(
+        let parsed_op = BinOp::try_from(
             try_use_term_as_integer_lit::<_, u8>(&env, op).ok_or(INVALID_OP)?,
         )
         .map_err(|_| INVALID_OP)?;
 
-        // Valid operations on big-ints
-        macro_rules! operate_bool {
-            ($op:expr, $lhs:expr, $rhs:expr) => {
-                match $op {
-                    CondBinOp::EqEq => $lhs == $rhs,
-                    CondBinOp::NotEq => $lhs != $rhs,
-                    _ => return Err(INVALID_OP.to_string()),
-                }
-            };
-        }
+        let lhs_const = try_use_term_as_const(&env, a).ok_or(NON_CONST_OPERAND)?;
+        let rhs_const = try_use_term_as_const(&env, b).ok_or(NON_CONST_OPERAND)?;
 
-        // Valid operations on floats
-        macro_rules! operate_float {
-            ($op:expr, $lhs:expr, $rhs:expr) => {
-                match $op {
-                    CondBinOp::EqEq => $lhs == $rhs,
-                    CondBinOp::NotEq => $lhs != $rhs,
-                    CondBinOp::Gt => $lhs > $rhs,
-                    CondBinOp::GtEq => $lhs >= $rhs,
-                    CondBinOp::Lt => $lhs < $rhs,
-                    CondBinOp::LtEq => $lhs <= $rhs,
-                }
-            };
-        }
-
-        // Valid operations on integers
-        macro_rules! operate_int {
-            ($op:expr, $lhs:expr, $rhs:expr) => {
-                match $op {
-                    CondBinOp::EqEq => $lhs == $rhs,
-                    CondBinOp::NotEq => $lhs != $rhs,
-                    CondBinOp::Gt => $lhs > $rhs,
-                    CondBinOp::GtEq => $lhs >= $rhs,
-                    CondBinOp::Lt => $lhs < $rhs,
-                    CondBinOp::LtEq => $lhs <= $rhs,
-                }
-            };
-        }
-
-        // Valid operations on characters
-        macro_rules! operate_char {
-            ($op:expr, $lhs:expr, $rhs:expr) => {
-                match $op {
-                    CondBinOp::EqEq => $lhs == $rhs,
-                    CondBinOp::NotEq => $lhs != $rhs,
-                    CondBinOp::Gt => $lhs > $rhs,
-                    CondBinOp::GtEq => $lhs >= $rhs,
-                    CondBinOp::Lt => $lhs < $rhs,
-                    CondBinOp::LtEq => $lhs <= $rhs,
-                }
-            };
-        }
-
-        macro_rules! handle_integer {
-            ($rust_ty:ty) => {{
-                match (try_use_term_as_integer_lit::<_, $rust_ty>(&env, a), try_use_term_as_integer_lit::<_, $rust_ty>(&env, b)) {
-                    (Some(lhs), Some(rhs)) => {
-                        Ok(Some(bool_term(operate_int!(parsed_op, lhs, rhs), a.origin().computed())))
-                    },
-                    _ => Ok(None),
-                }
-            }};
-        }
-
-        macro_rules! handle_float {
-            ($rust_ty:ty) => {{
-                match (try_use_term_as_float_lit::<$rust_ty>(a), try_use_term_as_float_lit::<$rust_ty>(b)) {
-                    (Some(lhs), Some(rhs)) => {
-                        Ok(Some(bool_term(operate_float!(parsed_op, lhs, rhs), a.origin().computed())))
-                    },
-                    _ => Ok(None),
-                }
-            }};
-        }
-
-        // Handle each `T` parameter:
-        match try_use_ty_as_lit_ty(&env, T) {
-            Some(lit_ty) => match lit_ty {
-                LitTy::U8 => handle_integer!(u8),
-                LitTy::U16 => handle_integer!(u16),
-                LitTy::U32 => handle_integer!(u32),
-                LitTy::U64 => handle_integer!(u64),
-                LitTy::U128 => handle_integer!(u128),
-                LitTy::I8 => handle_integer!(i8),
-                LitTy::I16 => handle_integer!(i16),
-                LitTy::I32 => handle_integer!(i32),
-                LitTy::I64 => handle_integer!(i64),
-                LitTy::I128 => handle_integer!(i128),
-                LitTy::F32 => handle_float!(f32),
-                LitTy::F64 =>  handle_float!(f64),
-                LitTy::Bool => {
-                    match (try_use_term_as_bool(a), try_use_term_as_bool(b)) {
-                        (Some(lhs), Some(rhs)) => {
-                            Ok(Some(bool_term(operate_bool!(parsed_op, lhs, rhs), a.origin().computed())))
-                        },
-                        _ => Ok(None),
-                    }
-                }
-                LitTy::Char => {
-                    match (try_use_term_as_char_lit(a), try_use_term_as_char_lit(b)) {
-                        (Some(lhs), Some(rhs)) => {
-                            Ok(Some(bool_term(operate_char!(parsed_op, lhs, rhs), a.origin().computed())))
-                        },
-                        _ => Ok(None),
-                    }
-                }
-            },
-            None => Err(INVALID_OP.to_string()),
-        }
+        // Use the constant evaluator to perform the operation.
+        let eval = ConstFolder::new(env.layout_computer());
+        Ok(eval.try_fold_bin_op(parsed_op, &lhs_const, &rhs_const).map(|result| {
+            term(Node::create_gen(Lit::Const(result)))
+        }))
     };
 
     // Short-circuiting boolean binary operations
     short_circuiting_bool_op := (T: Type(), op: u8_gen_ty(), a: bool_gen_ty(), b: bool_gen_ty()) -> bool_gen_ty() => |env| {
-        const INVALID_OP: &str = "Invalid cond-binary operation parameters";
+
 
         // Parse the operator.
-        let parsed_op = ShortCircuitingBoolOp::try_from(
+        let parsed_op = BinOp::try_from(
             try_use_term_as_integer_lit::<_, u8>(&env, op).ok_or(INVALID_OP)?,
         )
         .map_err(|_| INVALID_OP)?;
 
-        // Valid operations on booleans
-        macro_rules! operate_bool {
-            ($op:expr, $lhs:expr, $rhs:expr) => {
-                match $op {
-                    ShortCircuitingBoolOp::And => $lhs && $rhs,
-                    ShortCircuitingBoolOp::Or => $lhs || $rhs,
-                }
-            };
-        }
+        let lhs_const = try_use_term_as_const(&env, a).ok_or("no-const operand")?;
+        let rhs_const = try_use_term_as_const(&env, b).ok_or("no-const operand")?;
 
-        match (try_use_term_as_bool(a), try_use_term_as_bool(b)) {
-            (Some(lhs), Some(rhs)) => {
-                Ok(Some(bool_term(operate_bool!(parsed_op, lhs, rhs), a.origin().computed())))
-            },
-            _ => Ok(None),
-        }
+        // Use the constant evaluator to perform the operation.
+        let eval = ConstFolder::new(env.layout_computer());
+        Ok(eval.try_fold_bin_op(parsed_op, &lhs_const, &rhs_const).map(|result| {
+            term(Node::create_gen(Lit::Const(result)))
+        }))
     };
 
     // Binary operations (returning the same type as the arguments)
@@ -317,82 +137,14 @@ make_intrinsics! {
         )
         .map_err(|_| INVALID_OP)?;
 
-        // Valid operations on floats
-        macro_rules! operate_float {
-            ($op:expr, $lhs:expr, $rhs:expr) => {
-                match $op {
-                    BinOp::Exp => $lhs.powf($rhs),
-                    BinOp::Add => $lhs + $rhs,
-                    BinOp::Sub => $lhs - $rhs,
-                    BinOp::Mul => $lhs * $rhs,
-                    BinOp::Div => $lhs / $rhs,
-                    BinOp::Mod => $lhs % $rhs,
-                    _ => return Err(INVALID_OP.to_string()),
-                }
-            };
-        }
+        let lhs_const = try_use_term_as_const(&env, a).ok_or(NON_CONST_OPERAND)?;
+        let rhs_const = try_use_term_as_const(&env, b).ok_or(NON_CONST_OPERAND)?;
 
-        // Valid operations on integers
-        macro_rules! operate_int {
-            ($op:expr, $lhs:expr, $rhs:expr) => {
-                match $op {
-                    BinOp::BitOr => $lhs | $rhs,
-                    BinOp::BitAnd => $lhs & $rhs,
-                    BinOp::BitXor => $lhs ^ $rhs,
-                    BinOp::Shr => $lhs >> $rhs,
-                    BinOp::Shl => $lhs << $rhs,
-                    BinOp::Add => $lhs + $rhs,
-                    BinOp::Sub => $lhs - $rhs,
-                    BinOp::Mul => $lhs * $rhs,
-                    BinOp::Div => $lhs / $rhs,
-                    BinOp::Mod => $lhs % $rhs,
-                    _ => return Err(INVALID_OP.to_string()),
-                }
-            };
-        }
-
-        macro_rules! handle_integer {
-            ($rust_ty:ty) => {{
-                match (try_use_term_as_integer_lit::<_, $rust_ty>(&env, a), try_use_term_as_integer_lit::<_, $rust_ty>(&env, b)) {
-                    (Some(lhs), Some(rhs)) => {
-                        Ok(Some(create_term_from_integer_lit(operate_int!(parsed_op, lhs, rhs), a.origin().computed())))
-                    },
-                    _ => Ok(None),
-                }
-            }};
-        }
-
-        macro_rules! handle_float {
-            ($rust_ty:ty) => {{
-                match (try_use_term_as_float_lit::<$rust_ty>(a), try_use_term_as_float_lit::<$rust_ty>(b)) {
-                    (Some(lhs), Some(rhs)) => {
-                        Ok(Some(create_term_from_float_lit(operate_float!(parsed_op, lhs, rhs), a.origin().computed())))
-                    },
-                    _ => Ok(None),
-                }
-            }};
-        }
-
-        // Handle each `T` parameter:
-        match try_use_ty_as_lit_ty(&env, T) {
-            Some(lit_ty) => match lit_ty {
-                LitTy::U8 => handle_integer!(u8),
-                LitTy::U16 => handle_integer!(u16),
-                LitTy::U32 => handle_integer!(u32),
-                LitTy::U64 => handle_integer!(u64),
-                LitTy::U128 => handle_integer!(u128),
-                LitTy::I8 => handle_integer!(i8),
-                LitTy::I16 => handle_integer!(i16),
-                LitTy::I32 => handle_integer!(i32),
-                LitTy::I64 => handle_integer!(i64),
-                LitTy::I128 => handle_integer!(i128),
-                LitTy::F32 => handle_float!(f32),
-                LitTy::F64 => handle_float!(f64),
-                LitTy::Bool => Err(INVALID_OP.to_string()),
-                LitTy::Char => Err(INVALID_OP.to_string()),
-            },
-            None => Err(INVALID_OP.to_string()),
-        }
+        // Use the constant evaluator to perform the operation.
+        let eval = ConstFolder::new(env.layout_computer());
+        Ok(eval.try_fold_bin_op(parsed_op, &lhs_const, &rhs_const).map(|result| {
+            term(Node::create_gen(Lit::Const(result)))
+        }))
     };
 
     // Unary operations
@@ -404,75 +156,13 @@ make_intrinsics! {
             UnOp::try_from(try_use_term_as_integer_lit::<_, u8>(&env, op).ok_or(INVALID_OP)?)
                 .map_err(|_| INVALID_OP)?;
 
-        // Valid operations on booleans
-        macro_rules! operate_bool {
-            ($op:expr, $a:expr) => {
-                match $op {
-                    UnOp::Not => !$a,
-                    _ => return Err(INVALID_OP.to_string()),
-                }
-            };
-        }
+        let lhs_const = try_use_term_as_const(&env, a).ok_or(NON_CONST_OPERAND)?;
 
-        // Valid operations on floats
-        macro_rules! operate_float {
-            ($op:expr, $a:expr) => {
-                match $op {
-                    UnOp::Neg => -($a),
-                    _ => return Err(INVALID_OP.to_string()),
-                }
-            };
-        }
-
-        // Valid operations on integers
-        macro_rules! operate_integer {
-            ($op:expr, $a:expr) => {
-                match $op {
-                    UnOp::Neg => -($a),
-                    UnOp::BitNot => !($a),
-                    _ => return Err(INVALID_OP.to_string()),
-                }
-            };
-        }
-
-        macro_rules! handle_integer {
-            ($rust_ty:ty) => {
-                match try_use_term_as_integer_lit::<_, $rust_ty>(&env, a) {
-                    Some(a_lit) => Ok(Some(create_term_from_integer_lit(operate_integer!(parsed_op, a_lit), a.origin().computed()))),
-                    None => Ok(None),
-                }
-            };
-        }
-
-        macro_rules! handle_float {
-            ($rust_ty:ty) => {
-                match try_use_term_as_float_lit::<$rust_ty>(a) {
-                    Some(a_lit) => Ok(Some(create_term_from_float_lit(operate_float!(parsed_op, a_lit), a.origin().computed()))),
-                    None => Ok(None),
-                }
-            };
-        }
-
-        // Handle each `T` parameter:
-        match try_use_ty_as_lit_ty(&env, T) {
-            Some(lit_ty) => match lit_ty {
-                LitTy::I8 => handle_integer!(i8),
-                LitTy::I16 => handle_integer!(i16),
-                LitTy::I32 => handle_integer!(i32),
-                LitTy::I64 => handle_integer!(i64),
-                LitTy::I128 => handle_integer!(i128),
-                LitTy::F32 => handle_float!(f32),
-                LitTy::F64 => handle_float!(f64),
-                LitTy::Bool => {
-                    match try_use_term_as_bool(a) {
-                        Some(a_bool) => Ok(Some(bool_term(operate_bool!(parsed_op, a_bool), a.origin().computed()))),
-                        None => Ok(None),
-                    }
-                }
-                _ => Err(INVALID_OP.to_string()),
-            },
-            None => Err(INVALID_OP.to_string()),
-        }
+        // Use the constant evaluator to perform the operation.
+        let eval = ConstFolder::new(env.layout_computer());
+        Ok(eval.try_fold_un_op(parsed_op, &lhs_const).map(|result| {
+            term(Node::create_gen(Lit::Const(result)))
+        }))
     };
 }
 

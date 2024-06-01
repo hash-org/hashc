@@ -335,12 +335,14 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
             // they're partially covered by other ranges.
             if let DeconstructedCtor::IntRange(range) = self.get_ctor(v_ctor) {
                 if let Some(pat) = head.id {
+                    let ty = self.ty_lower().repr_ty_from_tir_ty(*ty);
+
                     self.check_for_overlapping_endpoints(
                         pat,
                         *range,
                         matrix.heads(),
                         matrix.column_count().unwrap_or(0),
-                        *ty,
+                        ty,
                     );
                 }
             }

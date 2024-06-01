@@ -232,10 +232,12 @@ impl<E: ExhaustivenessEnv> fmt::Debug for ExhaustivenessFmtCtx<'_, Deconstructed
                 write!(f, ")")
             }
             DeconstructedCtor::IntRange(range) => {
-                let bias = self.checker.signed_bias(pat.ty);
+                // Convert the type into a ReprTy
+                let ty = self.checker.ty_lower().repr_ty_from_tir_ty(pat.ty);
+                let bias = self.checker.signed_bias(ty);
                 write!(f, "{:?}", IntRangeWithBias::new(*range, bias))
             }
-            DeconstructedCtor::Str(value) => write!(f, "{value}"),
+            DeconstructedCtor::Str(value) => write!(f, "{}", value.to_str()),
             DeconstructedCtor::Array(list) => {
                 let mut sub_patterns = pat.fields.iter_patterns();
 

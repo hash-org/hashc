@@ -1,5 +1,7 @@
 //! AST visitor for the discovery pass.
 
+use std::iter::repeat;
+
 use hash_ast::{
     ast::{self, AstNodeRef},
     ast_visitor_default_impl,
@@ -10,8 +12,8 @@ use hash_storage::store::{statics::SequenceStoreValue, SequenceStoreKey};
 use hash_tir::{
     stack::Stack,
     tir::{
-        DataDef, FnDef, FnTy, ModDef, ModKind, ModMember, Node, NodeOrigin, ParamId, ParamsId,
-        SymbolId, Term, TermId, TupleTy, Ty, VariantData,
+        DataDef, FnDef, FnTy, ModDef, ModKind, ModMember, Node, NodeOrigin, Param, ParamsId,
+        SymbolId, Term, TupleTy, Ty, VariantData,
     },
 };
 
@@ -140,7 +142,7 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
         &self,
         node: ast::AstNodeRef<ast::Module>,
     ) -> Result<Self::ModuleRet, Self::Error> {
-        let mod_def_id = self.create_or_get_module_mod_def(self.source.into());
+        let mod_def_id = self.create_or_get_module_mod_def(node.span().id.into());
 
         // Traverse the module
         self.enter_def(node, mod_def_id, || walk::walk_module(self, node))?;
@@ -187,8 +189,8 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
         // Create a data definition for the struct
         let struct_def_id = DataDef::struct_def(
             struct_name,
-            ParamsId::empty(),
-            ParamsId::empty(),
+            self.create_unresolved_params_from_ty_params(node.ty_params.as_ref(), node.id()),
+            self.create_unresolved_params_from_params(Some(&node.fields), node.id()),
             NodeOrigin::Given(node.id()),
         );
 
@@ -458,7 +460,7 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
 
     type ImportRet = ();
     fn visit_import(&self, node: AstNodeRef<ast::Import>) -> Result<Self::ImportRet, Self::Error> {
-        DiscoveryPass::new(self.env, self.ast_info, node.source).pass_source(node.source)?;
+        DiscoveryPass::new(self.env, self.ast_info).pass_source(node.source)?;
         Ok(())
     }
 }

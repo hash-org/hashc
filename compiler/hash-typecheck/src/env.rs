@@ -1,10 +1,13 @@
 use hash_exhaustiveness::diagnostics::{ExhaustivenessError, ExhaustivenessWarning};
+use hash_ir::HasIrCtx;
 use hash_pipeline::settings::HasCompilerSettings;
 use hash_reporting::diagnostic::{Diagnostics, HasDiagnostics};
+use hash_repr::HasLayout;
 use hash_source::{entry_point::EntryPointState, SourceId};
 use hash_target::HasTarget;
 use hash_tir::{atom_info::HasAtomInfo, context::Context, tir::FnDefId};
-use hash_utils::{state::LightState, timing::HasMetrics};
+use hash_tir_utils::lower::{HasTyCache, TyLowerEnv};
+use hash_utils::{profiling::HasMetrics, state::LightState};
 
 use crate::{
     diagnostics::TcError,
@@ -27,7 +30,15 @@ pub trait HasTcDiagnostics: HasDiagnostics<Diagnostics = Self::TcDiagnostics> {
 /// This trait declares all the required information that the typechecking stage
 /// needs from the rest of the compiler in order to operate.
 pub trait TcEnv:
-    HasTcDiagnostics + HasTarget + HasAtomInfo + HasCompilerSettings + HasMetrics + Sized
+    HasTcDiagnostics
+    + HasTarget
+    + HasIrCtx
+    + HasTyCache
+    + HasLayout
+    + HasAtomInfo
+    + HasCompilerSettings
+    + HasMetrics
+    + Sized
 {
     /// Get the entry point of the current compilation, if any.
     fn entry_point(&self) -> &EntryPointState<FnDefId>;
@@ -54,7 +65,7 @@ pub trait TcEnv:
     }
 }
 
-pub trait HasTcEnv {
+pub trait HasTcEnv: TyLowerEnv {
     type Env: TcEnv;
     fn env(&self) -> &Self::Env;
 }

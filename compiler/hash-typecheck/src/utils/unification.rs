@@ -3,8 +3,6 @@
 //! These are used from within `unify` procedures in `Operations`.
 use hash_tir::{
     context::{HasContext, ScopeKind},
-    sub::Sub,
-    tir::{SymbolId, TermId},
     visitor::Atom,
 };
 

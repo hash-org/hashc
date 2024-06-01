@@ -5,9 +5,8 @@ use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceSto
 use hash_tir::{
     context::{HasContext, ScopeKind},
     intrinsics::definitions::usize_ty,
-    sub::Sub,
     tir::{
-        Arg, CtorDefId, CtorTerm, DataDefCtors, DataDefId, DataTy, Node, NodeId, NodeOrigin,
+        CtorDefId, CtorTerm, DataDefCtors, DataDefId, DataTy, NodeId, NodeOrigin,
         PrimitiveCtorInfo, Term, TermId, Ty, TyId,
     },
     visitor::Map,

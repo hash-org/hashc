@@ -10,8 +10,8 @@ mod cfg;
 mod ctx;
 
 mod discover;
-mod lower_ty;
 mod optimise;
+mod ty;
 
 use build::BodyBuilder;
 use ctx::BuilderCtx;
@@ -19,7 +19,6 @@ use discover::FnDiscoverer;
 use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_ir::IrStorage;
 use hash_ir_utils::{graphviz, pretty};
-use hash_layout::{compute::LayoutComputer, LayoutStorage};
 use hash_pipeline::{
     interface::{
         CompilerInterface, CompilerOutputStream, CompilerResult, CompilerStage, StageMetrics,
@@ -27,11 +26,12 @@ use hash_pipeline::{
     settings::{CompilerSettings, CompilerStageKind, IrDumpMode},
     workspace::{SourceStageInfo, Workspace},
 };
+use hash_repr::{compute::LayoutComputer, LayoutStorage};
 use hash_semantics::storage::SemanticStorage;
 use hash_source::SourceId;
 use hash_storage::store::{statics::StoreId, Store};
 use hash_tir::{stores::tir_stores, tir::HasAstNodeId};
-use hash_utils::{rayon, timing::HasMutMetrics};
+use hash_utils::{profiling::HasMutMetrics, rayon};
 use optimise::Optimiser;
 
 /// The Hash IR builder compiler stage.
@@ -65,7 +65,7 @@ pub struct LoweringCtx<'ir> {
     /// the lowered IR, and all metadata about the IR.
     pub icx: &'ir mut IrStorage,
 
-    /// Reference to the [LayoutCtx] that is used to store
+    /// Reference to the [LayoutStorage] that is used to store
     /// the layouts of types.
     pub lcx: &'ir LayoutStorage,
 
@@ -91,7 +91,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
     }
 
     fn reset_metrics(&mut self) {
-        self.metrics.timings.clear()
+        self.metrics = StageMetrics::default();
     }
 
     /// Lower that AST of each module that is currently in the workspace
@@ -106,7 +106,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
         let entry_point = &data.semantic_storage.distinguished_items.entry_point;
 
         // Discover all of the bodies that need to be lowered
-        let items = self.time_item("discover", |_| {
+        let items = self.record("discover", |_| {
             let discoverer = FnDiscoverer::new(&data.workspace.source_stage_info);
             discoverer.discover_fns()
         });
@@ -114,7 +114,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
         // Pre-allocate the vector of lowered bodies.
         let mut lowered_bodies = Vec::with_capacity(items.fns.len());
 
-        self.time_item("build", |_| {
+        self.record("build", |_| {
             for func in items.into_iter() {
                 let name = func.borrow().name.ident();
 
@@ -195,7 +195,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
     }
 
     fn reset_metrics(&mut self) {
-        self.metrics.timings.clear()
+        self.metrics = StageMetrics::default();
     }
 
     fn run(&mut self, _: SourceId, ctx: &mut Ctx) -> CompilerResult<()> {
@@ -204,7 +204,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
         let bodies = &mut icx.bodies;
         let body_data = &icx.ctx;
 
-        self.time_item("optimise", |_| {
+        self.record("optimise", |this| {
             // @@Todo: think about making optimisation passes in parallel...
             // pool.scope(|scope| {
             //     for body in &mut icx.generated_bodies {
@@ -218,6 +218,10 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
             for body in bodies.iter_mut() {
                 let optimiser = Optimiser::new(body_data, settings);
                 optimiser.optimise(body);
+
+                // Collect metrics on the stages.
+                let metrics = optimiser.into_metrics().into();
+                this.metrics().merge(&metrics);
             }
         });
 

@@ -150,7 +150,7 @@ pub enum LexerErrorKind {
 
     /// When a unicode literal is too long, e.g.
     /// ```
-    /// '\u{1F600000000000}`
+    /// '\u{1F600000000000}'
     /// ```
     UnicodeLitTooLong,
 

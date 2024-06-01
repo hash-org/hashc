@@ -22,10 +22,10 @@ hash-target = { path = "../hash-target" }
 hash-utils = { path = "../hash-utils" }
 
 [features]
-profile-with-tracy = ["profiling/profile-with-tracy"]
+tracy = ["profiling/profile-with-tracy"]
+llvm = ["hash-pipeline/llvm", "hash-driver/llvm"]
 
-# Enable this flag to run tracy profiling
-# default = ["profile-with-tracy"]
+default = ["llvm"]
 
 [dev-dependencies.cargo-husky]
 version = "1.5"

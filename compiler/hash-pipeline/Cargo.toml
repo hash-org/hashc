@@ -18,3 +18,7 @@ hash-reporting = { path = "../hash-reporting" }
 hash-source = { path = "../hash-source" }
 hash-target = { path = "../hash-target" }
 hash-utils = { path = "../hash-utils" }
+
+
+[features]
+llvm = []

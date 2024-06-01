@@ -2,8 +2,11 @@
 //! This is used to ensure that the same node is not parsed and to retrieve
 //! nodes in later compilation stages.
 use std::{
+    collections::{
+        hash_map::{Iter, IterMut},
+        HashMap,
+    },
     path::{Path, PathBuf},
-    slice::{Iter, IterMut},
 };
 
 use hash_source::{InteractiveId, ModuleId, SourceId};
@@ -112,8 +115,11 @@ pub enum SourceRef<'i> {
 /// parsed within the current [Workspace].
 #[derive(Debug, Default)]
 pub struct NodeMap {
-    /// All [Module] nodes that have been parsed.
-    modules: IndexVec<ModuleId, ModuleEntry>,
+    /// All [Module] nodes that have been parsed. We use a [HashMap] here since
+    /// the order of the parsed modules will not be guaranteed, hence we
+    /// have to insert by the [ModuleId] that is reserved during parsing.
+    modules: HashMap<ModuleId, ModuleEntry>,
+
     /// All [InteractiveBlock] nodes that have been parsed.
     interactive_blocks: IndexVec<InteractiveId, InteractiveBlock>,
 }
@@ -133,7 +139,7 @@ pub trait HasNodeMap {
 impl NodeMap {
     /// Create a new [NodeMap]
     pub fn new() -> Self {
-        Self { modules: index_vec![], interactive_blocks: index_vec![] }
+        Self { modules: HashMap::new(), interactive_blocks: index_vec![] }
     }
 
     /// Add a [InteractiveBlock] to the [NodeMap]
@@ -142,8 +148,8 @@ impl NodeMap {
     }
 
     /// Add a [Module] to the [NodeMap]
-    pub fn add_module(&mut self, module: ModuleEntry) {
-        self.modules.push(module);
+    pub fn add_module(&mut self, id: ModuleId, module: ModuleEntry) {
+        self.modules.insert(id, module);
     }
 
     /// Get a [SourceRef] by [SourceId].
@@ -170,22 +176,22 @@ impl NodeMap {
     /// Get a mutable reference to an [Module], panics if the [SourceId]
     /// has no backing [Module].
     pub fn get_module(&self, id: ModuleId) -> &ModuleEntry {
-        self.modules.get(id).unwrap()
+        self.modules.get(&id).unwrap()
     }
 
     /// Get a reference to an [Module], panics if the [SourceId]
     /// has no backing [Module].
     pub fn get_module_mut(&mut self, id: ModuleId) -> &mut ModuleEntry {
-        self.modules.get_mut(id).unwrap()
+        self.modules.get_mut(&id).unwrap()
     }
 
     /// /// Create an [Iter] over the currently stores modules within [NodeMap]
-    pub fn iter_modules(&self) -> Iter<ModuleEntry> {
+    pub fn iter_modules(&self) -> Iter<ModuleId, ModuleEntry> {
         self.modules.iter()
     }
 
     /// Create an [IterMut] over the currently stores modules within [NodeMap].
-    pub fn iter_mut_modules(&mut self) -> IterMut<ModuleEntry> {
+    pub fn iter_mut_modules(&mut self) -> IterMut<ModuleId, ModuleEntry> {
         self.modules.iter_mut()
     }
 }

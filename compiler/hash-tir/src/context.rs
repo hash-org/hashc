@@ -32,13 +32,6 @@ pub struct ContextMember {
     pub value: Option<TermId>,
 }
 
-/// An established equality between terms, that is in scope.
-#[derive(Debug, Clone, Copy)]
-pub struct EqualityJudgement {
-    pub lhs: TermId,
-    pub rhs: TermId,
-}
-
 /// All the different kinds of scope there are, and their associated data.
 #[derive(Debug, Clone, Copy, From)]
 pub enum ScopeKind {
@@ -66,9 +59,9 @@ pub enum ScopeKind {
 #[derive(Debug, Clone)]
 pub struct Scope {
     /// The kind of the scope.
-    pub kind: ScopeKind,
+    kind: ScopeKind,
     /// The bindings of the scope
-    pub decls: RefCell<IndexMap<SymbolId, ContextMember, FxBuildHasher>>,
+    decls: RefCell<IndexMap<SymbolId, ContextMember, FxBuildHasher>>,
 }
 
 impl Scope {
@@ -543,12 +536,6 @@ impl Context {
             self.add_sub_to_scope(sub);
             f()
         })
-    }
-}
-
-impl fmt::Display for EqualityJudgement {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} === {}", self.lhs, self.rhs)
     }
 }
 

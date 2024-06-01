@@ -4,8 +4,7 @@ use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     context::HasContext,
     tir::{
-        ArgsId, CallTerm, FnDef, FnTy, Meta, Node, NodeId, NodeOrigin, Param, SymbolId, Term,
-        TermId, TyId, VarTerm,
+        ArgsId, CallTerm, FnDef, FnTy, Meta, Node, NodeId, NodeOrigin, Param, Term, TermId, TyId,
     },
 };
 

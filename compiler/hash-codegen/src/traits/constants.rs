@@ -3,7 +3,7 @@
 //! Hash IR into the target backend.
 
 use hash_ir::ir;
-use hash_source::constant::InternedStr;
+use hash_source::constant::AllocId;
 use hash_target::{abi::Scalar, size::Size};
 
 use super::BackendTypes;
@@ -75,7 +75,7 @@ pub trait ConstValueBuilderMethods<'b>: BackendTypes {
     ///     len: usize, // <--- second value
     /// }
     /// ```
-    fn const_str(&self, s: InternedStr) -> (Self::Value, Self::Value);
+    fn const_str(&self, s: AllocId) -> (Self::Value, Self::Value);
 
     /// Emit a constant struct value.
     fn const_struct(&self, values: &[Self::Value], packed: bool) -> Self::Value;

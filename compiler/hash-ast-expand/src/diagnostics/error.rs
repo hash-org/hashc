@@ -1,16 +1,13 @@
 //! Definitions of the various kinds of errors that can occur during the
 //! expansion phase of the compiler.
-use hash_ast::{ast::AstNodeId, lit::LitParseError};
-use hash_ast_utils::attr::AttrTarget;
-use hash_attrs::{
-    attr::{AttrArgIdx, AttrValueKind},
-    builtin::ATTR_MAP,
-    diagnostics::AttrError,
-};
+use hash_ast::ast::AstNodeId;
+use hash_ast_utils::{attr::AttrTarget, lit::LitParseError};
+use hash_attrs::{attr::AttrArgIdx, builtin::ATTR_MAP, diagnostics::AttrError};
 use hash_reporting::{
     hash_error_codes::error_codes::HashErrorCode,
     reporter::{Reporter, Reports},
 };
+use hash_repr::constant::Const;
 use hash_source::identifier::Identifier;
 use hash_tir::tir::{ParamError, TyId};
 use hash_utils::derive_more::{Constructor, From};
@@ -58,7 +55,7 @@ pub enum ExpansionErrorKind {
         target: AttrArgIdx,
 
         /// The value of the argument that was supplied.
-        value: AttrValueKind,
+        value: Const,
 
         /// The type of the parameter that was expected.
         ty: TyId,
@@ -135,16 +132,17 @@ impl From<ExpansionError> for Reports {
                     );
             }
             ExpansionErrorKind::InvalidAttributeArgTy { name, target, value, ty } => {
-                let received = match value {
-                    AttrValueKind::Str(_) => "str",
-                    AttrValueKind::Int(_) => "i32",
-                    AttrValueKind::Float(_) => "f64",
-                    AttrValueKind::Char(_) => "char",
-                };
-
-                reporter.error().code(HashErrorCode::TypeMismatch)
-                .title("invalid attribute argument")
-                .add_labelled_span(subject, format!("attribute `{name}` parameter `{target}` expects `{ty}`, but got `{received}`"));
+                reporter
+                    .error()
+                    .code(HashErrorCode::TypeMismatch)
+                    .title("invalid attribute argument")
+                    .add_labelled_span(
+                        subject,
+                        format!(
+                            "attribute `{name}` parameter `{target}` expects `{ty}`, but got `{}`",
+                            value.ty()
+                        ),
+                    );
             }
         }
 

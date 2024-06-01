@@ -1,17 +1,20 @@
 //! Hash Compiler source location definitions.
-#![feature(path_file_prefix, let_chains, lazy_cell, const_trait_impl, box_patterns)]
+#![feature(path_file_prefix, let_chains, const_trait_impl, box_patterns, const_option)]
 
 pub mod constant;
 pub mod entry_point;
 pub mod identifier;
 pub mod location;
 
+// Re-export the "primitives" from the hash-target crate so that everyone can
+// use them who depends on `hash-source`
 use std::{
     collections::HashMap,
     fmt,
     path::{Path, PathBuf},
 };
 
+pub use hash_target::{primitives::*, size::Size};
 use hash_utils::{
     index_vec::{define_index_type, index_vec, IndexVec},
     parking_lot::RwLock,
@@ -29,7 +32,7 @@ define_index_type! {
     /// A [ModuleId] is a [SourceId] which points to a module.
     pub struct ModuleId = u32;
 
-    MAX_INDEX = u32::max_value() as usize;
+    MAX_INDEX = u32::MAX as usize;
     DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
 
     DEBUG_FORMAT = "module:{}";
@@ -39,7 +42,7 @@ define_index_type! {
     /// An [InteractiveId] is a [SourceId] which points to an interactive block.
     pub struct InteractiveId = u32;
 
-    MAX_INDEX = u32::max_value() as usize;
+    MAX_INDEX = u32::MAX as usize;
     DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
 
     DEBUG_FORMAT = "interactive:{}";

@@ -8,10 +8,10 @@
 
 use hash_ir::{ir::Body, IrCtx};
 use hash_pipeline::settings::{CompilerSettings, OptimisationLevel};
+use hash_utils::profiling::{CellStageMetrics, HasMetrics};
 
 // Various passes that are used to optimise the generated IR bodies.
 mod cleanup_locals;
-pub(crate) mod constant_propagations;
 mod simplify_graph;
 
 pub trait IrOptimisationPass {
@@ -41,6 +41,9 @@ pub struct Optimiser<'ir> {
     /// The various passes that have been added to the optimisation
     /// pipeline.
     passes: Vec<Box<dyn IrOptimisationPass + Send>>,
+
+    /// Metrics for each of the passes.
+    metrics: CellStageMetrics,
 }
 
 impl<'ir> Optimiser<'ir> {
@@ -52,6 +55,7 @@ impl<'ir> Optimiser<'ir> {
                 Box::new(simplify_graph::SimplifyGraphPass),
                 Box::new(cleanup_locals::CleanupLocalPass),
             ],
+            metrics: CellStageMetrics::default(),
         }
     }
 
@@ -60,8 +64,20 @@ impl<'ir> Optimiser<'ir> {
     pub fn optimise(&self, body: &mut Body) {
         for pass in self.passes.iter() {
             if pass.enabled(self.settings) {
-                pass.optimise(body, self.store);
+                self.record(pass.name(), |this| {
+                    pass.optimise(body, this.store);
+                })
             }
         }
+    }
+
+    pub fn into_metrics(self) -> CellStageMetrics {
+        self.metrics
+    }
+}
+
+impl HasMetrics for Optimiser<'_> {
+    fn metrics(&self) -> &CellStageMetrics {
+        &self.metrics
     }
 }

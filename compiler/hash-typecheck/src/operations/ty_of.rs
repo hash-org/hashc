@@ -2,7 +2,7 @@ use std::ops::ControlFlow;
 
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    tir::{TermId, Ty, TyId, TyOfTerm},
+    tir::{TermId, TyId, TyOfTerm},
 };
 
 use crate::{

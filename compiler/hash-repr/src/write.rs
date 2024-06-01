@@ -4,8 +4,8 @@
 //! @@Improvements:
 //!
 //! 1. Since the layout printer is only a shallow printer, an improvement could
-//! be made to print the layout of the types that are nested within the type,
-//! and possibly exploring the nested structure:
+//!    be made to print the layout of the types that are nested within the type,
+//!    and possibly exploring the nested structure:
 //! ```notrust
 //! struct Item (
 //!    item: ( #layout_of (y: i32, x: i32), z: [i32; 3]
@@ -587,7 +587,6 @@ impl<'l> LayoutWriter<'l> {
         self.ty_info.ty.map(|ty| self.ty_info.layout.map(|layout| f(self, ty, layout)))
     }
 
-    ///
     pub fn create_box_contents_for_shape(&self) -> Vec<BoxContent> {
         self.with_info(|this, ty, layout| this.create_box_contents(ty, layout, None))
     }

@@ -7,6 +7,9 @@ use std::{
 };
 
 use hash_ast::ast::AstNodeId;
+pub use hash_const_eval::op::*;
+pub use hash_repr::constant::{Const, ConstKind};
+pub use hash_source::constant::{AllocId, Scalar};
 use hash_source::{identifier::Identifier, location::Span, SourceId};
 use hash_storage::{
     new_sequence_store_key_indirect,
@@ -15,17 +18,12 @@ use hash_storage::{
         LocalSequenceStore, SequenceStoreKey,
     },
 };
-use hash_tir::intrinsics::definitions::{
-    BinOp as TirBinOp, CondBinOp as TirCondBinOp,
-    ShortCircuitingBoolOp as TirShortCircuitingBoolOp, UnOp as TirUnOp,
-};
 use hash_utils::{
     graph::dominators::Dominators,
     index_vec::{self, IndexVec},
     smallvec::{smallvec, SmallVec},
 };
 
-pub use crate::constant::{AllocId, Const, ConstKind, Scalar};
 use crate::{
     basic_blocks::BasicBlocks,
     cast::CastKind,
@@ -52,193 +50,6 @@ pub enum ConstOp {
     SizeOf,
     /// Yields the word alignment of the type.
     AlignOf,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum UnaryOp {
-    // Bitwise logical inversion
-    BitNot,
-    /// Logical inversion.
-    Not,
-    /// The operator '-' for negation
-    Neg,
-}
-
-impl From<TirUnOp> for UnaryOp {
-    fn from(value: TirUnOp) -> Self {
-        use TirUnOp::*;
-        match value {
-            BitNot => Self::BitNot,
-            Not => Self::Not,
-            Neg => Self::Neg,
-        }
-    }
-}
-
-/// Represents a binary operation that is short-circuiting. These
-/// operations are only valid on boolean values.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum LogicalBinOp {
-    /// '||'
-    Or,
-    /// '&&'
-    And,
-}
-
-impl From<TirShortCircuitingBoolOp> for LogicalBinOp {
-    fn from(value: TirShortCircuitingBoolOp) -> Self {
-        use TirShortCircuitingBoolOp::*;
-
-        match value {
-            And => Self::And,
-            Or => Self::Or,
-        }
-    }
-}
-
-/// Binary operations on [RValue]s that are typed as primitive, or have
-/// `intrinsic` implementations defined for them. Any time that does not
-/// implement these binary operations by default will create a function
-/// call to the implementation of the binary operation.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum BinOp {
-    /// '=='
-    Eq,
-    /// '!='
-    Neq,
-    /// '|'
-    BitOr,
-    /// '&'
-    BitAnd,
-    /// '^'
-    BitXor,
-    /// '^^'
-    Exp,
-    /// '>'
-    Gt,
-    /// '>='
-    GtEq,
-    /// '<'
-    Lt,
-    /// '<='
-    LtEq,
-    /// '>>'
-    Shr,
-    /// '<<'
-    Shl,
-    /// '+'
-    Add,
-    /// '-'
-    Sub,
-    /// '*'
-    Mul,
-    /// '/'
-    Div,
-    /// '%'
-    Mod,
-}
-
-impl BinOp {
-    /// Returns whether the [BinOp] can be "checked".
-    pub fn is_checkable(&self) -> bool {
-        matches!(self, Self::Add | Self::Sub | Self::Mul | Self::Shl | Self::Shr)
-    }
-
-    /// Check if the [BinOp] is a comparator.
-    pub fn is_comparator(&self) -> bool {
-        matches!(self, Self::Eq | Self::Neq | Self::Gt | Self::GtEq | Self::Lt | Self::LtEq)
-    }
-
-    /// Compute the type of [BinOp] operator when applied to
-    /// a particular [ReprTy].
-    pub fn ty(&self, lhs: ReprTyId, rhs: ReprTyId) -> ReprTyId {
-        match self {
-            BinOp::BitOr
-            | BinOp::BitAnd
-            | BinOp::BitXor
-            | BinOp::Div
-            | BinOp::Sub
-            | BinOp::Mod
-            | BinOp::Add
-            | BinOp::Mul
-            | BinOp::Exp => {
-                // Both `lhs` and `rhs` should be of the same type...
-                debug_assert_eq!(
-                    lhs, rhs,
-                    "binary op types for `{:?}` should be equal, but got: lhs: `{}`, rhs: `{}`",
-                    self, lhs, rhs
-                );
-                lhs
-            }
-
-            // Always the `lhs`, but `lhs` and `rhs` can be different types.
-            BinOp::Shr | BinOp::Shl => lhs,
-
-            // Comparisons
-            BinOp::Eq | BinOp::Neq | BinOp::Gt | BinOp::GtEq | BinOp::Lt | BinOp::LtEq => {
-                COMMON_REPR_TYS.bool
-            }
-        }
-    }
-}
-
-impl fmt::Display for BinOp {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            BinOp::Eq => write!(f, "=="),
-            BinOp::Neq => write!(f, "!="),
-            BinOp::BitOr => write!(f, "|"),
-            BinOp::BitAnd => write!(f, "&"),
-            BinOp::BitXor => write!(f, "^"),
-            BinOp::Exp => write!(f, "**"),
-            BinOp::Gt => write!(f, ">"),
-            BinOp::GtEq => write!(f, ">="),
-            BinOp::Lt => write!(f, "<"),
-            BinOp::LtEq => write!(f, "<="),
-            BinOp::Shr => write!(f, ">>"),
-            BinOp::Shl => write!(f, "<<"),
-            BinOp::Add => write!(f, "+"),
-            BinOp::Sub => write!(f, "-"),
-            BinOp::Mul => write!(f, "*"),
-            BinOp::Div => write!(f, "/"),
-            BinOp::Mod => write!(f, "%"),
-        }
-    }
-}
-
-impl From<TirBinOp> for BinOp {
-    fn from(value: TirBinOp) -> Self {
-        use TirBinOp::*;
-
-        match value {
-            BitOr => Self::BitOr,
-            BitAnd => Self::BitAnd,
-            BitXor => Self::BitXor,
-            Exp => Self::Exp,
-            Shr => Self::Shr,
-            Shl => Self::Shl,
-            Add => Self::Add,
-            Sub => Self::Sub,
-            Mul => Self::Mul,
-            Div => Self::Div,
-            Mod => Self::Mod,
-        }
-    }
-}
-
-impl From<TirCondBinOp> for BinOp {
-    fn from(value: TirCondBinOp) -> Self {
-        use TirCondBinOp::*;
-
-        match value {
-            EqEq => Self::Eq,
-            NotEq => Self::Neq,
-            Gt => Self::Gt,
-            GtEq => Self::GtEq,
-            Lt => Self::Lt,
-            LtEq => Self::LtEq,
-        }
-    }
 }
 
 /// Describes what kind of [Local] something is, whether it
@@ -552,7 +363,7 @@ pub enum RValue {
     ConstOp(ConstOp, ReprTyId),
 
     /// A unary expression with a unary operator.
-    UnaryOp(UnaryOp, Operand),
+    UnaryOp(UnOp, Operand),
 
     /// A binary expression with a binary operator and two inner expressions.
     BinaryOp(BinOp, Box<(Operand, Operand)>),
@@ -1037,7 +848,7 @@ index_vec::define_index_type! {
     /// Index for [BasicBlockData] stores within generated [Body]s.
     pub struct BasicBlock = u32;
 
-    MAX_INDEX = u32::max_value() as usize;
+    MAX_INDEX = u32::MAX as usize;
     DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
 
     DEBUG_FORMAT = "bb{}";
@@ -1057,7 +868,7 @@ index_vec::define_index_type! {
     /// Index for [LocalDecl] stores within generated [Body]s.
     pub struct Local = u32;
 
-    MAX_INDEX = u32::max_value() as usize;
+    MAX_INDEX = u32::MAX as usize;
     DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
 
     DEBUG_FORMAT = "_{}";
@@ -1119,10 +930,6 @@ pub struct Body {
 
     /// The location of the function
     origin: AstNodeId,
-
-    /// Whether the IR Body that is generated should be printed
-    /// when the generation process is finalised.
-    dump: bool,
 }
 
 impl Body {
@@ -1143,7 +950,6 @@ impl Body {
             locals,
             arg_count,
             origin,
-            dump: false,
         }
     }
 
@@ -1192,12 +998,12 @@ impl Body {
     /// Set the `dump` flag to `true` so that the IR Body that is generated
     /// will be printed when the generation process is finalised.
     pub fn mark_to_dump(&mut self) {
-        self.dump = true;
+        self.meta.dump = true;
     }
 
     /// Check if the [Body] needs to be dumped.
     pub fn needs_dumping(&self) -> bool {
-        self.dump
+        self.meta.dump
     }
 
     /// Get the [BodyMetadata] for the [Body].
@@ -1243,6 +1049,9 @@ pub struct BodyMetadata {
     /// The source of the body that was lowered, either an item, or a constant.
     pub source: BodySource,
 
+    /// If the body is queued for dumping.
+    pub dump: bool,
+
     /// The type of the body that was lowered
     ty: Option<ReprTyId>,
 }
@@ -1250,7 +1059,7 @@ pub struct BodyMetadata {
 impl BodyMetadata {
     /// Create a new [BodyMetadata] with the given `name`.
     pub fn new(name: Identifier, source: BodySource) -> Self {
-        Self { name, ty: None, source }
+        Self { name, ty: None, source, dump: false }
     }
 
     /// Set the type of the body that was lowered.

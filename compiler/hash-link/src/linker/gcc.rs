@@ -66,8 +66,8 @@ impl<'ctx> GccLinker<'ctx> {
 
     /// Check whether the linker takes hints, specifically:
     ///
-    /// - macOS does not take hints since it does not rely on
-    /// `binutils` to perform linking.
+    /// - macOS does not take hints since it does not rely on `binutils` to
+    ///   perform linking.
     fn takes_hints(&self) -> bool {
         self.is_ld && self.is_gnu && !self.settings.target().is_like_osx()
     }

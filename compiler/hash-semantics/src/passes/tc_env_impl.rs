@@ -1,13 +1,17 @@
+use hash_ir::{HasIrCtx, IrCtx};
 use hash_pipeline::settings::{CompilerSettings, HasCompilerSettings};
 use hash_reporting::diagnostic::HasDiagnostics;
+use hash_repr::{compute::LayoutComputer, HasLayout};
 use hash_source::{entry_point::EntryPointState, SourceId};
 use hash_target::{HasTarget, Target};
 use hash_tir::{
     atom_info::{AtomInfoStore, HasAtomInfo},
     stores::tir_stores,
+    tir::FnDefId,
 };
+use hash_tir_utils::lower::{HasTyCache, TyCache};
 use hash_typecheck::env::{HasTcDiagnostics, TcEnv};
-use hash_utils::timing::{CellStageMetrics, HasMetrics};
+use hash_utils::profiling::{CellStageMetrics, HasMetrics};
 
 use crate::{
     diagnostics::definitions::{SemanticError, SemanticWarning},
@@ -52,6 +56,24 @@ impl<E: SemanticEnv> HasTarget for TcEnvImpl<'_, E> {
     }
 }
 
+impl<E: SemanticEnv> HasLayout for TcEnvImpl<'_, E> {
+    fn layout_computer(&self) -> LayoutComputer {
+        self.env.layout_computer()
+    }
+}
+
+impl<E: SemanticEnv> HasIrCtx for TcEnvImpl<'_, E> {
+    fn ir_ctx(&self) -> &IrCtx {
+        self.env.ir_ctx()
+    }
+}
+
+impl<E: SemanticEnv> HasTyCache for TcEnvImpl<'_, E> {
+    fn repr_ty_cache(&self) -> &TyCache {
+        &self.env.storage().repr_ty_cache
+    }
+}
+
 impl<E: SemanticEnv> HasCompilerSettings for TcEnvImpl<'_, E> {
     fn settings(&self) -> &CompilerSettings {
         self.env.settings()
@@ -65,7 +87,7 @@ impl<E: SemanticEnv> HasAtomInfo for TcEnvImpl<'_, E> {
 }
 
 impl<E: SemanticEnv> TcEnv for TcEnvImpl<'_, E> {
-    fn entry_point(&self) -> &EntryPointState<hash_tir::tir::FnDefId> {
+    fn entry_point(&self) -> &EntryPointState<FnDefId> {
         self.env.entry_point()
     }
 

@@ -1,20 +1,16 @@
-use std::borrow::{Borrow, BorrowMut};
-
-use hash_storage::store::{
-    statics::SingleStoreValue, DefaultPartialStore, PartialCloneStore, PartialStore,
-};
-use hash_tir::{
-    context::HasContext,
-    tir::{
-        CallTerm, FnDef, FnDefId, FnTy, Meta, Node, NodeId, NodeOrigin, SymbolId, Term, TermId,
-        TyId,
-    },
-};
+use hash_storage::store::{DefaultPartialStore, PartialCloneStore, PartialStore};
+use hash_tir::tir::{CallTerm, Meta, NodeId, NodeOrigin, SymbolId, Term, TermId};
 
 use crate::{env::TcEnv, tc::Tc};
 
 pub struct MetaContext {
     pub(crate) metas: DefaultPartialStore<Meta, TermId>, // Contains closed terms!
+}
+
+impl Default for MetaContext {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl MetaContext {

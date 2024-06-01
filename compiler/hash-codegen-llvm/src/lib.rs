@@ -13,13 +13,15 @@ mod fmt;
 pub mod misc;
 mod translation;
 
+use std::io::Write;
+
 use ctx::CodeGenCtx;
 use error::{CodeGenError, CodegenResult};
 use hash_attrs::builtin::attrs;
 use hash_codegen::{
     backend::{BackendCtx, CodeGenStorage, CompilerBackend},
-    layout::LayoutStorage,
-    lower::codegen_ir_body,
+    lower::codegen_body,
+    repr::LayoutStorage,
     symbols::mangle::compute_symbol_name,
     target::{HasTarget, TargetArch},
     traits::{
@@ -36,14 +38,15 @@ use hash_pipeline::{
 use hash_reporting::report::Report;
 use hash_source::{ModuleId, SourceMapUtils};
 use hash_storage::store::{statics::StoreId, Store};
-use hash_utils::{stream_writeln, timing::HasMutMetrics};
+use hash_utils::{profiling::HasMutMetrics, stream_writeln};
 use inkwell as llvm;
 use llvm::{
     context::Context as LLVMContext,
     module::Module as LLVMModule,
     passes::{PassManager, PassManagerBuilder},
     targets::{FileType, TargetTriple},
-    values::FunctionValue,
+    types::AnyType,
+    values::{AnyValue, FunctionValue},
 };
 use misc::{CodeModelWrapper, OptimisationLevelWrapper, RelocationModeWrapper};
 use translation::LLVMBuilder;
@@ -239,8 +242,9 @@ impl<'b, 'm> LLVMBackend<'b> {
         // we can reference it here.
         let entry_point = self.ir_storage.entry_point.def().unwrap();
         let user_main = ctx.get_fn(entry_point);
+        let fn_ty = user_main.get_type().as_any_type_enum();
 
-        builder.call(user_main, &[], None);
+        builder.call(fn_ty, user_main.as_any_value_enum(), &[], None);
 
         // @@Todo: the wrapper should return an exit code value?
         // let cast = builder.int_cast(result, ctx.type_int(), false);
@@ -266,7 +270,7 @@ impl<'b, 'm> LLVMBackend<'b> {
             let symbol_name = compute_symbol_name(instance);
 
             let abis = self.codegen_storage.abis();
-            let abi = abis.create_fn_abi(ctx, instance);
+            let abi = abis.create_fn_abi_from_instance(ctx, instance);
 
             abis.map_fast(abi, |abi| {
                 ctx.predefine_fn(instance, symbol_name.as_str(), abi);
@@ -291,7 +295,7 @@ impl<'b, 'm> LLVMBackend<'b> {
             let instance = body.metadata().ty().borrow().as_instance();
 
             // @@ErrorHandling: we should be able to handle the error here
-            codegen_ir_body::<LLVMBuilder>(instance, body, ctx).unwrap();
+            codegen_body::<LLVMBuilder>(instance, body, ctx).unwrap();
 
             // Check if we should dump the generated LLVM IR
             if instance.borrow().has_attr(attrs::DUMP_LLVM_IR) {
@@ -333,8 +337,8 @@ impl<'b> CompilerBackend<'b> for LLVMBackend<'b> {
             self.codegen_storage,
         );
 
-        self.time_item("predefine", |this| this.predefine_bodies(&ctx));
-        self.time_item("build", |this| this.build_bodies(&ctx));
+        self.record("predefine", |this| this.predefine_bodies(&ctx));
+        self.record("build", |this| this.build_bodies(&ctx));
 
         // Now we define the entry point of the function, if there is one
         if self.ir_storage.entry_point.has() {
@@ -352,8 +356,8 @@ impl<'b> CompilerBackend<'b> for LLVMBackend<'b> {
             );
         }
 
-        self.time_item("optimise", |this| this.optimise(&module))?;
-        self.time_item("write", |this| {
+        self.record("optimise", |this| this.optimise(&module))?;
+        self.record("write", |this| {
             this.write_module(&module, entry_point.into()).map_err(|err| vec![err.into()])
         })
     }

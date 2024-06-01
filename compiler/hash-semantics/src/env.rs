@@ -1,10 +1,13 @@
 use hash_ast::node_map::HasNodeMap;
+use hash_ir::HasIrCtx;
 use hash_pipeline::settings::HasCompilerSettings;
 use hash_reporting::diagnostic::{Diagnostics, HasDiagnostics};
+use hash_repr::HasLayout;
 use hash_source::entry_point::EntryPointState;
 use hash_target::HasTarget;
 use hash_tir::tir::{FnDefId, ModDefId};
-use hash_utils::timing::HasMetrics;
+use hash_tir_utils::lower::HasTyCache;
+use hash_utils::profiling::HasMetrics;
 use once_cell::sync::OnceCell;
 
 use crate::{
@@ -17,7 +20,14 @@ pub trait HasSemanticDiagnostics: HasDiagnostics<Diagnostics = Self::SemanticDia
 }
 
 pub trait SemanticEnv:
-    HasNodeMap + HasMetrics + HasSemanticDiagnostics + HasCompilerSettings + HasTarget
+    HasNodeMap
+    + HasMetrics
+    + HasSemanticDiagnostics
+    + HasCompilerSettings
+    + HasTarget
+    + HasLayout
+    + HasIrCtx
+    + HasTyCache
 {
     fn storage(&self) -> &SemanticStorage;
     fn storage_mut(&mut self) -> &mut SemanticStorage;

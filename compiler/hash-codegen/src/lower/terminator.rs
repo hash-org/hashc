@@ -10,8 +10,14 @@
 //! whether two blocks have been merged together.
 
 use hash_abi::{ArgAbi, FnAbiId, PassMode};
-use hash_ir::{intrinsics::Intrinsic, ir, lang_items::LangItem, ty::COMMON_REPR_TYS};
-use hash_pipeline::settings::{CodeGenBackend, OptimisationLevel};
+use hash_ir::{
+    intrinsics::Intrinsic,
+    ir,
+    lang_items::LangItem,
+    ty::{ReprTy, COMMON_REPR_TYS},
+};
+use hash_pipeline::settings::OptimisationLevel;
+use hash_source::constant::AllocId;
 use hash_storage::store::{statics::StoreId, Store};
 use hash_target::abi::{AbiRepresentation, ValidScalarRange};
 
@@ -54,11 +60,10 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     /// with the next block. The conditions for merging two blocks
     /// must be:
     ///
-    /// 1. The current block must be the only predecessor of the next
-    ///   block.
+    /// 1. The current block must be the only predecessor of the next block.
     ///
-    /// 2. The current block must only have a single successor which
-    /// leads to the block that is a candidate for merging.
+    /// 2. The current block must only have a single successor which leads to
+    ///    the block that is a candidate for merging.
     pub(super) fn codegen_terminator(
         &mut self,
         builder: &mut Builder,
@@ -149,16 +154,22 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     ) -> bool {
         // generate the operand as the function call...
         let call_subject = self.codegen_operand(builder, op);
-
         let ty = call_subject.info.ty;
-        let instance = ty.borrow().as_instance();
-        let is_intrinsic = instance.borrow().is_intrinsic();
+
+        let (instance, func) = match ty.value() {
+            ReprTy::FnDef { instance, .. } => (Some(instance), None),
+            ReprTy::Fn { .. } => (None, Some(call_subject.immediate_value())),
+            ty => panic!("expected function type, found `{:?}`", ty),
+        };
+
         let mut maybe_intrinsic = None;
 
         // If this is an intrinsic, we will generate the required code
         // for the intrinsic here...
-        if is_intrinsic {
-            maybe_intrinsic = Intrinsic::from_str_name(instance.borrow().name().into());
+        if let Some(inst) = instance
+            && inst.borrow().is_intrinsic()
+        {
+            maybe_intrinsic = Intrinsic::from_str_name(inst.borrow().name().into());
 
             // We exit early for transmute since we don't need to compute the ABI
             // or any information about the return destination.
@@ -193,7 +204,10 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
         // compute the function pointer value and the ABI
         let abis = self.ctx.cg_ctx().abis();
-        let fn_abi = abis.create_fn_abi(builder, instance);
+        let fn_abi = match instance {
+            Some(instance) => abis.create_fn_abi_from_instance(builder, instance),
+            None => abis.create_fn_abi_from_ty(builder, ty.borrow().as_fn()),
+        };
         let ret_abi = abis.map_fast(fn_abi, |abi| abi.ret_abi);
 
         // If the return ABI pass mode is "indirect", then this means that
@@ -269,7 +283,11 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             };
         }
 
-        let fn_ptr = builder.get_fn_ptr(instance);
+        let fn_ptr = match (instance, func) {
+            (Some(instance), None) => builder.get_fn_ptr(instance),
+            (_, Some(func)) => func,
+            _ => unreachable!(),
+        };
 
         // Finally, generate the code for the function call and
         // cleanup
@@ -550,7 +568,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         } else if targets_iter.len() == 2
             && self.body.blocks()[targets.otherwise()].is_empty_and_unreachable()
             && self.ctx.settings().optimisation_level == OptimisationLevel::Debug
-            && self.ctx.settings().codegen_settings().backend == CodeGenBackend::LLVM
+            && self.ctx.settings().codegen_settings().backend.is_llvm()
         {
             let (value, target_1) = targets_iter.next().unwrap();
             let (_, target_2) = targets_iter.next().unwrap();
@@ -617,12 +635,12 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         builder.switch_to_block(failure_block);
 
         // we need to convert the assert into a message.
-        let (bytes, len) = builder.const_str(assert_kind.message().into());
+        let (bytes, len) = builder.const_str(AllocId::str(assert_kind.message().into()));
         let args: [Builder::Value; 2] = (bytes, len).into();
 
         // Get the `panic` lang item.
         let (instance, fn_ptr) = self.resolve_lang_item(builder, LangItem::Panic);
-        let abi = self.ctx.cg_ctx().abis().create_fn_abi(builder, instance);
+        let abi = self.ctx.cg_ctx().abis().create_fn_abi_from_instance(builder, instance);
 
         // Finally we emit this as a call to panic...
         self.codegen_fn_call(builder, abi, fn_ptr, &args, &[], None, false)
@@ -637,17 +655,20 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         &mut self,
         builder: &mut Builder,
         fn_abi: FnAbiId,
-        fn_ptr: Builder::Function,
+        fn_ptr: Builder::Value,
         args: &[Builder::Value],
         copied_const_args: &[PlaceRef<Builder::Value>],
         destination: Option<(ir::BasicBlock, ReturnDestinationKind<Builder::Value>)>,
         can_merge: bool,
     ) -> bool {
+        let fn_ty =
+            self.ctx.cg_ctx().abis().map_fast(fn_abi, |abi| builder.backend_ty_from_abi(abi));
+
         //@@Future: when we deal with unwinding functions, we will have to use the
         // `builder::invoke()` API in order to instruct the backends to emit relevant
         // clean-up code for when the function starts to unwind (i.e. panic).
         // However for now, we simply emit a `builder::call()`
-        let return_value = builder.call(fn_ptr, args, Some(fn_abi));
+        let return_value = builder.call(fn_ty, fn_ptr, args, Some(fn_abi));
 
         if let Some((destination_block, return_destination)) = destination {
             // now that the function has finished, we essentially mark all of the

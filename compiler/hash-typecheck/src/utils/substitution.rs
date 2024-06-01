@@ -1,17 +1,14 @@
 //! Operations to substitute variables in types and terms.
 use std::{collections::HashSet, ops::ControlFlow};
 
-use hash_storage::store::{
-    statics::{SequenceStoreValue, StoreId},
-    TrivialSequenceStoreKey,
-};
+use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     context::HasContext,
     sub::Sub,
     tir::{
-        AccessTerm, Arg, ArgsId, Meta, Node, NodeId, NodeOrigin, Param, ParamId, ParamIndex,
-        ParamsId, SymbolId, Term, TermId, Ty, VarTerm,
+        AccessTerm, Arg, ArgsId, NodeId, NodeOrigin, ParamId, ParamIndex, ParamsId, SymbolId, Term,
+        TermId, Ty, VarTerm,
     },
     visitor::{Atom, Map, Visit, Visitor},
 };

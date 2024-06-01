@@ -5,8 +5,7 @@
 //! 1. Count how many times the [Local] is used as an [RValue].
 //!
 //! 2. For any [Local]s that are to be removed, we also remove all assignments
-//!    to those locals that may affect counts of other
-//!   [Local]s.
+//!    to those locals that may affect counts of other [Local]s.
 
 use hash_ir::{
     ir::{
@@ -29,7 +28,7 @@ pub struct CleanupLocalPass;
 
 impl IrOptimisationPass for CleanupLocalPass {
     fn name(&self) -> &'static str {
-        "cleanup_locals"
+        "optimise::cleanup_locals"
     }
 
     /// Pass [CleanupLocalPass] is always enabled since it performs

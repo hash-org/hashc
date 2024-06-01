@@ -4,7 +4,7 @@
 use hash_ir::ty::ReprTyId;
 
 use super::{BackendTypes, HasCtxMethods};
-use crate::layout::TyInfo;
+use crate::repr::TyInfo;
 
 /// Methods for calculating and querying the layout of types within a backend.
 pub trait LayoutMethods<'b>: BackendTypes + HasCtxMethods<'b> {

@@ -6,8 +6,7 @@ use hash_codegen::{
     },
     traits::{constants::ConstValueBuilderMethods, ty::TypeBuilderMethods},
 };
-use hash_ir::constant::{self, AllocRange};
-use hash_source::constant::{InternedStr, Size};
+use hash_source::constant::{self, AllocId, AllocRange, Size};
 use hash_storage::store::statics::StoreId;
 use inkwell::{
     module::Linkage,
@@ -109,14 +108,12 @@ impl<'b, 'm> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
     }
 
     /// Create a global constant value for the [InternedStr].
-    fn const_str(&self, s: InternedStr) -> (Self::Value, Self::Value) {
-        let value: &str = s.into();
+    fn const_str(&self, s: AllocId) -> (Self::Value, Self::Value) {
+        let value = s.to_str();
         let str_len = value.len();
 
         let mut str_consts = self.str_consts.borrow_mut();
         let (_, global_str) = str_consts.raw_entry_mut().from_key(&s).or_insert_with(|| {
-            let value: &str = s.into();
-
             let str = self.ll_ctx.const_string(value.as_bytes(), false);
 
             // Here we essentially create a global with a new name...

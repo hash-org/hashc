@@ -5,8 +5,8 @@ use hash_ir::{
     ir::{self, ProjectionId},
     ty::{PlaceTy, ReprTyId, VariantIdx},
 };
-use hash_layout::{LayoutShape, Variants};
 use hash_reporting::macros::panic_on_span;
+use hash_repr::{LayoutShape, Variants};
 use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_target::{
     abi::{AbiRepresentation, ScalarKind},
@@ -15,7 +15,7 @@ use hash_target::{
 
 use super::{locals::LocalRef, FnBuilder};
 use crate::{
-    layout::TyInfo,
+    repr::TyInfo,
     traits::{
         builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, ty::TypeBuilderMethods,
         CodeGenObject,

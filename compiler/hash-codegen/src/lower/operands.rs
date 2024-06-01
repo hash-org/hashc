@@ -1,11 +1,12 @@
 //! Defines the lowering process for Hash IR operands into the
 //! target backend.
 
-use hash_ir::{
-    constant::{AllocId, AllocRange, Const, ConstKind},
-    ir,
+use hash_ir::ir;
+use hash_repr::{
+    constant::{Const, ConstKind},
+    TyInfo,
 };
-use hash_layout::TyInfo;
+use hash_source::constant::{AllocId, AllocRange};
 use hash_storage::store::statics::StoreId;
 use hash_target::{
     abi::{self, AbiRepresentation},
@@ -18,7 +19,7 @@ use crate::{
     common::MemFlags,
     traits::{
         builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, layout::LayoutMethods,
-        statics::StaticMethods, ty::TypeBuilderMethods, CodeGenObject,
+        misc::MiscBuilderMethods, statics::StaticMethods, ty::TypeBuilderMethods, CodeGenObject,
     },
 };
 
@@ -233,7 +234,7 @@ impl<'a, 'b, V: CodeGenObject> OperandRef<V> {
         }
     }
 
-    /// Constructr an [OperandRef] from an [ir::Const] value.
+    /// Construct an [OperandRef] from an [ir::Const] value.
     pub fn from_const<Builder: BlockBuilderMethods<'a, 'b, Value = V>>(
         builder: &mut Builder,
         constant: &Const,
@@ -414,7 +415,7 @@ impl<'a, 'b, V: CodeGenObject> OperandRef<V> {
 }
 
 impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
-    /// Generate code for a [Operand].
+    /// Generate code for a [ir::Operand].
     pub(super) fn codegen_operand(
         &mut self,
         builder: &mut Builder,
@@ -422,6 +423,16 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     ) -> OperandRef<Builder::Value> {
         match operand {
             ir::Operand::Place(place) => self.codegen_consume_operand(builder, *place),
+            // @@TODO: we shouldn't put this is as a ZST, perhaps this should be some kind
+            // of special cast to say that this is actually a function pointer that we are
+            // resolving!
+            ir::Operand::Const(constant) if constant.is_zero() && constant.ty().is_fn_def() => {
+                let ty = constant.ty();
+                let instance = ty.borrow().as_instance();
+                let value = OperandValue::Immediate(builder.get_fn_addr(instance));
+                let info = builder.layout_of(ty);
+                OperandRef { value, info }
+            }
             ir::Operand::Const(constant) => OperandRef::from_const(builder, constant),
         }
     }

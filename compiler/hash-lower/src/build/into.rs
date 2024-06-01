@@ -7,7 +7,7 @@ use hash_ast::ast::AstNodeId;
 use hash_ir::{
     intrinsics::Intrinsic,
     ir::{
-        self, AggregateKind, BasicBlock, Const, LogicalBinOp, Operand, Place, RValue, Statement,
+        AggregateKind, BasicBlock, Const, LogicalBinOp, Operand, Place, RValue, Statement,
         StatementKind, TerminatorKind,
     },
     ty::{AdtId, Mutability, RefKind, ReprTy, ReprTyId, VariantIdx, COMMON_REPR_TYS},
@@ -18,7 +18,7 @@ use hash_storage::store::{statics::StoreId, SequenceStoreKey};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     context::Context,
-    intrinsics::utils::try_use_term_as_integer_lit,
+    intrinsics::utils::try_use_term_as_machine_integer,
     term_as_variant,
     tir::{
         self, commands::AssignTerm, ArgsId, ArrayTerm, CallTerm, CtorTerm, HasAstNodeId,
@@ -94,8 +94,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                         // @@Semantics: When we need to deal with data drops, what do we do in the
                         // case of a zero length array, do we need to still
                         // drop the initial operand?
-                        let Some(length) = try_use_term_as_integer_lit::<_, usize>(self, repeat)
-                        else {
+                        let Some(length) = try_use_term_as_machine_integer(self, repeat) else {
                             panic_on_span!(repeat.span().unwrap(), "non-constant repeat length");
                         };
 
@@ -146,7 +145,7 @@ impl<'tcx> BodyBuilder<'tcx> {
             }
             Term::Call(ref fn_term @ CallTerm { subject, args, .. }) => {
                 match self.classify_fn_call_term(fn_term) {
-                    FnCallTermKind::Call(_) => {
+                    FnCallTermKind::Call => {
                         // Get the type of the function into or to to get the
                         // fn-type so that we can enter the scope.
                         let ty = self.ctx.get_inferred_ty(subject);
@@ -302,7 +301,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                 block = unpack!(self.lower_assign_term(block, assign_term, span));
 
                 // Assign the `value` of the assignment into the `tmp_place`
-                let const_value = ir::Const::zero();
+                let const_value = Const::zero();
                 self.control_flow_graph.push_assign(block, destination, const_value.into(), span);
 
                 block.unit()
@@ -331,6 +330,14 @@ impl<'tcx> BodyBuilder<'tcx> {
             Term::Index(_) | Term::Deref(_) | Term::Access(_) => {
                 let place = unpack!(block = self.as_place(block, term, Mutability::Immutable));
                 self.control_flow_graph.push_assign(block, destination, place.into(), span);
+
+                block.unit()
+            }
+
+            Term::Fn(def) => {
+                let ty = self.ty_id_from_tir_fn_def(def);
+                let value = Operand::Const(Const::zst(ty));
+                self.control_flow_graph.push_assign(block, destination, value.into(), span);
 
                 block.unit()
             }

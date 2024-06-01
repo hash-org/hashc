@@ -7,7 +7,6 @@ use hash_reporting::{
     diagnostic::HasDiagnosticsMut, unicode_normalization::char::is_combining_mark,
 };
 use hash_source::{
-    self,
     constant::LocalStringTable,
     identifier::{Identifier, IDENTS},
     location::{ByteRange, Span, SpannedSource},
@@ -946,12 +945,6 @@ impl<'a> Lexer<'a> {
 
         // Report that the literal is unclosed and set the error as being fatal
         if !closed {
-            // If we have a windows line ending, we want to use the offset before
-            // the current so we're not highlighting the `\r` as well
-            if value.len() >= 2 && &value[(value.len() - 2)..] == "\r\n" {
-                self.offset.set(self.offset.get() - 2);
-            }
-
             return self.emit_fatal_error(
                 LexerErrorKind::UnclosedStringLit,
                 ByteRange::new(start, self.len_consumed()),

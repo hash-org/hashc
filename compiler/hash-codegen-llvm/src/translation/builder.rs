@@ -2,16 +2,16 @@
 //! [hash_codegen::traits::builder::BlockBuilderMethods] using the Inkwell
 //! wrapper around LLVM.
 
-use std::{borrow::Cow, ffi::CString, iter};
+use std::{borrow::Cow, iter};
 
 use hash_codegen::{
     abi::FnAbiId,
     common::{AtomicOrdering, CheckedOp, IntComparisonKind, MemFlags, RealComparisonKind},
-    layout::TyInfo,
     lower::{
         operands::{OperandRef, OperandValue},
         place::PlaceRef,
     },
+    repr::TyInfo,
     target::{
         abi::{AbiRepresentation, Scalar, ScalarKind, ValidScalarRange},
         alignment::Alignment,
@@ -29,10 +29,10 @@ use hash_storage::store::{statics::StoreId, Store};
 use hash_utils::rayon::iter::Either;
 use inkwell::{
     basic_block::BasicBlock,
-    types::{AnyType, AnyTypeEnum, AsTypeRef, BasicTypeEnum},
+    types::{AnyType, AnyTypeEnum, AsTypeRef, BasicTypeEnum, FunctionType},
     values::{
         AggregateValueEnum, AnyValue, AnyValueEnum, AsValueRef, BasicMetadataValueEnum, BasicValue,
-        BasicValueEnum, FunctionValue, InstructionValue, IntValue, PhiValue, UnnamedAddress,
+        BasicValueEnum, InstructionValue, IntValue, PhiValue, UnnamedAddress,
     },
 };
 use llvm_sys::core as llvm;
@@ -71,7 +71,7 @@ impl<'a, 'b, 'm> LLVMBuilder<'a, 'b, 'm> {
 
         // Create the PHI value, and then add all of the incoming values.
         let ty: BasicTypeEnum = ty.try_into().unwrap();
-        let phi = self.builder.build_phi(ty, "");
+        let phi = self.builder.build_phi(ty, "").unwrap();
 
         // @@Efficiency: patch inkwell to allow to provide these references directly...
         let blocks_and_values = blocks
@@ -94,10 +94,10 @@ impl<'a, 'b, 'm> LLVMBuilder<'a, 'b, 'm> {
     /// adjust the arguments.
     fn check_call_args<'arg>(
         &mut self,
-        func: FunctionValue<'m>,
+        fn_ty: FunctionType<'m>,
         args: &'arg [BasicMetadataValueEnum<'m>],
     ) -> Cow<'arg, [BasicMetadataValueEnum<'m>]> {
-        let func_params = func.get_type().get_param_types();
+        let func_params = fn_ty.get_param_types();
 
         // Check if all arguments match, and if so we return
         // early.
@@ -166,15 +166,15 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
 
     fn return_value(&mut self, value: Self::Value) {
         let value: BasicValueEnum = value.try_into().unwrap();
-        self.builder.build_return(Some(&value));
+        self.builder.build_return(Some(&value)).unwrap();
     }
 
     fn return_void(&mut self) {
-        self.builder.build_return(None);
+        self.builder.build_return(None).unwrap();
     }
 
     fn branch(&mut self, destination: Self::BasicBlock) {
-        self.builder.build_unconditional_branch(destination);
+        self.builder.build_unconditional_branch(destination).unwrap();
     }
 
     fn conditional_branch(
@@ -185,7 +185,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
     ) {
         // @@Verify: is it always meant to be an int-value comparison.
         let value = condition.into_int_value();
-        self.builder.build_conditional_branch(value, true_block, false_block);
+        self.builder.build_conditional_branch(value, true_block, false_block).unwrap();
     }
 
     fn switch(
@@ -209,26 +209,35 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
             })
             .collect::<Vec<_>>();
 
-        self.builder.build_switch(value, otherwise_block, &cases);
+        self.builder.build_switch(value, otherwise_block, &cases).unwrap();
     }
 
     fn unreachable(&mut self) {
-        self.builder.build_unreachable();
+        self.builder.build_unreachable().unwrap();
     }
 
     fn call(
         &mut self,
-        fn_ptr: Self::Function,
+        fn_ty: Self::Type,
+        fn_ptr: Self::Value,
         args: &[Self::Value],
         fn_abi: Option<FnAbiId>,
     ) -> Self::Value {
+        let func_ty = fn_ty.into_function_type();
+
         let args: Vec<BasicMetadataValueEnum> =
             args.iter().map(|v| (*v).try_into().unwrap()).collect();
 
         // The call adjustment might modify the arguments by inserting
         // bitcasts...
-        let args = self.check_call_args(fn_ptr, &args);
-        let site = self.builder.build_call(fn_ptr, &args, "");
+        let args = self.check_call_args(func_ty, &args);
+        let site = match fn_ptr {
+            AnyValueEnum::FunctionValue(func) => self.builder.build_call(func, &args, "").unwrap(),
+            AnyValueEnum::PointerValue(ptr) => {
+                self.builder.build_indirect_call(func_ty, ptr, &args, "").unwrap()
+            }
+            _ => unreachable!(),
+        };
 
         if let Some(abi) = fn_abi {
             self.ctx.cg_ctx().abis().map_fast(abi, |abi| {
@@ -251,14 +260,14 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         let lhs = lhs.into_int_value();
         let rhs = rhs.into_int_value();
 
-        self.builder.build_int_add(lhs, rhs, "").into()
+        self.builder.build_int_add(lhs, rhs, "").unwrap().into()
     }
 
     fn fadd(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
         let lhs = lhs.into_float_value();
         let rhs = rhs.into_float_value();
 
-        self.builder.build_float_add(lhs, rhs, "").into()
+        self.builder.build_float_add(lhs, rhs, "").unwrap().into()
     }
 
     fn fadd_fast(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
@@ -270,21 +279,21 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         // @@Todo: set the `fast` metadata flag on this operation
         // value.as_instruction().map(|instruction| instruction.set_metadata(metadata,
         // kind_id));
-        value.into()
+        value.unwrap().into()
     }
 
     fn sub(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
         let lhs = lhs.into_int_value();
         let rhs = rhs.into_int_value();
 
-        self.builder.build_int_sub(lhs, rhs, "").into()
+        self.builder.build_int_sub(lhs, rhs, "").unwrap().into()
     }
 
     fn fsub(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
         let lhs = lhs.into_float_value();
         let rhs = rhs.into_float_value();
 
-        self.builder.build_float_sub(lhs, rhs, "").into()
+        self.builder.build_float_sub(lhs, rhs, "").unwrap().into()
     }
 
     fn fsub_fast(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
@@ -296,21 +305,21 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         // @@Todo: set the `fast` metadata flag on this operation
         // value.as_instruction().map(|instruction| instruction.set_metadata(metadata,
         // kind_id));
-        value.into()
+        value.unwrap().into()
     }
 
     fn mul(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
         let lhs = lhs.into_int_value();
         let rhs = rhs.into_int_value();
 
-        self.builder.build_int_mul(lhs, rhs, "").into()
+        self.builder.build_int_mul(lhs, rhs, "").unwrap().into()
     }
 
     fn fmul(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
         let lhs = lhs.into_float_value();
         let rhs = rhs.into_float_value();
 
-        self.builder.build_float_mul(lhs, rhs, "").into()
+        self.builder.build_float_mul(lhs, rhs, "").unwrap().into()
     }
 
     fn fmul_fast(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
@@ -322,31 +331,27 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         // @@Todo: set the `fast` metadata flag on this operation
         // value.as_instruction().map(|instruction| instruction.set_metadata(metadata,
         // kind_id));
-        value.into()
+        value.unwrap().into()
     }
 
     fn udiv(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
         let lhs = lhs.into_int_value();
         let rhs = rhs.into_int_value();
 
-        self.builder.build_int_unsigned_div(lhs, rhs, "").into()
+        self.builder.build_int_unsigned_div(lhs, rhs, "").unwrap().into()
     }
 
     fn exactudiv(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
         let lhs = lhs.into_int_value();
         let rhs = rhs.into_int_value();
 
-        // @@Todo: patch inkwell to allow for exact unsigned division
-
-        // create an empty c_str
-        let c_string = CString::new("").unwrap();
-
+        // @@PatchInkwell: to allow for exact unsigned division
         let value = unsafe {
             llvm::LLVMBuildExactUDiv(
                 self.builder.as_mut_ptr(),
                 lhs.as_value_ref(),
                 rhs.as_value_ref(),
-                c_string.as_ptr(),
+                EMPTY_NAME,
             )
         };
 
@@ -357,21 +362,21 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         let lhs = lhs.into_int_value();
         let rhs = rhs.into_int_value();
 
-        self.builder.build_int_signed_div(lhs, rhs, "").into()
+        self.builder.build_int_signed_div(lhs, rhs, "").unwrap().into()
     }
 
     fn exactsdiv(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
         let lhs = lhs.into_int_value();
         let rhs = rhs.into_int_value();
 
-        self.builder.build_int_exact_signed_div(lhs, rhs, "").into()
+        self.builder.build_int_exact_signed_div(lhs, rhs, "").unwrap().into()
     }
 
     fn fdiv(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
         let lhs = lhs.into_float_value();
         let rhs = rhs.into_float_value();
 
-        self.builder.build_float_div(lhs, rhs, "").into()
+        self.builder.build_float_div(lhs, rhs, "").unwrap().into()
     }
 
     fn fdiv_fast(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
@@ -383,28 +388,28 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         // @@Todo: set the `fast` metadata flag on this operation
         // value.as_instruction().map(|instruction| instruction.set_metadata(metadata,
         // kind_id)).into();
-        value.into()
+        value.unwrap().into()
     }
 
     fn urem(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
         let lhs = lhs.into_int_value();
         let rhs = rhs.into_int_value();
 
-        self.builder.build_int_unsigned_rem(lhs, rhs, "").into()
+        self.builder.build_int_unsigned_rem(lhs, rhs, "").unwrap().into()
     }
 
     fn srem(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
         let lhs = lhs.into_int_value();
         let rhs = rhs.into_int_value();
 
-        self.builder.build_int_signed_rem(lhs, rhs, "").into()
+        self.builder.build_int_signed_rem(lhs, rhs, "").unwrap().into()
     }
 
     fn frem(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
         let lhs = lhs.into_float_value();
         let rhs = rhs.into_float_value();
 
-        self.builder.build_float_rem(lhs, rhs, "").into()
+        self.builder.build_float_rem(lhs, rhs, "").unwrap().into()
     }
 
     fn frem_fast(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
@@ -416,7 +421,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         // @@Todo: set the `fast` metadata flag on this operation
         // value.as_instruction().map(|instruction| instruction.set_metadata(metadata,
         // kind_id)).into();
-        value.into()
+        value.unwrap().into()
     }
 
     fn fpow(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
@@ -431,36 +436,36 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
             _ => unreachable!("unsupported float type for pow"),
         };
 
-        let func = self.get_intrinsic_function(intrinsic);
-        self.call(func, &[lhs, rhs], None)
+        let (ty, func) = self.get_intrinsic_function(intrinsic);
+        self.call(ty, func, &[lhs, rhs], None)
     }
 
     fn shl(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
         let lhs = lhs.into_int_value();
         let rhs = rhs.into_int_value();
 
-        self.builder.build_left_shift(lhs, rhs, "").into()
+        self.builder.build_left_shift(lhs, rhs, "").unwrap().into()
     }
 
     fn lshr(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
         let lhs = lhs.into_int_value();
         let rhs = rhs.into_int_value();
 
-        self.builder.build_right_shift(lhs, rhs, true, "").into()
+        self.builder.build_right_shift(lhs, rhs, true, "").unwrap().into()
     }
 
     fn ashr(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
         let lhs = lhs.into_int_value();
         let rhs = rhs.into_int_value();
 
-        self.builder.build_right_shift(lhs, rhs, false, "").into()
+        self.builder.build_right_shift(lhs, rhs, false, "").unwrap().into()
     }
 
     fn unchecked_sadd(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
         let lhs = lhs.into_int_value();
         let rhs = rhs.into_int_value();
 
-        self.builder.build_int_nsw_add(lhs, rhs, "").into()
+        self.builder.build_int_nsw_add(lhs, rhs, "").unwrap().into()
     }
 
     fn unchecked_uadd(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
@@ -485,67 +490,67 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         let lhs = lhs.into_int_value();
         let rhs = rhs.into_int_value();
 
-        self.builder.build_int_nsw_sub(lhs, rhs, "").into()
+        self.builder.build_int_nsw_sub(lhs, rhs, "").unwrap().into()
     }
 
     fn unchecked_usub(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
         let lhs = lhs.into_int_value();
         let rhs = rhs.into_int_value();
 
-        self.builder.build_int_nuw_sub(lhs, rhs, "").into()
+        self.builder.build_int_nuw_sub(lhs, rhs, "").unwrap().into()
     }
 
     fn unchecked_smul(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
         let lhs = lhs.into_int_value();
         let rhs = rhs.into_int_value();
 
-        self.builder.build_int_nsw_mul(lhs, rhs, "").into()
+        self.builder.build_int_nsw_mul(lhs, rhs, "").unwrap().into()
     }
 
     fn unchecked_umul(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
         let lhs = lhs.into_int_value();
         let rhs = rhs.into_int_value();
 
-        self.builder.build_int_nuw_mul(lhs, rhs, "").into()
+        self.builder.build_int_nuw_mul(lhs, rhs, "").unwrap().into()
     }
 
     fn and(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
         let lhs = lhs.into_int_value();
         let rhs = rhs.into_int_value();
 
-        self.builder.build_and(lhs, rhs, "").into()
+        self.builder.build_and(lhs, rhs, "").unwrap().into()
     }
 
     fn or(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
         let lhs = lhs.into_int_value();
         let rhs = rhs.into_int_value();
 
-        self.builder.build_or(lhs, rhs, "").into()
+        self.builder.build_or(lhs, rhs, "").unwrap().into()
     }
 
     fn xor(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
         let lhs = lhs.into_int_value();
         let rhs = rhs.into_int_value();
 
-        self.builder.build_xor(lhs, rhs, "").into()
+        self.builder.build_xor(lhs, rhs, "").unwrap().into()
     }
 
     fn not(&mut self, v: Self::Value) -> Self::Value {
         let v = v.into_int_value();
 
-        self.builder.build_not(v, "").into()
+        self.builder.build_not(v, "").unwrap().into()
     }
 
     fn neg(&mut self, v: Self::Value) -> Self::Value {
         let v = v.into_int_value();
 
-        self.builder.build_int_neg(v, "").into()
+        self.builder.build_int_neg(v, "").unwrap().into()
     }
 
     fn fneg(&mut self, v: Self::Value) -> Self::Value {
         let v = v.into_float_value();
 
-        self.builder.build_float_neg(v, "").into()
+        self.builder.build_float_neg(v, "").unwrap().into()
     }
 
     fn checked_bin_op(
@@ -611,19 +616,28 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         let lhs = lhs.into_float_value();
         let rhs = rhs.into_float_value();
 
-        self.builder.build_float_compare(op, lhs, rhs, "").into()
+        self.builder.build_float_compare(op, lhs, rhs, "").unwrap().into()
     }
 
     fn truncate(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value {
-        self.builder.build_int_truncate(val.into_int_value(), dest_ty.into_int_type(), "").into()
+        self.builder
+            .build_int_truncate(val.into_int_value(), dest_ty.into_int_type(), "")
+            .unwrap()
+            .into()
     }
 
     fn sign_extend(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value {
-        self.builder.build_int_s_extend(val.into_int_value(), dest_ty.into_int_type(), "").into()
+        self.builder
+            .build_int_s_extend(val.into_int_value(), dest_ty.into_int_type(), "")
+            .unwrap()
+            .into()
     }
 
     fn zero_extend(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value {
-        self.builder.build_int_z_extend(val.into_int_value(), dest_ty.into_int_type(), "").into()
+        self.builder
+            .build_int_z_extend(val.into_int_value(), dest_ty.into_int_type(), "")
+            .unwrap()
+            .into()
     }
 
     fn fp_to_int_sat(
@@ -656,67 +670,85 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         };
 
         let fn_ty = self.type_function(&[src_ty], dest_ty);
-        let func = self.declare_c_fn(&name, UnnamedAddress::None, fn_ty);
+        let func = self.declare_c_fn(&name, UnnamedAddress::None, fn_ty).as_any_value_enum();
 
-        self.call(func, &[value], None)
+        self.call(fn_ty, func, &[value], None)
     }
 
     fn fp_to_ui(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value {
         self.builder
             .build_float_to_unsigned_int(val.into_float_value(), dest_ty.into_int_type(), "")
+            .unwrap()
             .into()
     }
 
     fn fp_to_si(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value {
         self.builder
             .build_float_to_signed_int(val.into_float_value(), dest_ty.into_int_type(), "")
+            .unwrap()
             .into()
     }
 
     fn ui_to_fp(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value {
         self.builder
             .build_unsigned_int_to_float(val.into_int_value(), dest_ty.into_float_type(), "")
+            .unwrap()
             .into()
     }
 
     fn si_to_fp(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value {
         self.builder
             .build_signed_int_to_float(val.into_int_value(), dest_ty.into_float_type(), "")
+            .unwrap()
             .into()
     }
 
     fn fp_truncate(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value {
-        self.builder.build_float_trunc(val.into_float_value(), dest_ty.into_float_type(), "").into()
+        self.builder
+            .build_float_trunc(val.into_float_value(), dest_ty.into_float_type(), "")
+            .unwrap()
+            .into()
     }
 
     fn fp_extend(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value {
-        self.builder.build_float_ext(val.into_float_value(), dest_ty.into_float_type(), "").into()
+        self.builder
+            .build_float_ext(val.into_float_value(), dest_ty.into_float_type(), "")
+            .unwrap()
+            .into()
     }
 
     fn ptr_to_int(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value {
-        self.builder.build_ptr_to_int(val.into_pointer_value(), dest_ty.into_int_type(), "").into()
+        self.builder
+            .build_ptr_to_int(val.into_pointer_value(), dest_ty.into_int_type(), "")
+            .unwrap()
+            .into()
     }
 
     fn int_to_ptr(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value {
-        self.builder.build_int_to_ptr(val.into_int_value(), dest_ty.into_pointer_type(), ".").into()
+        self.builder
+            .build_int_to_ptr(val.into_int_value(), dest_ty.into_pointer_type(), ".")
+            .unwrap()
+            .into()
     }
 
     fn bit_cast(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value {
         let val: BasicValueEnum = val.try_into().unwrap();
         let ty: BasicTypeEnum = dest_ty.try_into().unwrap();
 
-        self.builder.build_bitcast(val, ty, "").into()
+        self.builder.build_bitcast(val, ty, "").unwrap().into()
     }
 
     fn int_cast(&mut self, val: Self::Value, dest_ty: Self::Type, is_signed: bool) -> Self::Value {
         self.builder
             .build_int_cast_sign_flag(val.into_int_value(), dest_ty.into_int_type(), is_signed, "")
+            .unwrap()
             .into()
     }
 
     fn pointer_cast(&mut self, val: Self::Value, dest_ty: Self::Type) -> Self::Value {
         self.builder
             .build_pointer_cast(val.into_pointer_value(), dest_ty.into_pointer_type(), "")
+            .unwrap()
             .into()
     }
 
@@ -742,7 +774,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         // @@Todo: do we need to start a new block here?
 
         let ty: BasicTypeEnum = ty.try_into().unwrap();
-        let allocated_value = self.builder.build_alloca(ty, "");
+        let allocated_value = self.builder.build_alloca(ty, "").unwrap();
 
         // we need to set the alignment of this value to the specified size.
         allocated_value
@@ -754,7 +786,8 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
 
     fn byte_array_alloca(&mut self, len: Self::Value, alignment: Alignment) -> Self::Value {
         let ty: BasicTypeEnum = self.ctx.type_i8().try_into().unwrap();
-        let allocated_value = self.builder.build_array_alloca(ty, len.into_int_value(), "");
+        let allocated_value =
+            self.builder.build_array_alloca(ty, len.into_int_value(), "").unwrap();
 
         // we need to set the alignment of this value to the specified size.
         allocated_value
@@ -807,7 +840,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
 
     fn load(&mut self, ty: Self::Type, ptr: Self::Value, alignment: Alignment) -> Self::Value {
         let ty: BasicTypeEnum = ty.try_into().unwrap();
-        let value = self.builder.build_load(ty, ptr.into_pointer_value(), "");
+        let value = self.builder.build_load(ty, ptr.into_pointer_value(), "").unwrap();
 
         // we need to set the alignment of this value to the specified size.
         value
@@ -819,7 +852,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
 
     fn volatile_load(&mut self, ty: Self::Type, ptr: Self::Value) -> Self::Value {
         let ty: BasicTypeEnum = ty.try_into().unwrap();
-        let value = self.builder.build_load(ty, ptr.into_pointer_value(), "");
+        let value = self.builder.build_load(ty, ptr.into_pointer_value(), "").unwrap();
 
         // we need to set that this data is volatile
         value.as_instruction_value().map(|instruction| instruction.set_volatile(true));
@@ -837,7 +870,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         let ordering = AtomicOrderingWrapper::from(ordering).0;
 
         let ty: BasicTypeEnum = ty.try_into().unwrap();
-        let value = self.builder.build_load(ty, ptr.into_pointer_value(), "");
+        let value = self.builder.build_load(ty, ptr.into_pointer_value(), "").unwrap();
 
         // we need to set that this data is volatile
         if let Some(instruction) = value.as_instruction_value() {
@@ -944,7 +977,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         flags: MemFlags,
     ) -> Self::Value {
         let operand: BasicValueEnum = value.try_into().unwrap();
-        let store_value = self.builder.build_store(ptr.into_pointer_value(), operand);
+        let store_value = self.builder.build_store(ptr.into_pointer_value(), operand).unwrap();
 
         let alignment = if flags.contains(MemFlags::UN_ALIGNED) { 1 } else { alignment.bytes() };
         store_value.set_alignment(alignment as u32).unwrap();
@@ -975,7 +1008,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         ordering: AtomicOrdering,
     ) -> Self::Value {
         let operand: BasicValueEnum = value.try_into().unwrap();
-        let store_value = self.builder.build_store(ptr.into_pointer_value(), operand);
+        let store_value = self.builder.build_store(ptr.into_pointer_value(), operand).unwrap();
 
         // we need to set the atomic ordering for the store.
         let ordering = AtomicOrderingWrapper::from(ordering).0;
@@ -983,7 +1016,6 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
 
         let alignment = alignment.bytes();
         store_value.set_alignment(alignment as u32).unwrap();
-
         store_value.into()
     }
 
@@ -999,7 +1031,9 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         // ## Safety: If the `indices` are invalid or out of bounds, LLVM
         // is likely to segfault, which is noted by Inkwell and thus labelled
         // as `unsafe`.
-        unsafe { self.builder.build_gep(ty, ptr.into_pointer_value(), &indices, "").into() }
+        unsafe {
+            self.builder.build_gep(ty, ptr.into_pointer_value(), &indices, "").unwrap().into()
+        }
     }
 
     fn bounded_get_element_pointer(
@@ -1152,13 +1186,14 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         then: Self::Value,
         otherwise: Self::Value,
     ) -> Self::Value {
-        // @@Deal with potentially non-int values, we need to wrap IntMathValueEnum
+        // @@Todo: Deal with potentially non-int values, we need to wrap
+        // IntMathValueEnum
         let value = condition.into_int_value();
 
         let then: BasicValueEnum = then.try_into().unwrap();
         let otherwise: BasicValueEnum = otherwise.try_into().unwrap();
 
-        self.builder.build_select(value, then, otherwise, "").into()
+        self.builder.build_select(value, then, otherwise, "").unwrap().into()
     }
 
     fn lifetime_start(&mut self, ptr: Self::Value, size: Size) {

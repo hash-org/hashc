@@ -6,19 +6,20 @@
 //! types into the [ReprTy] which is then used for the lowering process.
 
 use hash_ast::ast::AstNodeId;
+use hash_const_eval::{
+    op::{BinOp, LogicalBinOp, UnOp},
+    Const, ConstKind,
+};
 use hash_ir::{
-    ir::{self, Const, ConstKind, Scalar},
-    ty::{ReprTy, ReprTyId, ToReprTy, COMMON_REPR_TYS},
+    ir::Scalar,
+    ty::{ReprTy, ReprTyId},
 };
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_target::{size::Size, HasTarget};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
-    intrinsics::{
-        definitions::{BinOp, CondBinOp, Intrinsic as TirIntrinsic, ShortCircuitingBoolOp, UnOp},
-        utils::try_use_term_as_integer_lit,
-    },
-    tir::{CallTerm, DataTy, FnDefId, Lit, LitPat, PatId, Term, TermId, TyId},
+    intrinsics::{definitions::Intrinsic as TirIntrinsic, utils::try_use_term_as_integer_lit},
+    tir::{CallTerm, DataTy, FnDefId, LitPat, PatId, Term, TermId, TyId},
 };
 
 use super::BodyBuilder;
@@ -32,7 +33,7 @@ use super::BodyBuilder;
 pub enum FnCallTermKind {
     /// A function call, the term doesn't change and should just be
     /// handled as a function call.
-    Call(CallTerm),
+    Call,
 
     /// A cast intrinsic operation, we perform a cast from the type of the
     /// first term into the desired second [ReprTyId].
@@ -40,15 +41,15 @@ pub enum FnCallTermKind {
 
     /// A "boolean" binary operation which takes two terms and yields a boolean
     /// term as a result.
-    BinaryOp(ir::BinOp, TermId, TermId),
+    BinaryOp(BinOp, TermId, TermId),
 
     /// A short-circuiting boolean binary operation, the term should be lowered
     /// into the equivalent of `a && b` or `a || b`.
-    LogicalBinOp(ir::LogicalBinOp, TermId, TermId),
+    LogicalBinOp(LogicalBinOp, TermId, TermId),
 
     /// An "unary" operation, the term should be lowered into the equivalent
     /// unary operation.
-    UnaryOp(ir::UnaryOp, TermId),
+    UnaryOp(UnOp, TermId),
 }
 
 impl<'tcx> BodyBuilder<'tcx> {
@@ -57,7 +58,14 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// duplicate work.
     pub(crate) fn ty_id_from_tir_term(&self, term: TermId) -> ReprTyId {
         let ty = self.ctx.get_inferred_ty(term);
-        self.ctx.ty_id_from_tir_ty(ty)
+        self.ctx.repr_ty_from_tir_ty(ty)
+    }
+
+    /// Get the [ReprTyId] from a given [TyId]. This function will internally
+    /// cache results of lowering a [TyId] into an [ReprTyId] to avoid
+    /// duplicate work.
+    pub(super) fn ty_id_from_tir_ty(&self, ty: TyId) -> ReprTyId {
+        self.ctx.repr_ty_from_tir_ty(ty)
     }
 
     /// Get the [ReprTyId] for a give [PatId].
@@ -68,7 +76,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
     /// Create an ADT from a defined [DataTy].
     pub(crate) fn ty_id_from_tir_data(&self, data_ty: DataTy) -> ReprTyId {
-        self.ctx.ty_from_tir_data(data_ty)
+        self.ctx.repr_ty_from_tir_data_ty(data_ty)
     }
 
     /// Create an function type from the given [TirIntrinsic].
@@ -77,28 +85,12 @@ impl<'tcx> BodyBuilder<'tcx> {
         intrinsic: TirIntrinsic,
         originating_node: AstNodeId,
     ) -> ReprTyId {
-        self.ctx.ty_id_from_tir_intrinsic(intrinsic, originating_node)
+        self.ctx.repr_ty_from_tir_intrinsic(intrinsic, originating_node)
     }
 
     /// Create an function type from the given [FnDefId].
     pub(super) fn ty_id_from_tir_fn_def(&mut self, fn_def: FnDefId) -> ReprTyId {
-        self.ctx.ty_id_from_tir_fn_def(fn_def)
-    }
-
-    /// Get the [ReprTyId] from a given [TyId]. This function will internally
-    /// cache results of lowering a [TyId] into an [ReprTyId] to avoid
-    /// duplicate work.
-    pub(super) fn ty_id_from_tir_ty(&self, ty: TyId) -> ReprTyId {
-        self.ctx.ty_id_from_tir_ty(ty)
-    }
-
-    pub(super) fn ty_id_from_lit(&self, lit: &Lit) -> ReprTyId {
-        match lit {
-            Lit::Int(val) => val.kind().unwrap().to_ir_ty(),
-            Lit::Str(_) => COMMON_REPR_TYS.str,
-            Lit::Char(_) => COMMON_REPR_TYS.char,
-            Lit::Float(val) => val.kind().unwrap().to_ir_ty(),
-        }
+        self.ctx.repr_ty_from_tir_fn_def(fn_def)
     }
 
     /// Function which is used to classify a [FnCallTerm] into a
@@ -128,11 +120,11 @@ impl<'tcx> BodyBuilder<'tcx> {
                             args.at(3).unwrap().borrow().value,
                         );
 
-                        let op = CondBinOp::try_from(
+                        let op = BinOp::try_from(
                             try_use_term_as_integer_lit::<_, u8>(&self.ctx, op).unwrap(),
                         )
                         .unwrap();
-                        FnCallTermKind::BinaryOp(op.into(), lhs, rhs)
+                        FnCallTermKind::BinaryOp(op, lhs, rhs)
                     }
                     TirIntrinsic::ShortCircuitingBoolOp => {
                         let (op, lhs, rhs) = (
@@ -141,12 +133,12 @@ impl<'tcx> BodyBuilder<'tcx> {
                             args.at(3).unwrap().borrow().value,
                         );
 
-                        let op = ShortCircuitingBoolOp::try_from(
+                        let op = LogicalBinOp::try_from(
                             try_use_term_as_integer_lit::<_, u8>(&self.ctx, op).unwrap(),
                         )
                         .unwrap();
 
-                        FnCallTermKind::LogicalBinOp(op.into(), lhs, rhs)
+                        FnCallTermKind::LogicalBinOp(op, lhs, rhs)
                     }
                     TirIntrinsic::BinOp => {
                         let (op, lhs, rhs) = (
@@ -159,7 +151,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                             try_use_term_as_integer_lit::<_, u8>(&self.ctx, op).unwrap(),
                         )
                         .unwrap();
-                        FnCallTermKind::BinaryOp(op.into(), lhs, rhs)
+                        FnCallTermKind::BinaryOp(op, lhs, rhs)
                     }
                     TirIntrinsic::UnOp => {
                         let (op, subject) = (
@@ -173,7 +165,7 @@ impl<'tcx> BodyBuilder<'tcx> {
                         )
                         .unwrap();
 
-                        FnCallTermKind::UnaryOp(parsed_op.into(), subject)
+                        FnCallTermKind::UnaryOp(parsed_op, subject)
                     }
                     TirIntrinsic::SizeOf
                     | TirIntrinsic::AlignOf
@@ -182,13 +174,13 @@ impl<'tcx> BodyBuilder<'tcx> {
                     | TirIntrinsic::Memcmp
                     | TirIntrinsic::Memcpy
                     | TirIntrinsic::Abort
-                    | TirIntrinsic::Panic => FnCallTermKind::Call(*term),
+                    | TirIntrinsic::Panic => FnCallTermKind::Call,
                     TirIntrinsic::Eval | TirIntrinsic::UserError | TirIntrinsic::DebugPrint => {
                         panic!("Found unexpected intrinsic {} which should have been evaluated during TC", intrinsic)
                     }
                 }
             }
-            _ => FnCallTermKind::Call(*term),
+            _ => FnCallTermKind::Call,
         }
     }
 

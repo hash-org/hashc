@@ -7,179 +7,23 @@
 //! information about data representation when constructing and destructing
 //! Hash IR constants into various representations.
 #![feature(let_chains)]
-pub mod const_utils;
 pub mod graphviz;
 pub mod pretty;
 
-use std::{
-    fmt,
-    io::{self, Write},
-    iter,
-    ops::Deref,
-};
+use std::{fmt, ops::Deref};
 
-use const_utils::ConstUtils;
+use hash_const_eval::print::pretty_print_const;
 use hash_ir::{
-    constant::{Const, ConstKind, Scalar, ScalarInt},
     ir::{
         AggregateKind, AssertKind, BodyInfo, Operand, Place, PlaceProjection, RValue, Statement,
         StatementKind, Terminator, TerminatorKind,
     },
-    ty::{AdtFlags, Mutability, ReprTy, VariantIdx, COMMON_REPR_TYS},
+    ty::Mutability,
 };
-use hash_layout::compute::LayoutComputer;
+use hash_repr::{compute::LayoutComputer, constant::Const};
 use hash_storage::store::statics::StoreId;
-use hash_target::{
-    data_layout::HasDataLayout,
-    primitives::{FloatTy, IntTy},
-};
-use hash_utils::derive_more::Constructor;
-
-#[derive(Constructor, Default)]
-struct TempWriter(Vec<u8>);
-
-impl TempWriter {
-    fn into_string(self) -> String {
-        String::from_utf8(self.0).unwrap()
-    }
-}
-
-impl io::Write for TempWriter {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0.extend_from_slice(buf);
-        Ok(buf.len())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
-
-/// A function to pretty print the [Const] in a human-readable format, this
-/// is used when printing the generated IR.
-pub fn pretty_print_const(
-    f: &mut impl Write,
-    constant: &Const,
-    lc: LayoutComputer<'_>,
-) -> io::Result<()> {
-    match (constant.kind(), constant.ty().value()) {
-        (ConstKind::Pair { data, .. }, ReprTy::Ref(inner, _, _)) => match inner.value() {
-            ReprTy::Str => write!(f, "{:?}", data.value()),
-            _ => Ok(()),
-        },
-
-        (ConstKind::Scalar(scalar), ty) => pretty_print_scalar(f, scalar, &ty, lc),
-        (ConstKind::Alloc { .. }, ReprTy::Array { .. }) => {
-            write!(f, "[{}]", 2)
-        }
-        // We put a `zero` for fndefs.
-        (ConstKind::Zero, ReprTy::FnDef { .. }) => {
-            write!(f, "{}", constant.ty())
-        }
-        (ConstKind::Zero, _) => {
-            debug_assert!(constant.ty() == COMMON_REPR_TYS.unit);
-            write!(f, "()")
-        }
-        (_, ReprTy::Adt(def)) => {
-            let utils = ConstUtils::new(lc, constant);
-
-            if let Some(destructured) = utils.destructure_const() {
-                match def.borrow().flags {
-                    AdtFlags::STRUCT | AdtFlags::ENUM => {
-                        write!(f, "{}", def.borrow().name)?;
-
-                        let variant =
-                            destructured.variant.expect("expected variant for destructured ADT");
-
-                        // @@Todo: don't copy this out!
-                        let variant_def = def.borrow().variant(variant).clone();
-
-                        if AdtFlags::ENUM == def.borrow().flags {
-                            write!(f, "::{}", variant_def.name)?;
-                        }
-
-                        write!(f, "(")?;
-                        let mut first = true;
-                        for (field, constant) in
-                            iter::zip(variant_def.fields.iter(), destructured.fields)
-                        {
-                            if !first {
-                                write!(f, ", ")?;
-                            }
-
-                            write!(f, "{}: ", field.name)?;
-                            pretty_print_const(f, &constant, lc)?;
-
-                            first = false;
-                        }
-
-                        write!(f, ")")
-                    }
-                    AdtFlags::TUPLE => {
-                        // @@Todo: don't copy this out!
-                        let variant_def = def.borrow().variant(VariantIdx::new(0)).clone();
-
-                        write!(f, "(")?;
-                        let mut first = true;
-                        for (field, constant) in
-                            iter::zip(variant_def.fields.iter(), destructured.fields)
-                        {
-                            if !first {
-                                write!(f, ", ")?;
-                            }
-
-                            write!(f, "{}: ", field.name)?;
-                            pretty_print_const(f, &constant, lc)?;
-
-                            first = false;
-                        }
-
-                        write!(f, ")")
-                    }
-                    AdtFlags::UNION => {
-                        unimplemented!("union representations aren't implemented yet")
-                    }
-                    _ => unreachable!(),
-                }
-            } else {
-                Ok(())
-            }
-        }
-        (kind, _) => {
-            write!(f, "{kind:?}: {}", constant.ty())
-        }
-    }
-}
-
-/// Pretty printing a [Scalar] value.
-pub fn pretty_print_scalar(
-    f: &mut impl Write,
-    scalar: Scalar,
-    ty: &ReprTy,
-    lc: LayoutComputer<'_>,
-) -> io::Result<()> {
-    match ty {
-        ReprTy::Bool if scalar == Scalar::FALSE => write!(f, "false"),
-        ReprTy::Bool if scalar == Scalar::TRUE => write!(f, "true"),
-        ReprTy::Float(FloatTy::F32) => {
-            write!(f, "{:?}f32", f32::try_from(scalar).unwrap())
-        }
-        ReprTy::Float(FloatTy::F64) => {
-            write!(f, "{:?}f64", f64::try_from(scalar).unwrap())
-        }
-        ReprTy::Char => {
-            write!(f, "{:?}", char::try_from(scalar).unwrap())
-        }
-        ty @ (ReprTy::Int(_) | ReprTy::UInt(_)) => {
-            write!(f, "{}", ScalarInt::new(scalar, IntTy::from(*ty)))
-        }
-        ReprTy::Ref(..) | ReprTy::Fn { .. } => {
-            let data = scalar.assert_bits(lc.data_layout().pointer_size);
-            write!(f, "0x{:x} as {ty}", data)
-        }
-        _ => panic!("unexpected type for scalar: {ty:?}"),
-    }
-}
+use hash_target::data_layout::HasDataLayout;
+use hash_utils::temp_writer::TempWriter;
 
 /// Struct that is used to write interned IR components.
 pub struct IrWriter<'ctx, T> {
@@ -438,7 +282,8 @@ impl fmt::Display for IrWriter<'_, &Terminator> {
 
                         // We want to create an a constant from this value
                         // with the type, and then print it.
-                        let value = Const::from_scalar_like(value, target_ty, &self.lc);
+                        let value =
+                            Const::from_scalar_like(value, target_ty, self.lc.data_layout());
 
                         let mut buf = TempWriter::default();
                         pretty_print_const(&mut buf, &value, self.lc).unwrap();
@@ -512,7 +357,7 @@ mod tests {
         ir::{BodyInfo, Local, LocalDecls, Place, PlaceProjection, Projections},
         ty::VariantIdx,
     };
-    use hash_layout::{compute::LayoutComputer, LayoutStorage};
+    use hash_repr::{compute::LayoutComputer, LayoutStorage};
     use hash_target::data_layout::TargetDataLayout;
 
     use crate::IrWriter;
