@@ -19,6 +19,7 @@ use hash_utils::{
     index_vec::{define_index_type, index_vec, IndexVec},
     parking_lot::RwLock,
     path::adjust_canonicalisation,
+    schemars::{self, JsonSchema},
 };
 use location::{ByteRange, LineRanges, RowColRange, SpannedSource};
 use once_cell::sync::{Lazy, OnceCell};
@@ -58,7 +59,7 @@ define_index_type! {
 /// The first 31 bits are used to store the actual value of the
 /// [SourceId]. The last bit is used to denote whether this is a
 /// module or an interactive block.
-#[derive(Clone, Copy, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq, JsonSchema)]
 pub struct SourceId {
     /// The raw value of the identifier.
     _raw: u32,

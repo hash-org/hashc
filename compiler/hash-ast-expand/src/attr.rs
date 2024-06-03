@@ -3,7 +3,7 @@
 use hash_ast::ast;
 use hash_ast_utils::{
     attr::{AttrNode, AttrTarget},
-    dump::dump_ast,
+    dump::AstDump,
 };
 use hash_attrs::{
     attr::{attr_store, Attr, AttrArgIdx, AttrValue, Attrs},
@@ -22,6 +22,7 @@ use hash_tir::{
         TyId,
     },
 };
+use hash_utils::log;
 
 use crate::{
     diagnostics::{
@@ -70,7 +71,7 @@ impl AstExpander<'_> {
         if should_dump {
             let mode = self.settings.ast_settings.dump_mode;
             let character_set = self.settings.character_set;
-            dump_ast(subject, mode, character_set, &mut self.stdout).unwrap();
+            log::info!("{}", AstDump::new(subject, mode, character_set));
         }
     }
 

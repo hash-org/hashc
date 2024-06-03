@@ -1,4 +1,4 @@
-
+info: IR dump:
 IR dump for function `reverse_arr` defined at $DIR/arrays.hash:7:16-16:2
 reverse_arr := (_1: [i32; 10]) -> () {
     mut _0: ();
@@ -75,4 +75,5 @@ main := () -> () {
         return;
     }
 }
+
 

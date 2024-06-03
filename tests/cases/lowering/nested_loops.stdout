@@ -1,4 +1,4 @@
-
+info: IR dump:
 IR dump for function `main` defined at $DIR/nested_loops.hash:3:9-28:2
 main := () -> () {
     mut _0: ();
@@ -68,4 +68,5 @@ main := () -> () {
         goto -> bb7;
     }
 }
+
 

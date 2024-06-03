@@ -1,4 +1,4 @@
-
+info: IR dump:
 IR dump for function `get_name` defined at $DIR/strings_in_matches.hash:3:13-5:2
 get_name := () -> &str {
     mut _0: &str;
@@ -54,4 +54,5 @@ main := () -> () {
         return;
     }
 }
+
 

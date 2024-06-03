@@ -13,14 +13,18 @@ use hash_ast_utils::dump::AstDumpMode;
 use hash_target::{HasTarget, Target, HOST_TARGET_TRIPLE};
 use hash_utils::{
     clap::{Args, Parser, ValueEnum},
+    schemars::{self, JsonSchema},
+    serde::{self, Deserialize, Serialize},
     tree_writing::CharacterSet,
 };
+use serde_json;
 
 use crate::{error::PipelineError, fs::resolve_path};
 
 /// Various settings that are present on the compiler pipeline when initially
 /// launching.
-#[derive(Parser, Debug, Clone)]
+#[derive(Parser, Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[serde(crate = "self::serde")]
 #[command(name = "hashc", version = env!("COMPILER_VERSION"), about = "", author)]
 pub struct CompilerSettings {
     /// An optionally specified entry point for the compiler.
@@ -48,71 +52,124 @@ pub struct CompilerSettings {
     )]
     pub output_directory: Option<PathBuf>,
 
+    /// A collection of raw configuration options (in JSON format) that can be
+    /// used to configure the compiler pipeline. These are post-processed by
+    /// the compiler pipeline to set the appropriate settings.
+    #[arg(long, default_value = None, num_args=0..)]
+    #[serde(skip)]
+    pub configure: Option<Vec<String>>,
+
     /// Whether debugging log statements are enabled.
     #[arg(long, default_value_t = false)]
+    #[serde(default)]
     pub debug: bool,
 
     /// Print metrics about each stage when the entire pipeline has completed.
     #[arg(long = "timings", default_value_t = false)]
+    #[serde(default)]
     pub show_timings: bool,
 
     /// Whether to output of each stage result.
     #[arg(long, default_value_t = false)]
+    #[serde(default)]
     pub output_stage_results: bool,
 
     /// The number of workers that the compiler pipeline should have access to.
     /// This value is used to determine the thread pool size that is then shared
     /// across arbitrary stages within the compiler.
     #[arg(long, default_value_t = num_cpus::get())]
+    #[serde(default = "num_cpus::get")]
     pub worker_count: usize,
 
     /// Whether the compiler should skip bootstrapping the prelude, this
     /// is set for testing purposes.
     #[arg(long, default_value_t = false)]
+    #[serde(default)]
     pub skip_prelude: bool,
 
     /// This specifies whether the `prelude` module should not be emitted
     /// when the compiler should emit things like `TIR` or `IR` in order
     /// to avoid noise in the unit tests. @@Hack: remove this somehow?
     #[arg(long, default_value_t = false)]
+    #[serde(default)]
     pub prelude_is_quiet: bool,
 
     /// Whether the pipeline should output errors and warnings to
     /// standard error
     #[arg(long, default_value_t = true)]
+    #[serde(default)]
     pub emit_errors: bool,
+
+    /// Whether the compiler should print out the current messaging schema that
+    /// is used to communicate with the compiler.
+    #[arg(long = "schema", default_value_t = false)]
+    #[serde(default)]
+    pub emit_schema: bool,
 
     /// Which character set to use when printing information
     /// to the terminal, this affects rendering of characters
     /// such as the arrow in the error messages.
     #[arg(long, value_parser = CharacterSet::parse, required=false, default_value = "unicode", default_value_t = CharacterSet::Unicode)]
+    #[serde(default)]
     pub character_set: CharacterSet,
 
     /// The optimisation level that is to be performed.
     #[arg(long, default_value_t = OptimisationLevel::default())]
+    #[serde(default)]
     pub optimisation_level: OptimisationLevel,
 
     /// All settings that relate to any AST traversing stages.
     #[command(flatten)]
+    #[serde(default)]
     pub ast_settings: AstSettings,
 
     /// All settings that relate to the lowering stage of the compiler.
     #[command(flatten)]
+    #[serde(default)]
     pub lowering_settings: LoweringSettings,
 
     /// All settings that relate to the semantic analysis stage.
     #[command(flatten)]
+    #[serde(default)]
     pub semantic_settings: SemanticSettings,
 
     /// All settings that relate to the code generation backends of the
     /// compiler.
     #[command(flatten)]
+    #[serde(default)]
     pub codegen_settings: CodeGenSettings,
 
     /// To what should the compiler run to, anywhere from parsing, typecheck, to
     /// code generation.
     #[arg(long, default_value_t = CompilerStageKind::default())]
+    #[serde(default)]
     pub stage: CompilerStageKind,
+}
+
+trait MergeConfig {
+    fn merge_config(&mut self, config: &Self);
+}
+
+impl MergeConfig for CompilerSettings {
+    fn merge_config(&mut self, config: &Self) {
+        self.debug |= config.debug;
+        self.show_timings |= config.show_timings;
+        self.output_stage_results |= config.output_stage_results;
+        self.worker_count = config.worker_count;
+        self.skip_prelude |= config.skip_prelude;
+        self.prelude_is_quiet |= config.prelude_is_quiet;
+        self.emit_errors |= config.emit_errors;
+        self.emit_schema |= config.emit_schema;
+        self.character_set = config.character_set;
+        self.optimisation_level = config.optimisation_level;
+        self.entry_point.clone_from(&config.entry_point);
+        self.output_directory.clone_from(&config.output_directory);
+        self.ast_settings.merge_config(&config.ast_settings);
+        self.lowering_settings.merge_config(&config.lowering_settings);
+        self.semantic_settings.merge_config(&config.semantic_settings);
+        self.codegen_settings.merge_config(&config.codegen_settings);
+        self.stage = config.stage;
+    }
 }
 
 impl CompilerSettings {
@@ -121,10 +178,28 @@ impl CompilerSettings {
         Self::default()
     }
 
-    pub fn new_from_args() -> Self {
-        let mut this = Self::parse();
-        this.apply_optimisation_level(this.optimisation_level);
-        this
+    /// Create a new [CompilerSettings] from the command-line arguments.
+    ///
+    /// 1. Parse the [CompilerSettings] from the command-line arguments.
+    ///
+    /// 2. Apply any configurations that are specified in the `--configure`
+    ///    flag.
+    pub fn from_cli() -> Result<Self, PipelineError> {
+        let mut settings = Self::try_parse().map_err(PipelineError::ParseError)?;
+
+        // We're gonna gobble up all the `configurations` and then merge them
+        // into the settings.
+        std::mem::take(&mut settings.configure).unwrap_or_default().iter().try_for_each(
+            |config| {
+                let config: CompilerSettings = serde_json::from_str(config).map_err(|err| {
+                    PipelineError::InvalidValue("configure".to_string(), err.to_string())
+                })?;
+                settings.merge_config(&config);
+                Ok(())
+            },
+        )?;
+
+        Ok(settings)
     }
 
     /// Get the entry point filename from the [CompilerSettings]. If
@@ -283,6 +358,7 @@ impl Default for CompilerSettings {
     fn default() -> Self {
         Self {
             debug: false,
+            configure: None,
             entry_point: None,
             output_directory: None,
             output_stage_results: false,
@@ -290,6 +366,7 @@ impl Default for CompilerSettings {
             skip_prelude: false,
             prelude_is_quiet: false,
             emit_errors: true,
+            emit_schema: false,
             character_set: CharacterSet::Unicode,
             worker_count: num_cpus::get(),
             stage: CompilerStageKind::default(),
@@ -303,7 +380,20 @@ impl Default for CompilerSettings {
 }
 
 /// What optimisation level the compiler should run at.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    ValueEnum,
+    Deserialize,
+    Serialize,
+    JsonSchema,
+)]
+#[serde(crate = "self::serde")]
 pub enum OptimisationLevel {
     /// Run the compiler using the debug optimisation level. This will
     /// disable most optimisations that the compiler would otherwise do.
@@ -379,7 +469,8 @@ impl fmt::Display for OptimisationLevel {
 /// re-write the AST, analyse it or modify it in some way.
 ///
 /// N.B. By default, the AST is not dumped.
-#[derive(Debug, Clone, Copy, Args)]
+#[derive(Debug, Clone, Copy, Args, Deserialize, Serialize, JsonSchema)]
+#[serde(crate = "self::serde")]
 pub struct AstSettings {
     /// Whether to pretty-print all of the generated AST after the whole
     /// [Workspace] has been parsed.
@@ -398,10 +489,18 @@ impl Default for AstSettings {
     }
 }
 
+impl MergeConfig for AstSettings {
+    fn merge_config(&mut self, config: &Self) {
+        self.dump |= config.dump;
+        self.dump_mode = config.dump_mode;
+    }
+}
+
 /// Settings that relate to the IR stage of the compiler, these include if the
 /// IR should be dumped (and in which mode), whether the IR should be optimised,
 /// whether the IR should use `checked` operations, etc.
-#[derive(Debug, Clone, Copy, Args)]
+#[derive(Debug, Clone, Copy, Args, Deserialize, Serialize, JsonSchema)]
+#[serde(crate = "self::serde")]
 pub struct LoweringSettings {
     /// Whether the IR should dump all lowered bodies, rather than
     /// relying on user directives to select specific bodies.
@@ -425,9 +524,18 @@ impl Default for LoweringSettings {
     }
 }
 
+impl MergeConfig for LoweringSettings {
+    fn merge_config(&mut self, config: &Self) {
+        self.dump |= config.dump;
+        self.dump_mode = config.dump_mode;
+        self.checked_operations |= config.checked_operations;
+    }
+}
+
 /// Enum representing the different options for dumping the IR. It can either
 /// be emitted in the pretty-printing format, or in the `graphviz` format.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Serialize, Deserialize, JsonSchema)]
+#[serde(crate = "self::serde")]
 pub enum IrDumpMode {
     /// Dump the generated IR using a pretty-printed format
     Pretty,
@@ -446,7 +554,8 @@ impl fmt::Display for IrDumpMode {
 }
 
 /// All settings related to semantic analysis and typechecking.
-#[derive(Debug, Clone, Args)]
+#[derive(Debug, Clone, Args, Deserialize, Serialize, JsonSchema)]
+#[serde(crate = "self::serde")]
 pub struct SemanticSettings {
     /// Whether the compiler should dump the generated TIR (typed intermediate
     /// representation).
@@ -468,17 +577,25 @@ impl Default for SemanticSettings {
     }
 }
 
+impl MergeConfig for SemanticSettings {
+    fn merge_config(&mut self, config: &Self) {
+        self.dump_tir |= config.dump_tir
+    }
+}
+
 /// All settings that are related to compiler backend and code generation.
 ///
 /// N.B. some information that is stored here may be used by previous stages
 /// e.g. target information.
-#[derive(Debug, Clone, Args)]
+#[derive(Debug, Clone, Args, Deserialize, Serialize, JsonSchema)]
+#[serde(crate = "self::serde")]
 pub struct CodeGenSettings {
     /// Information about the current "session" that the compiler is running
     /// in. This contains information about which target the compiler is
     /// compiling for, and other information that is used by the compiler
     /// to determine how to compile the source code.
     #[command(flatten)]
+    #[serde(skip)]
     pub target_info: TargetInfo,
 
     /// This is only the "backend" for the global instance of code generation.
@@ -510,9 +627,20 @@ pub struct CodeGenSettings {
     pub dump_link_line: bool,
 }
 
+impl MergeConfig for CodeGenSettings {
+    fn merge_config(&mut self, config: &Self) {
+        self.target_info = config.target_info.clone();
+        self.backend = config.backend;
+        self.output_path.clone_from(&config.output_path);
+        self.dump_bytecode |= config.dump_bytecode;
+        self.dump_assembly |= config.dump_assembly;
+        self.dump_link_line |= config.dump_link_line;
+    }
+}
+
 /// Holds information about various targets that are currently used by the
 /// compiler.
-#[derive(Debug, Clone, Args)]
+#[derive(Debug, Clone, Default, Args)]
 pub struct TargetInfo {
     /// The target value of the host that the compiler is running
     /// for.
@@ -549,7 +677,8 @@ impl Default for CodeGenSettings {
 
 /// All of the current possible code generation backends that
 /// are available.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Serialize, Deserialize, JsonSchema)]
+#[serde(crate = "self::serde")]
 pub enum CodeGenBackend {
     /// The LLVM backend is target for code generation.
     #[cfg(feature = "llvm")]
@@ -603,7 +732,22 @@ impl fmt::Display for CodeGenBackend {
 
 /// Enum representing what mode the compiler should run in. Specifically, if the
 /// compiler should only run up to a particular stage within the pipeline.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default, ValueEnum)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    Default,
+    ValueEnum,
+    Deserialize,
+    Serialize,
+    JsonSchema,
+)]
+#[serde(crate = "self::serde")]
 pub enum CompilerStageKind {
     /// Parse the source code into an AST.
     Parse,

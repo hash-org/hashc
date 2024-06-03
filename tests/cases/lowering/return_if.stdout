@@ -1,4 +1,4 @@
-
+info: IR dump:
 IR dump for function `foo` defined at $DIR/return_if.hash:3:8-10:2
 foo := () -> i32 {
     mut _0: i32;
@@ -31,4 +31,5 @@ foo := () -> i32 {
         return;
     }
 }
+
 

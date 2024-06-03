@@ -25,7 +25,7 @@ use hash_lower::{IrGen, IrOptimiser, LoweringCtx, LoweringCtxQuery};
 use hash_parser::{Parser, ParserCtx, ParserCtxQuery};
 use hash_pipeline::{
     error::PipelineError,
-    interface::{CompilerInterface, CompilerOutputStream, CompilerStage},
+    interface::{CompilerInterface, CompilerStage},
     settings::CompilerSettings,
     workspace::Workspace,
 };
@@ -38,7 +38,7 @@ use hash_source::SourceId;
 use hash_untyped_semantics::{
     UntypedSemanticAnalysis, UntypedSemanticAnalysisCtx, UntypedSemanticAnalysisCtxQuery,
 };
-use hash_utils::rayon;
+use hash_utils::{rayon, stream::CompilerOutputStream};
 
 /// A struct that is used to construct a [Compiler] with
 /// either a default or a custom configuration.
@@ -47,9 +47,14 @@ pub struct CompilerBuilder;
 
 impl CompilerBuilder {
     /// Create a new [Compiler] with the default stage configuration.
-    pub fn build_with_settings(settings: CompilerSettings) -> Driver<Compiler> {
-        let stream = CompilerOutputStream::Stdout(std::io::stdout());
-        let session = utils::emit_on_fatal_error(stream, || Compiler::new(settings));
+    pub fn build_with_settings(
+        settings: CompilerSettings,
+        error_stream: impl Fn() -> CompilerOutputStream + 'static,
+        output_stream: impl Fn() -> CompilerOutputStream + 'static,
+    ) -> Driver<Compiler> {
+        let session = utils::emit_on_fatal_error(error_stream(), || {
+            Compiler::with(settings, error_stream, output_stream)
+        });
         Self::build_with_interface(session)
     }
 
@@ -91,9 +96,9 @@ impl CompilerBuilder {
 pub mod utils {
     use std::io::Write;
 
-    use hash_pipeline::interface::CompilerOutputStream;
+    use hash_messaging::CompilerMessage;
     use hash_reporting::report::Report;
-    use hash_utils::stream_writeln;
+    use hash_utils::{schemars::schema_for, stream::CompilerOutputStream, stream_writeln};
 
     /// Emit a fatal compiler error and exit the compiler. These kind of errors
     /// are not **panics** but they are neither recoverable. This function
@@ -118,6 +123,12 @@ pub mod utils {
             Ok(value) => value,
             Err(err) => emit_fatal_error(stream, err),
         }
+    }
+
+    /// Emit a schema for the compiler messaging system.
+    pub fn emit_schema_to(mut stream: CompilerOutputStream) {
+        let schema = schema_for!(CompilerMessage);
+        stream_writeln!(stream, "{}", serde_json::to_string_pretty(&schema).unwrap());
     }
 }
 
@@ -174,26 +185,14 @@ pub struct Compiler {
 }
 
 impl Compiler {
-    /// Create a new compiler session with the input and output streams being
-    /// set as the standard error and standard output streams.
-    pub fn new(settings: CompilerSettings) -> Result<Self, PipelineError> {
-        let workspace = Workspace::new(&settings)?;
-
-        Ok(Self::with(
-            workspace,
-            settings,
-            || CompilerOutputStream::Stderr(std::io::stderr()),
-            || CompilerOutputStream::Stdout(std::io::stdout()),
-        ))
-    }
-
-    /// Create a new [DefaultCompilerInterface].
+    /// Create a new [Compiler].
     pub fn with(
-        workspace: Workspace,
         mut settings: CompilerSettings,
         error_stream: impl Fn() -> CompilerOutputStream + 'static,
         output_stream: impl Fn() -> CompilerOutputStream + 'static,
-    ) -> Self {
+    ) -> Result<Self, PipelineError> {
+        let workspace = Workspace::new(&settings)?;
+
         // We need at least 2 workers for the parsing loop in order so that the job
         // queue can run within a worker and any other jobs can run inside another
         // worker or workers.
@@ -212,7 +211,7 @@ impl Compiler {
 
         target.set_data_layout(layout_info.clone());
 
-        Self {
+        Ok(Self {
             error_stream: Box::new(error_stream),
             output_stream: Box::new(output_stream),
             workspace,
@@ -226,7 +225,7 @@ impl Compiler {
             expanded_sources: HashSet::new(),
             desugared_modules: HashSet::new(),
             semantically_checked_modules: HashSet::new(),
-        }
+        })
     }
 }
 
@@ -306,11 +305,9 @@ impl UntypedSemanticAnalysisCtxQuery for Compiler {
 
 impl AstExpansionCtxQuery for Compiler {
     fn data(&mut self) -> AstExpansionCtx {
-        let output_stream = self.output_stream();
         AstExpansionCtx {
             workspace: &mut self.workspace,
             settings: &self.settings,
-            stdout: output_stream,
             data_layout: &self.lcx.data_layout,
             pool: &self.pool,
         }
@@ -331,14 +328,12 @@ impl SemanticAnalysisCtxQuery for Compiler {
 
 impl LoweringCtxQuery for Compiler {
     fn data(&mut self) -> LoweringCtx {
-        let output_stream = self.output_stream();
         LoweringCtx {
             semantic_storage: &self.semantic_storage,
             workspace: &mut self.workspace,
             settings: &self.settings,
             lcx: &self.lcx,
             icx: &mut self.icx,
-            stdout: output_stream,
             _pool: &self.pool,
         }
     }
@@ -346,15 +341,12 @@ impl LoweringCtxQuery for Compiler {
 
 impl BackendCtxQuery for Compiler {
     fn data(&mut self) -> BackendCtx {
-        let output_stream = self.output_stream();
-
         BackendCtx {
             codegen_storage: &self.codegen_storage,
             workspace: &mut self.workspace,
             icx: &self.icx,
             lcx: &self.lcx,
             settings: &self.settings,
-            stdout: output_stream,
             _pool: &self.pool,
         }
     }
@@ -362,9 +354,7 @@ impl BackendCtxQuery for Compiler {
 
 impl LinkerCtxQuery for Compiler {
     fn data(&mut self) -> hash_link::LinkerCtx<'_> {
-        let stdout = self.output_stream();
-
-        LinkerCtx { workspace: &self.workspace, settings: &self.settings, stdout }
+        LinkerCtx { workspace: &self.workspace, settings: &self.settings }
     }
 }
 

@@ -1,4 +1,4 @@
-
+info: IR dump:
 IR dump for function `main` defined at $DIR/polymorphic_fns.hash:11:9-17:2
 main := () -> () {
     mut _0: ();
@@ -50,4 +50,5 @@ _ := (_1: Data<&str>) -> i32 {
         return;
     }
 }
+
 

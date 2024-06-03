@@ -3,14 +3,13 @@ use std::{fmt::Display, ops::Deref};
 
 use hash_ast::ast;
 use hash_ast_utils::lit::{parse_float_const_from_lit, parse_int_const_from_lit, LitParseResult};
-use hash_const_eval::{print::pretty_print_scalar, Const, ConstKind};
+use hash_const_eval::{print::ScalarPrinter, Const, ConstKind};
 use hash_source::Size;
 use hash_storage::store::statics::StoreId;
 use hash_target::{
     primitives::{FloatTy, IntTy},
     HasTarget,
 };
-use hash_utils::temp_writer::TempWriter;
 
 use crate::{stores::tir_stores, tir_node_single_store};
 
@@ -89,7 +88,7 @@ impl Display for Lit {
         match self {
             Lit::Int(_) | Lit::Float(_) => write!(f, "<raw>"),
 
-            // @@Fugly: we should use `pretty_print_const` here (especially when it becomes
+            // @@Fugly: we should use `ConstWriter` here (especially when it becomes
             // `Term::Const`)
             Lit::Const(constant) => {
                 // It's often the case that users don't include the range of the entire
@@ -102,9 +101,7 @@ impl Display for Lit {
                 match constant.kind {
                     ConstKind::Zero => write!(f, "()"),
                     ConstKind::Scalar(scalar) => {
-                        let mut buf = TempWriter::default();
-                        pretty_print_scalar(&mut buf, scalar, &ty, Size::ZERO, true).unwrap();
-                        write!(f, "{}", buf.into_string())
+                        write!(f, "{}", ScalarPrinter::new(scalar, &ty, Size::ZERO, true))
                     }
                     ConstKind::Pair { data, .. } if ty.is_str() => {
                         write!(f, "\"{}\"", data.to_str())

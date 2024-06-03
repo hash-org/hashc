@@ -9,11 +9,8 @@
 
 mod ctx;
 mod error;
-mod fmt;
 pub mod misc;
 mod translation;
-
-use std::io::Write;
 
 use ctx::CodeGenCtx;
 use error::{CodeGenError, CodegenResult};
@@ -31,14 +28,13 @@ use hash_codegen::{
 };
 use hash_ir::{ir::BodySource, ty::InstanceHelpers, IrStorage};
 use hash_pipeline::{
-    interface::{CompilerOutputStream, CompilerResult, StageMetrics},
+    interface::{CompilerResult, StageMetrics},
     settings::CompilerSettings,
     workspace::Workspace,
 };
-use hash_reporting::report::Report;
 use hash_source::{ModuleId, SourceMapUtils};
 use hash_storage::store::{statics::StoreId, Store};
-use hash_utils::{profiling::HasMutMetrics, stream_writeln};
+use hash_utils::{log, profiling::HasMutMetrics};
 use inkwell as llvm;
 use llvm::{
     context::Context as LLVMContext,
@@ -51,13 +47,7 @@ use llvm::{
 use misc::{CodeModelWrapper, OptimisationLevelWrapper, RelocationModeWrapper};
 use translation::LLVMBuilder;
 
-use crate::fmt::{info_report, FunctionPrinter};
-
 pub struct LLVMBackend<'b> {
-    /// The stream to use for printing out the results
-    /// of the lowering operation.
-    stdout: CompilerOutputStream,
-
     /// The current compiler workspace, which is where the results of the
     /// linking and bytecode emission will be stored.
     workspace: &'b mut Workspace,
@@ -98,13 +88,7 @@ impl<'b, 'm> LLVMBackend<'b> {
     /// Create a new LLVM Backend from the given [BackendCtx].
     pub fn new(ctx: BackendCtx<'b>, metrics: &'b mut StageMetrics) -> Self {
         let BackendCtx {
-            workspace,
-            icx: ir_storage,
-            codegen_storage,
-            lcx: layouts,
-            settings,
-            stdout,
-            ..
+            workspace, icx: ir_storage, codegen_storage, lcx: layouts, settings, ..
         } = ctx;
 
         // We have to create a target machine from the provided target
@@ -142,16 +126,7 @@ impl<'b, 'm> LLVMBackend<'b> {
             )
             .unwrap();
 
-        Self {
-            workspace,
-            target_machine,
-            ir_storage,
-            codegen_storage,
-            layouts,
-            settings,
-            stdout,
-            metrics,
-        }
+        Self { workspace, target_machine, ir_storage, codegen_storage, layouts, settings, metrics }
     }
 
     /// Create an [PassManager] for LLVM, apply the optimisation options and run
@@ -198,11 +173,7 @@ impl<'b, 'm> LLVMBackend<'b> {
                 .write_to_file(module, FileType::Assembly, &asm_path)
                 .map_err(|err| CodeGenError::ModuleWriteFailed { reason: err })?;
 
-            // notify the user that we have written the assembly file.
-            let report =
-                info_report(format!("wrote assembly file to `{}`", asm_path.to_string_lossy()));
-
-            stream_writeln!(self.stdout, "{}", report);
+            log::info!("wrote assembly file to `{}`", asm_path.to_string_lossy());
         }
 
         self.target_machine
@@ -299,10 +270,11 @@ impl<'b, 'm> LLVMBackend<'b> {
 
             // Check if we should dump the generated LLVM IR
             if instance.borrow().has_attr(attrs::DUMP_LLVM_IR) {
-                let mut stdout = self.stdout.clone();
-                let func = FunctionPrinter::new(body.meta.name(), ctx.get_fn(instance));
-
-                stream_writeln!(stdout, "{}", Report::from(func));
+                log::info!(
+                    "LLVM IR for function {}\n{}",
+                    body.meta.name(),
+                    ctx.get_fn(instance).print_to_string().to_string()
+                );
             }
         }
     }
@@ -348,9 +320,7 @@ impl<'b> CompilerBackend<'b> for LLVMBackend<'b> {
         // If the settings specify that the bytecode should be emitted, then
         // we write the emitted bytecode to standard output.
         if self.settings.codegen_settings.dump_bytecode {
-            let stdout = &mut self.stdout;
-            stream_writeln!(
-                stdout,
+            log::info!(
                 "LLVM IR dump for module `{module_name}`:\n{}",
                 module.print_to_string().to_string()
             );

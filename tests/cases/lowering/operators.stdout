@@ -1,4 +1,4 @@
-
+info: IR dump:
 IR dump for function `print_int` defined at $DIR/operators.hash:3:14-4:2
 print_int := (_1: i32) -> () {
     mut _0: ();
@@ -73,4 +73,5 @@ main := () -> () {
         return;
     }
 }
+
 

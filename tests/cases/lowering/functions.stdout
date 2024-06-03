@@ -1,4 +1,4 @@
-
+info: IR dump:
 IR dump for function `print` defined at $DIR/functions.hash:3:10-4:2
 print := (_1: &str) -> () {
     mut _0: ();
@@ -27,4 +27,5 @@ main := () -> () {
         return;
     }
 }
+
 

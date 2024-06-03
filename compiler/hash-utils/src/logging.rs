@@ -1,13 +1,35 @@
 //! Hash compiler logging utilities. This defines a simple logger with a
 //! style which should be used across the compiler to log and print messages.
 
+use std::io::Write;
+
+use once_cell::sync::OnceCell;
+
 use crate::{
     highlight::{highlight, Colour, Modifier},
     log::{Level, Log, Metadata, Record},
-    stream_less_writeln,
+    stream::CompilerOutputStream,
+    stream_writeln,
 };
 
-pub struct CompilerLogger;
+/// The compiler logger that is used by the compiler for `log!` statements.
+///
+/// This is also used to emit structured messages to the user.
+#[derive(Default)]
+pub struct CompilerLogger {
+    /// The output stream that the logger will write to.
+    pub output_stream: OnceCell<CompilerOutputStream>,
+
+    /// The error stream that the logger will write to.
+    pub error_stream: OnceCell<CompilerOutputStream>,
+}
+
+impl CompilerLogger {
+    /// Create a new compiler logger.
+    pub const fn new() -> Self {
+        Self { output_stream: OnceCell::new(), error_stream: OnceCell::new() }
+    }
+}
 
 impl Log for CompilerLogger {
     fn enabled(&self, metadata: &Metadata) -> bool {
@@ -25,9 +47,18 @@ impl Log for CompilerLogger {
                 Level::Trace => highlight(Colour::Magenta | Modifier::Bold, "trace"),
             };
 
-            // ##Streams: we don't stream this since this is always meant to be a debugging
-            // message, thus it is never tested for anyway.
-            stream_less_writeln!("{level_prefix}: {}", record.args());
+            let mut out = if record.level() == Level::Error {
+                self.error_stream.get().unwrap().clone()
+            } else {
+                self.output_stream.get().unwrap().clone()
+            };
+
+            stream_writeln!(
+                out,
+                "{level_prefix}: {message}",
+                level_prefix = level_prefix,
+                message = record.args()
+            );
         }
     }
 

@@ -1,5 +1,5 @@
-use hash_utils::stream_less_writeln;
+use hash_utils::log;
 
 pub fn dump_tir(value: impl ToString) {
-    stream_less_writeln!("[TIR dump]:\n{}", value.to_string());
+    log::info!("TIR dump:\n{}", value.to_string());
 }

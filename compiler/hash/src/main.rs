@@ -1,16 +1,24 @@
 //! Hash Compiler entry point.
 use std::panic;
 
-use hash_driver::CompilerBuilder;
+use hash_driver::{utils, CompilerBuilder};
 use hash_pipeline::settings::CompilerSettings;
-use hash_utils::{crash::crash_handler, log, logging::CompilerLogger};
+use hash_utils::{
+    crash::crash_handler, log, logging::CompilerLogger, stream::CompilerOutputStream,
+};
 
 /// The logger that is used by the compiler for `log!` statements.
-pub static COMPILER_LOGGER: CompilerLogger = CompilerLogger;
+pub static COMPILER_LOGGER: CompilerLogger = CompilerLogger::new();
 
 fn main() {
     // Initial grunt work, panic handler and logger setup...
     panic::set_hook(Box::new(crash_handler));
+
+    let output_stream = CompilerOutputStream::stdout;
+    let error_stream = CompilerOutputStream::stderr;
+
+    COMPILER_LOGGER.error_stream.set(error_stream()).unwrap();
+    COMPILER_LOGGER.output_stream.set(output_stream()).unwrap();
     log::set_logger(&COMPILER_LOGGER).unwrap_or_else(|_| panic!("couldn't initiate logger"));
 
     // Starting the Tracy client is necessary before any invoking any of its APIs
@@ -20,7 +28,7 @@ fn main() {
     // Register main thread with the profiler
     profiling::register_thread!("compiler-main");
 
-    let settings = CompilerSettings::new_from_args();
+    let settings = utils::emit_on_fatal_error(error_stream(), CompilerSettings::from_cli);
 
     // if debug is specified, we want to log everything that is debug level...
     if settings.debug {
@@ -29,7 +37,14 @@ fn main() {
         log::set_max_level(log::LevelFilter::Info);
     }
 
-    let mut compiler = CompilerBuilder::build_with_settings(settings);
+    // if `emit_schema` is true, that's the only thing that we should do since this
+    // is a schema generation request.
+    if settings.emit_schema {
+        utils::emit_schema_to(output_stream());
+        return;
+    }
+
+    let mut compiler = CompilerBuilder::build_with_settings(settings, error_stream, output_stream);
 
     // Now run on the filename that was specified by the user.
     compiler.run_on_entry_point();

@@ -4,7 +4,7 @@ use std::fmt;
 
 use hash_ir::ir::{BasicBlock, Body, BodySource};
 use hash_repr::compute::LayoutComputer;
-use hash_utils::itertools::Itertools;
+use hash_utils::{derive_more::Constructor, itertools::Itertools};
 
 use crate::WriteIr;
 
@@ -174,40 +174,35 @@ impl fmt::Display for IrBodyWriter<'_> {
     }
 }
 
-/// Dump all of the provided [Body]s to standard output using the `dot` format.
-pub fn dump_ir_bodies(
-    bodies: &[Body],
-    dump_all: bool,
-    prelude_is_quiet: bool,
-    lc: LayoutComputer<'_>,
-    writer: &mut impl std::io::Write,
-) -> std::io::Result<()> {
-    for (index, body) in bodies.iter().enumerate() {
-        // Skip the prelude if we're in quiet mode
-        if prelude_is_quiet && body.source().is_prelude() {
-            continue;
+#[derive(Constructor)]
+pub struct IrPrettyWriter<'ir> {
+    /// The body that is being outputted as a graph
+    bodies: &'ir [&'ir Body],
+
+    /// The layout computer.
+    lc: LayoutComputer<'ir>,
+}
+
+impl fmt::Display for IrPrettyWriter<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let Self { bodies, lc } = *self;
+
+        for (index, body) in bodies.iter().enumerate() {
+            // Padding between each body
+            if index > 0 {
+                writeln!(f)?;
+            }
+
+            writeln!(
+                f,
+                "IR dump for {} `{}` defined at {}\n{}",
+                body.metadata().source(),
+                body.metadata().name(),
+                body.span().fmt_path(),
+                IrBodyWriter::new(body, lc)
+            )?;
         }
 
-        // Check if we need to print this body (or if we're printing all of them)
-        // and then skip bodies that we didn't request to print.
-        if !dump_all && !body.needs_dumping() {
-            continue;
-        }
-
-        // Padding between each body
-        if index > 0 {
-            writeln!(writer)?;
-        }
-
-        writeln!(
-            writer,
-            "IR dump for {} `{}` defined at {}\n{}",
-            body.metadata().source(),
-            body.metadata().name(),
-            body.span().fmt_path(),
-            IrBodyWriter::new(body, lc)
-        )?;
+        Ok(())
     }
-
-    Ok(())
 }

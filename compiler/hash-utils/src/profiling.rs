@@ -67,8 +67,8 @@ pub struct StageMetrics {
     /// The collected timings for each section of the stage.
     pub metrics: IndexMap<&'static str, MetricEntry>,
 
-    /// Whether to report RSS statisics. This option is useful to
-    /// silence stages that are paralelised or out of order meaning that
+    /// Whether to report RSS statistics. This option is useful to
+    /// silence stages that are parallelised or out of order meaning that
     /// measuring RSS at various stages of the compiler pipeline produces
     /// useless results in the sense that stage is capturing memory usage
     /// which it hasn't directly caused. In this case, we don't want to emit

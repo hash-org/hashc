@@ -1,4 +1,4 @@
-Layout of `Direction` (size=1b align=1b):
+info: Layout of `Direction` (size=1b align=1b):
 ┌─────────────┐
 │ 1b tag (i8) │
 ├─────────────┤
@@ -19,7 +19,7 @@ Layout of `Direction` (size=1b align=1b):
 │    -117     │
 └─────────────┘
 
-Layout of `ShipKind` (size=2b align=2b):
+info: Layout of `ShipKind` (size=2b align=2b):
 ┌──────────────┐
 │ 2b tag (i16) │
 ├──────────────┤
@@ -40,7 +40,7 @@ Layout of `ShipKind` (size=2b align=2b):
 │     -117     │
 └──────────────┘
 
-Layout of `ModuleCode` (size=2b align=2b):
+info: Layout of `ModuleCode` (size=2b align=2b):
 ┌──────────────┐
 │ 2b tag (u16) │
 ├──────────────┤
@@ -57,7 +57,7 @@ Layout of `ModuleCode` (size=2b align=2b):
 │     4201     │
 └──────────────┘
 
-Layout of `EmployeeKind` (size=4b align=2b):
+info: Layout of `EmployeeKind` (size=4b align=2b):
 ┌───────────────┬─────────────────────┐
 │ 2b tag (u16)  │                     │
 ├───────────────┼────────────┬────────┤
@@ -80,7 +80,7 @@ Layout of `EmployeeKind` (size=4b align=2b):
 │      666      │                     │
 └───────────────┴─────────────────────┘
 
-Layout of `Variants` (size=2b align=2b):
+info: Layout of `Variants` (size=2b align=2b):
 ┌──────────────┐
 │ 2b tag (u16) │
 ├──────────────┤
@@ -93,7 +93,7 @@ Layout of `Variants` (size=2b align=2b):
 │     256      │
 └──────────────┘
 
-Layout of `!` (size=0b align=1b):
+info: Layout of `!` (size=0b align=1b):
 ┌────────────┐
 │  <ZST>: !  │
 │            │

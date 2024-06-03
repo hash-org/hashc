@@ -8,18 +8,13 @@ use hash_codegen::{
     repr::LayoutStorage,
 };
 use hash_ir::IrStorage;
-use hash_pipeline::{
-    interface::{CompilerOutputStream, CompilerResult},
-    settings::CompilerSettings,
-    workspace::Workspace,
+use hash_pipeline::{interface::CompilerResult, settings::CompilerSettings, workspace::Workspace};
+use hash_utils::{
+    profiling::{HasMutMetrics, StageMetrics},
+    stream::CompilerOutputStream,
 };
-use hash_utils::profiling::{HasMutMetrics, StageMetrics};
 
 pub struct VMBackend<'b> {
-    /// The stream to use for printing out the results
-    /// of the lowering operation.
-    stdout: CompilerOutputStream,
-
     /// The current compiler workspace, which is where the results of the
     /// linking and bytecode emission will be stored.
     workspace: &'b mut Workspace,
@@ -56,16 +51,10 @@ impl<'b> VMBackend<'b> {
     /// Create a new LLVM Backend from the given [BackendCtx].
     pub fn new(ctx: BackendCtx<'b>, metrics: &'b mut StageMetrics) -> Self {
         let BackendCtx {
-            workspace,
-            icx: ir_storage,
-            codegen_storage,
-            lcx: layouts,
-            settings,
-            stdout,
-            ..
+            workspace, icx: ir_storage, codegen_storage, lcx: layouts, settings, ..
         } = ctx;
 
-        Self { settings, workspace, ir_storage, codegen_storage, layouts, stdout, metrics }
+        Self { settings, workspace, ir_storage, codegen_storage, layouts, metrics }
     }
 }
 

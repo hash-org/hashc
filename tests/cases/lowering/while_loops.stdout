@@ -1,4 +1,4 @@
-
+info: IR dump:
 IR dump for function `input` defined at $DIR/while_loops.hash:4:10-6:2
 input := () -> i32 {
     mut _0: i32;
@@ -41,4 +41,5 @@ main := () -> () {
         return;
     }
 }
+
 

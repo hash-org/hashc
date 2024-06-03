@@ -18,11 +18,9 @@ use ctx::BuilderCtx;
 use discover::FnDiscoverer;
 use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_ir::IrStorage;
-use hash_ir_utils::{graphviz, pretty};
+use hash_ir_utils::{graphviz::IrGraphWriter, pretty::IrPrettyWriter};
 use hash_pipeline::{
-    interface::{
-        CompilerInterface, CompilerOutputStream, CompilerResult, CompilerStage, StageMetrics,
-    },
+    interface::{CompilerInterface, CompilerResult, CompilerStage, StageMetrics},
     settings::{CompilerSettings, CompilerStageKind, IrDumpMode},
     workspace::{SourceStageInfo, Workspace},
 };
@@ -31,7 +29,7 @@ use hash_semantics::storage::SemanticStorage;
 use hash_source::SourceId;
 use hash_storage::store::{statics::StoreId, Store};
 use hash_tir::{stores::tir_stores, tir::HasAstNodeId};
-use hash_utils::{profiling::HasMutMetrics, rayon};
+use hash_utils::{log, profiling::HasMutMetrics, rayon};
 use optimise::Optimiser;
 
 /// The Hash IR builder compiler stage.
@@ -68,9 +66,6 @@ pub struct LoweringCtx<'ir> {
     /// Reference to the [LayoutStorage] that is used to store
     /// the layouts of types.
     pub lcx: &'ir LayoutStorage,
-
-    /// Reference to the output stream
-    pub stdout: CompilerOutputStream,
 
     /// Reference to the rayon thread pool.
     pub _pool: &'ir rayon::ThreadPool,
@@ -162,7 +157,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
             if let Some(id) = data_def.node_id()
                 && attr_store().node_has_attr(id, attrs::LAYOUT_OF)
             {
-                builder.dump_ty_layout(data_def, data.stdout.clone())
+                builder.dump_ty_layout(data_def)
             }
         })
     }
@@ -229,7 +224,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
     }
 
     fn cleanup(&mut self, _entry_point: SourceId, ctx: &mut Ctx) {
-        let LoweringCtx { icx, mut stdout, settings, lcx, .. } = ctx.data();
+        let LoweringCtx { icx, settings, lcx, .. } = ctx.data();
 
         // we need to check if any of the bodies have been marked for `dumping`
         // and emit the IR that they have generated.
@@ -238,10 +233,35 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
 
         let lc = LayoutComputer::new(lcx);
 
+        let mut bodies_to_dump = vec![];
+
+        // Find all the bodies that we want to dump
+        for body in icx.bodies.iter() {
+            // Skip the prelude if we're in quiet mode
+            if quiet_prelude && body.source().is_prelude() {
+                continue;
+            }
+
+            // Check if we need to print this body (or if we're printing all of them)
+            // and then skip bodies that we didn't request to print.
+            if !dump && !body.needs_dumping() {
+                continue;
+            }
+
+            bodies_to_dump.push(body);
+        }
+
+        if bodies_to_dump.is_empty() {
+            return;
+        }
+
         if settings.lowering_settings.dump_mode == IrDumpMode::Graph {
-            graphviz::dump_ir_bodies(&icx.bodies, dump, quiet_prelude, lc, &mut stdout).unwrap();
+            log::info!(
+                "dumping IR in graphviz format:\n{}",
+                IrGraphWriter::new(&bodies_to_dump, lc)
+            );
         } else {
-            pretty::dump_ir_bodies(&icx.bodies, dump, quiet_prelude, lc, &mut stdout).unwrap();
+            log::info!("IR dump:\n{}", IrPrettyWriter::new(&bodies_to_dump, lc));
         }
     }
 }
