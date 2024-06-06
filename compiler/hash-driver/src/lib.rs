@@ -9,7 +9,6 @@
 //! keeping the crate dependency graph clean.
 #![feature(let_chains, thread_id_value)]
 pub mod driver;
-mod metrics;
 
 use std::collections::HashSet;
 

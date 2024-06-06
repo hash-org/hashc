@@ -4,5 +4,6 @@
 pub mod error;
 pub mod fs;
 pub mod interface;
+pub mod metrics;
 pub mod settings;
 pub mod workspace;
