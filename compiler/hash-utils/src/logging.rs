@@ -3,10 +3,14 @@
 
 use std::{
     collections::BTreeMap,
+    fmt,
     io::{self, Write},
 };
 
+use clap::ValueEnum;
 use once_cell::sync::OnceCell;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     highlight::{highlight, Colour, Modifier},
@@ -18,14 +22,29 @@ use crate::{
     stream_writeln,
 };
 
-#[derive(Default, PartialEq, Eq, Clone, Copy, Debug)]
-pub enum LoggingFormat {
-    /// Use the default logging format.
-    #[default]
-    Default,
-
-    /// Use the JSON logging format.
+/// The [CompilerMessagingFormat] specifies the message mode that the compiler
+/// will use to to emit and receive messages.
+#[derive(
+    ValueEnum, Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, JsonSchema, Default,
+)]
+pub enum CompilerMessagingFormat {
+    /// All messages that are emitted to and from the compiler will be in JSON
+    /// format according to the schema that represents [CompilerMessage].
     Json,
+
+    /// Normal mode is the classic emission of messages as the compiler would
+    /// normally do, i.e. calling [fmt::Display] on provided [Report]s.
+    #[default]
+    Normal,
+}
+
+impl fmt::Display for CompilerMessagingFormat {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CompilerMessagingFormat::Json => write!(f, "json"),
+            CompilerMessagingFormat::Normal => write!(f, "normal"),
+        }
+    }
 }
 
 /// The compiler logger that is used by the compiler for `log!` statements.
@@ -40,7 +59,7 @@ pub struct CompilerLogger {
     pub error_stream: OnceCell<CompilerOutputStream>,
 
     /// The format to use when logging information.
-    logging_format: OnceCell<LoggingFormat>,
+    messaging_format: OnceCell<CompilerMessagingFormat>,
 }
 
 impl CompilerLogger {
@@ -49,13 +68,13 @@ impl CompilerLogger {
         Self {
             output_stream: OnceCell::new(),
             error_stream: OnceCell::new(),
-            logging_format: OnceCell::new(),
+            messaging_format: OnceCell::new(),
         }
     }
 
-    /// Create a new [CompilerLogger] with a JSON logging format.
-    pub fn with_json_format(&self) {
-        self.logging_format.set(LoggingFormat::Json).unwrap();
+    /// Set the [CompilerLogger] messaging format.
+    pub fn set_messaging_format(&self, format: CompilerMessagingFormat) {
+        self.messaging_format.set(format).unwrap();
     }
 
     /// Log the given record in the JSON format.
@@ -102,7 +121,7 @@ impl Log for CompilerLogger {
             self.output_stream.get().unwrap().clone()
         };
 
-        if *self.logging_format.get().unwrap() == LoggingFormat::Json {
+        if *self.messaging_format.get().unwrap() == CompilerMessagingFormat::Json {
             self.log_json(&mut out, record, level_prefix).unwrap();
         } else {
             self.log_default(&mut out, record, level_prefix);

@@ -11,22 +11,6 @@ use hash_utils::{
     serde::{self, Serialize},
 };
 
-/// The [CompilerMessagingFormat] specifies the message mode that the compiler
-/// will use to to emit and receive messages.
-#[derive(Debug, Clone)]
-pub enum CompilerMessagingFormat {
-    /// All messages that are emitted to and from the compiler will be in JSON
-    /// format according to the schema that represents [CompilerMessage].
-    Json,
-
-    /// Normal mode is the classic emission of messages as the compiler would
-    /// normally do, i.e. calling [fmt::Display] on provided [Report]s.
-    ///
-    /// @@Note: do we support listening to messages in this mode - this doesn't
-    /// really make sense?
-    Normal,
-}
-
 #[derive(Clone, JsonSchema, Serialize)]
 #[serde(crate = "self::serde", rename_all = "camelCase")]
 pub enum CompilerOutputMessage<'a> {
