@@ -615,7 +615,7 @@ impl fmt::Display for Context {
                 for line in result.lines() {
                     writeln!(f, "  {line}")?;
                 }
-                Ok(())
+                Ok::<(), fmt::Error>(())
             })?;
         }
         Ok(())
