@@ -310,6 +310,7 @@ impl Workspace {
     /// Utility function used by AST-like stages in order to print the
     /// current [NodeMap].
     pub fn print_sources(&self, mode: AstDumpMode, character_set: CharacterSet) {
+        // @@Messaging: Provide a format for sending the AST as an output.
         log::info!("{}", WorkspaceAstDump::new(self, mode, character_set));
     }
 }

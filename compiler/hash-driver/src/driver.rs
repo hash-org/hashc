@@ -83,7 +83,9 @@ impl<I: CompilerInterface> Driver<I> {
     /// Function to report the collected metrics on the stages within the
     /// compiler.
     fn report_metrics(&self) {
-        log::info!("compiler pipeline metrics:\n{}", AggregateMetricReporter::new(&self.metrics));
+        let metrics = &self.metrics;
+        let message = CompilerOutputMessage::Metrics(metrics);
+        log::info!(message; "compiler pipeline metrics:\n{}", AggregateMetricReporter::new(metrics));
     }
 
     fn run_stage(&mut self, entry_point: SourceId, index: usize) -> CompilerResult<()> {
@@ -233,6 +235,7 @@ impl<I: CompilerInterface> Driver<I> {
         // when it was instructed to terminate before all of the stages. For example, if
         // the compiler is just checking the source, then it will terminate early.
         if err_count != 0 || warn_count != 0 {
+            // @@Messaging
             log::info!(
                 "compiler terminated with {err_count} error(s), and {warn_count} warning(s)."
             );

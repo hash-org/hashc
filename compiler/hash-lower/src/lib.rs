@@ -255,6 +255,8 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
             return;
         }
 
+        // @@Messaging: provide a format for the IR to be dumped in (which is public).
+
         if settings.lowering_settings.dump_mode == IrDumpMode::Graph {
             log::info!(
                 "dumping IR in graphviz format:\n{}",

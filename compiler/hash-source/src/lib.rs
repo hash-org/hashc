@@ -20,6 +20,7 @@ use hash_utils::{
     parking_lot::RwLock,
     path::adjust_canonicalisation,
     schemars::{self, JsonSchema},
+    serde::{self, Serialize},
 };
 use location::{ByteRange, LineRanges, RowColRange, SpannedSource};
 use once_cell::sync::{Lazy, OnceCell};
@@ -59,7 +60,8 @@ define_index_type! {
 /// The first 31 bits are used to store the actual value of the
 /// [SourceId]. The last bit is used to denote whether this is a
 /// module or an interactive block.
-#[derive(Clone, Copy, Hash, PartialEq, Eq, JsonSchema)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq, JsonSchema, Serialize)]
+#[serde(crate = "self::serde")]
 pub struct SourceId {
     /// The raw value of the identifier.
     _raw: u32,
