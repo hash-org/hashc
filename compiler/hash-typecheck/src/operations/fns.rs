@@ -1,11 +1,11 @@
 use std::ops::ControlFlow;
 
-use hash_storage::store::statics::StoreId;
+use hash_storage::store::{statics::StoreId, SequenceStoreKey, StoreKey};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     context::{HasContext, ScopeKind},
     term_as_variant,
-    tir::{FnDefId, FnTy, NodeId, NodeOrigin, Term, TermId, Ty, TyId},
+    tir::{FnDefId, FnTy, NodeId, NodeOrigin, ParamsId, Term, TermId, Ty, TyId},
 };
 
 use crate::{
@@ -16,7 +16,27 @@ use crate::{
     traits::{OperationsOn, OperationsOnNode, ScopedOperationsOnNode},
 };
 
-use hash_storage::store::StoreKey;
+impl<E: TcEnv> Tc<'_, E> {
+    /// Create a function type from a list of parameter (type, implicitness) and
+    /// a return type.
+    ///
+    /// If one parameter list is empty, it is skipped.
+    pub(crate) fn params_and_ret_to_fn_ty(
+        &self,
+        params: impl IntoIterator<Item = (ParamsId, bool)>,
+        ret: TyId,
+    ) -> TyId {
+        params.into_iter().filter(|p| !p.0.value().data.is_empty()).fold(
+            ret,
+            |acc, (params, implicit)| {
+                Ty::from(
+                    FnTy { params, return_ty: ret, implicit, is_unsafe: false, pure: true },
+                    acc.origin(),
+                )
+            },
+        )
+    }
+}
 
 impl<E: TcEnv> OperationsOn<FnTy> for Tc<'_, E> {
     type AnnotNode = TyId;

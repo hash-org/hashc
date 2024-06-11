@@ -6,7 +6,7 @@ use hash_tir::{
     context::{HasContext, ScopeKind},
     intrinsics::definitions::usize_ty,
     tir::{
-        CtorDefId, CtorTerm, DataDefCtors, DataDefId, DataTy, Node, NodeId, NodeOrigin,
+        CtorDefId, CtorTerm, DataDefCtors, DataDefId, DataTy, FnTy, Node, NodeId, NodeOrigin,
         PrimitiveCtorInfo, Term, TermId, Ty, TyId,
     },
     visitor::Map,
@@ -19,6 +19,17 @@ use crate::{
     tc::Tc,
     traits::{OperationsOn, OperationsOnNode, ScopedOperationsOnNode},
 };
+
+impl<E: TcEnv> Tc<'_, E> {
+    pub(crate) fn get_fn_ty_for_ctor(&self, ctor: CtorDefId, origin: NodeOrigin) -> TermId {
+        let ctor = ctor.value();
+        let data_def = ctor.data_def_id.value();
+        self.params_and_ret_to_fn_ty(
+            [(data_def.params, true), (ctor.params, false)],
+            Ty::from(DataTy { args: ctor.result_args, data_def: ctor.data_def_id }, origin),
+        )
+    }
+}
 
 impl<E: TcEnv> OperationsOn<CtorTerm> for Tc<'_, E> {
     type AnnotNode = TyId;
@@ -86,21 +97,20 @@ impl<E: TcEnv> OperationsOn<CtorTerm> for Tc<'_, E> {
 
         let sub =
             self.substituter().create_sub_from_args_of_params(term.ctor_args, subbed_ctor_params);
-        // let subbed_annotation_data_ty_args = self.substituter().apply_sub(annotation_data_ty.args, &sub);
+        // let subbed_annotation_data_ty_args =
+        // self.substituter().apply_sub(annotation_data_ty.args, &sub);
         self.substituter().apply_sub_in_place(subbed_ctor_result_args, &sub);
         self.unify_nodes_scoped(subbed_ctor_result_args, annotation_data_ty.args, |_| Ok(()))?;
         self.unify_nodes(
-            Node::create_at(
-                Term::DataTy(annotation_data_ty),
-                original_term_id.origin().inferred(),
-            ),
+            Node::create_at(Term::DataTy(annotation_data_ty), original_term_id.origin().inferred()),
             annotation_ty,
         )?;
 
         Ok(())
 
         // self.enter_params_scope(subbed_ctor_params, || {
-        //     // original_term_id.set(original_term_id.value().with_data(term.into()));
+        //     // original_term_id.set(original_term_id.value().with_data(term.
+        // into()));
 
         //     // self.substituter().apply_sub_from_context(subbed_ctor_params);
 
