@@ -4,8 +4,7 @@ use core::fmt;
 use std::{fmt::Debug, ops::ControlFlow};
 
 use hash_storage::store::{
-    statics::{SequenceStoreValue, SingleStoreValue, StoreId},
-    SequenceStoreKey, TrivialSequenceStoreKey,
+    statics::{SequenceStoreValue, SingleStoreValue, StoreId}, SequenceStoreKey, StoreKey, TrivialSequenceStoreKey
 };
 use hash_utils::derive_more::From;
 

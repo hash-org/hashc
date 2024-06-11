@@ -230,8 +230,7 @@ impl<E: TyLowerEnv> TyLower<'_, E> {
             // resolved and substituted in the `Ty::Var` case below.
             Ty::Var(var) => {
                 // @@Temporary
-                if self.env.context().try_get_decl(var.symbol).is_some() {
-                    let term = self.context().get_binding_value(var.symbol);
+                if let Some(term) = self.env.context().try_get_decl_value(var.symbol) {
                     let ty = term.value();
                     return self.uncached_repr_ty_from_tir_ty(id, &ty);
                 } else {

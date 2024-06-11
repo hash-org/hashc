@@ -52,6 +52,8 @@ impl<E: TcEnv> Tc<'_, E> {
             }
         }
 
+        self.normalise_node_in_place_no_signals(rhs)?;
+
         let solution = Term::from(
             Node::create_at(
                 FnDef {
@@ -60,7 +62,9 @@ impl<E: TcEnv> Tc<'_, E> {
                         pure: true,
                         is_unsafe: false,
                         params: Param::seq_positional(
-                            args_vars.iter().map(|arg| self.context().get_binding_ty(arg.symbol)),
+                            args_vars
+                                .iter()
+                                .map(|arg| self.fresh_meta(arg.symbol.origin().inferred())),
                             NodeOrigin::Generated,
                         ),
                         return_ty: self.fresh_meta(rhs.origin().inferred()),
@@ -81,8 +85,10 @@ impl<E: TcEnv> Tc<'_, E> {
     /// Returns the
     /// This is shallow.
     pub(crate) fn resolve_metas_and_vars(&self, term: TermId) -> (TermId, Option<MetaCall>) {
+        println!("HERE with term: {}", term);
         match self.classify_meta_call(term.value().data) {
             Some(call) => {
+                println!("IN HERE with term: {}", term);
                 let resolved = self.get_meta(call.meta).map(|s| self.resolve_metas_and_vars(s));
                 match resolved {
                     Some(resolved) => (
@@ -95,17 +101,22 @@ impl<E: TcEnv> Tc<'_, E> {
                     None => (term, Some(call)),
                 }
             }
-            None => match *term.value() {
-                Term::Var(v) => {
-                    if let Some(val) = self.context.try_get_decl_value(v.symbol) {
-                        println!("Resolving var {}: {}", v, val);
-                        self.resolve_metas_and_vars(val)
-                    } else {
-                        (term, None)
+            None => {
+                println!("IN HERE 2 with term: {}", term);
+                match *term.value() {
+                    Term::Var(v) => {
+                        if let Some(val) = self.context.try_get_decl_value(v.symbol) {
+                            match val.value().data {
+                                Term::Var(v_p) if v_p.symbol == v.symbol => (term, None),
+                                _ => self.resolve_metas_and_vars(val),
+                            }
+                        } else {
+                            (term, None)
+                        }
                     }
+                    _ => (term, None),
                 }
-                _ => (term, None),
-            },
+            }
         }
     }
 }
@@ -126,7 +137,7 @@ impl<E: TcEnv> OperationsOn<Meta> for Tc<'_, E> {
                 item_node.set(self.fresh_meta(h.origin().inferred()).value());
             }
             Meta::Generated(_) => {
-                panic!("Generated metas should not be checked: {}", item);
+                // panic!("Generated metas should not be checked: {}", item);
             }
         }
         Ok(())

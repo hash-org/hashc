@@ -90,7 +90,10 @@ impl<E: TcEnv> OperationsOn<TupleTy> for Tc<'_, E> {
         annotation_ty: Self::AnnotNode,
         _original_term_id: Self::Node,
     ) -> TcResult<()> {
-        self.check_node_scoped(tuple_ty.data, (), |()| Ok(()))?;
+        self.context().enter_scope(ScopeKind::TupleTy(*tuple_ty), || {
+            self.check_node_scoped(tuple_ty.data, (), |()| Ok(()))
+        })?;
+
         self.check_is_universe(annotation_ty)?;
         Ok(())
     }

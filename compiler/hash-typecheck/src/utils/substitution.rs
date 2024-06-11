@@ -85,10 +85,9 @@ impl<'a, T: TcEnv> Substituter<'a, T> {
     /// Get the set of unassigned variables in the current scope.
     pub fn get_vars_in_current_scope(&self) -> ArgsId {
         let mut sub = Vec::new();
-        let current_scope_index = self.context().get_current_scope_index();
 
-        self.context().for_decls_of_scope_rev(current_scope_index, |binding| {
-            sub.push(Term::var(binding.name));
+        self.context().for_all_decls_rev(|binding| {
+            sub.push(Term::var(binding.name()));
         });
 
         Arg::seq_positional(sub, NodeOrigin::Generated)
@@ -97,10 +96,10 @@ impl<'a, T: TcEnv> Substituter<'a, T> {
     /// Get the set of unassigned variables in the current scope.
     pub fn get_unassigned_vars_in_current_scope(&self) -> HashSet<SymbolId> {
         let mut sub = HashSet::new();
-        let current_scope_index = self.context().get_current_scope_index();
-        self.context().for_decls_of_scope_rev(current_scope_index, |binding| {
-            if self.context().try_get_decl_value(binding.name).is_none() {
-                sub.insert(binding.name);
+        let current_scope = self.context().get_current_scope_index();
+        self.context().for_decls_of_scope_rev(current_scope, |binding| {
+            if self.context().try_get_decl_value(binding.name()).is_none() {
+                sub.insert(binding.name());
             }
         });
         sub
@@ -110,10 +109,9 @@ impl<'a, T: TcEnv> Substituter<'a, T> {
     pub fn create_sub_from_current_scope(&self) -> Sub {
         let mut sub = Sub::identity();
 
-        let current_scope_index = self.context().get_current_scope_index();
-        self.context().for_decls_of_scope_rev(current_scope_index, |binding| {
-            if let Some(value) = self.context().try_get_decl_value(binding.name) {
-                self.insert_to_sub_if_needed(&mut sub, binding.name, value);
+        self.context().for_all_decls_rev(|binding| {
+            if let Some(value) = self.context().try_get_decl_value(binding.name()) {
+                self.insert_to_sub_if_needed(&mut sub, binding.name(), value);
             }
         });
 

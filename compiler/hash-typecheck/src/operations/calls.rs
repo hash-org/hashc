@@ -32,69 +32,85 @@ impl<E: TcEnv> OperationsOn<CallTerm> for Tc<'_, E> {
         annotation_ty: Self::AnnotNode,
         original_term_id: Self::Node,
     ) -> TcResult<()> {
-        self.context().enter_scope(ScopeKind::Sub, || {
-            let inferred_subject_ty = self.fresh_meta_for(call_term.subject);
-            self.check_node(call_term.subject, inferred_subject_ty)?;
+        let inferred_subject_ty = self.fresh_meta_for(call_term.subject);
+        self.check_node(call_term.subject, inferred_subject_ty)?;
 
-            let fn_ty = self.try_or_normalise(inferred_subject_ty, |inferred_subject_ty, _| {
-                match *inferred_subject_ty.value() {
-                    Ty::FnTy(fn_ty) => Ok(fn_ty),
-                    _ => {
-                        // Not a function type.
-                        Err(TcError::WrongTerm {
-                            kind: WrongTermKind::NotAFunction,
-                            inferred_term_ty: inferred_subject_ty,
-                            term: original_term_id,
-                        })
-                    }
+        println!("Checking call term: {}", call_term);
+
+        let fn_ty = self.try_or_normalise(inferred_subject_ty, |inferred_subject_ty, _| {
+            match *inferred_subject_ty.value() {
+                Ty::FnTy(fn_ty) => Ok(fn_ty),
+                _ => {
+                    println!("Not a function type: {}", inferred_subject_ty);
+                    // Not a function type.
+                    Err(TcError::WrongTerm {
+                        kind: WrongTermKind::NotAFunction,
+                        inferred_term_ty: inferred_subject_ty,
+                        term: original_term_id,
+                    })
                 }
-            })?;
-
-            // Potentially fill-in implicit args
-            if let Ty::FnTy(_) = *fn_ty.return_ty.value()
-                && fn_ty.implicit
-                && !call_term.implicit
-            {
-                let applied_args = self.args_from_params_as_metas(fn_ty.params);
-                let copied_subject =
-                    Term::inherited_from(call_term.subject, *call_term.subject.value());
-                let new_subject = CallTerm {
-                    args: applied_args,
-                    subject: copied_subject,
-                    implicit: fn_ty.implicit,
-                };
-                call_term.subject.set(call_term.subject.value().with_data(new_subject.into()));
-                return self.check(call_term, annotation_ty, original_term_id);
             }
+        })?;
 
-            // Check that the function call is of the correct kind.
-            if fn_ty.implicit != call_term.implicit {
-                return Err(TcError::WrongCallKind {
-                    site: original_term_id,
-                    expected_implicit: fn_ty.implicit,
-                    actual_implicit: call_term.implicit,
-                });
-            }
+        // Potentially fill-in implicit args
+        if let Ty::FnTy(_) = *fn_ty.return_ty.value()
+            && fn_ty.implicit
+            && !call_term.implicit
+        {
+            let applied_args = self.args_from_params_as_metas(fn_ty.params);
+            let copied_subject =
+                Term::inherited_from(call_term.subject, *call_term.subject.value());
+            let new_subject =
+                CallTerm { args: applied_args, subject: copied_subject, implicit: fn_ty.implicit };
+            call_term.subject.set(call_term.subject.value().with_data(new_subject.into()));
+            println!("Checking {}", call_term);
+            return self.check(call_term, annotation_ty, original_term_id);
+        }
 
-            let copied_params = self.visitor().copy(fn_ty.params);
-            let copied_return_ty = self.visitor().copy(fn_ty.return_ty);
+        // Check that the function call is of the correct kind.
+        if fn_ty.implicit != call_term.implicit {
+            return Err(TcError::WrongCallKind {
+                site: original_term_id,
+                expected_implicit: fn_ty.implicit,
+                actual_implicit: call_term.implicit,
+            });
+        }
 
-            let mut fn_call_term = *call_term;
+        let copied_params = self.visitor().copy(fn_ty.params);
+        let copied_return_ty = self.visitor().copy(fn_ty.return_ty);
+
+        let mut fn_call_term = *call_term;
+
+        self.context().enter_scope(ScopeKind::Sub, || {
             self.check_node_scoped(fn_call_term.args, copied_params, |inferred_fn_call_args| {
                 fn_call_term.args = inferred_fn_call_args;
                 original_term_id.set(original_term_id.value().with_data(fn_call_term.into()));
 
-                self.substituter().apply_sub_from_context(copied_return_ty);
+                println!(
+                    "Context after checking {} against {}: {}",
+                    call_term,
+                    annotation_ty,
+                    self.context()
+                );
+
+                // self.substituter().apply_sub_from_context(copied_return_ty);
                 self.unify_nodes(copied_return_ty, annotation_ty)?;
 
+                self.substituter().apply_sub_from_context(fn_call_term.subject);
+
+                self.substituter().apply_sub_from_context(annotation_ty);
+
+                println!("Annotation type after: {}", annotation_ty);
+
                 Ok(())
-            })?;
+            })
+        })?;
+        // self.potentially_monomorphise_fn_call(original_term_id, fn_ty,
+        // annotation_ty)?;
 
-            self.substituter().apply_sub_from_context(fn_call_term.subject);
-            self.potentially_monomorphise_fn_call(original_term_id, fn_ty, annotation_ty)?;
-
-            Ok(())
-        })
+        let res_annot_ty = self.normalise_node_no_signals(self.resolve_metas_and_vars(annotation_ty).0)?;
+        println!("Checking result of call {} is {}", call_term, res_annot_ty);
+        Ok(())
     }
 
     fn try_normalise(

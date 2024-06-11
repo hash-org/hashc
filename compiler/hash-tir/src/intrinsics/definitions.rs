@@ -25,7 +25,6 @@ use crate::{
 };
 
 const INVALID_OP: &str = "Invalid cond-binary operation parameters";
-const NON_CONST_OPERAND: &str = "no-const operand";
 
 make_intrinsics! {
     size_of := (T: Type()) -> usize_gen_ty() => |env| {
@@ -97,19 +96,20 @@ make_intrinsics! {
         )
         .map_err(|_| INVALID_OP)?;
 
-        let lhs_const = try_use_term_as_const(&env, a).ok_or(NON_CONST_OPERAND)?;
-        let rhs_const = try_use_term_as_const(&env, b).ok_or(NON_CONST_OPERAND)?;
-
-        // Use the constant evaluator to perform the operation.
-        let eval = ConstFolder::new(env.layout_computer());
-        Ok(eval.try_fold_bin_op(parsed_op, &lhs_const, &rhs_const).map(|result| {
-            term(Node::create_gen(Lit::Const(result)))
-        }))
+        match (try_use_term_as_const(&env, a), try_use_term_as_const(&env, b)) {
+            (Some(lhs_const), Some(rhs_const)) => {
+                // Use the constant evaluator to perform the operation.
+                let eval = ConstFolder::new(env.layout_computer());
+                Ok(eval.try_fold_bin_op(parsed_op, &lhs_const, &rhs_const).map(|result| {
+                    term(Node::create_gen(Lit::Const(result)))
+                }))
+            }
+            _ => Ok(None),
+        }
     };
 
     // Short-circuiting boolean binary operations
     short_circuiting_bool_op := (T: Type(), op: u8_gen_ty(), a: bool_gen_ty(), b: bool_gen_ty()) -> bool_gen_ty() => |env| {
-
 
         // Parse the operator.
         let parsed_op = BinOp::try_from(
@@ -117,14 +117,15 @@ make_intrinsics! {
         )
         .map_err(|_| INVALID_OP)?;
 
-        let lhs_const = try_use_term_as_const(&env, a).ok_or("no-const operand")?;
-        let rhs_const = try_use_term_as_const(&env, b).ok_or("no-const operand")?;
-
-        // Use the constant evaluator to perform the operation.
-        let eval = ConstFolder::new(env.layout_computer());
-        Ok(eval.try_fold_bin_op(parsed_op, &lhs_const, &rhs_const).map(|result| {
-            term(Node::create_gen(Lit::Const(result)))
-        }))
+        match (try_use_term_as_const(&env, a), try_use_term_as_const(&env, b)) {
+            (Some(lhs_const), Some(rhs_const)) => {
+                let eval = ConstFolder::new(env.layout_computer());
+                Ok(eval.try_fold_bin_op(parsed_op, &lhs_const, &rhs_const).map(|result| {
+                    term(Node::create_gen(Lit::Const(result)))
+                }))
+            }
+            _ => Ok(None),
+        }
     };
 
     // Binary operations (returning the same type as the arguments)
@@ -137,32 +138,35 @@ make_intrinsics! {
         )
         .map_err(|_| INVALID_OP)?;
 
-        let lhs_const = try_use_term_as_const(&env, a).ok_or(NON_CONST_OPERAND)?;
-        let rhs_const = try_use_term_as_const(&env, b).ok_or(NON_CONST_OPERAND)?;
-
-        // Use the constant evaluator to perform the operation.
-        let eval = ConstFolder::new(env.layout_computer());
-        Ok(eval.try_fold_bin_op(parsed_op, &lhs_const, &rhs_const).map(|result| {
-            term(Node::create_gen(Lit::Const(result)))
-        }))
+        match (try_use_term_as_const(&env, a), try_use_term_as_const(&env, b)) {
+            (Some(lhs_const), Some(rhs_const)) => {
+                let eval = ConstFolder::new(env.layout_computer());
+                Ok(eval.try_fold_bin_op(parsed_op, &lhs_const, &rhs_const).map(|result| {
+                    term(Node::create_gen(Lit::Const(result)))
+                }))
+            }
+            _ => Ok(None),
+        }
     };
 
     // Unary operations
     un_op := (T: Type(), op: u8_gen_ty(), a: ty(T)) -> ty(T) => |env| {
         const INVALID_OP: &str = "Invalid unary operation parameters";
-
         // Parse the operator.
         let parsed_op =
             UnOp::try_from(try_use_term_as_integer_lit::<_, u8>(&env, op).ok_or(INVALID_OP)?)
                 .map_err(|_| INVALID_OP)?;
 
-        let lhs_const = try_use_term_as_const(&env, a).ok_or(NON_CONST_OPERAND)?;
-
-        // Use the constant evaluator to perform the operation.
-        let eval = ConstFolder::new(env.layout_computer());
-        Ok(eval.try_fold_un_op(parsed_op, &lhs_const).map(|result| {
-            term(Node::create_gen(Lit::Const(result)))
-        }))
+        match try_use_term_as_const(&env, a) {
+            Some(c)  => {
+                // Use the constant evaluator to perform the operation.
+                let eval = ConstFolder::new(env.layout_computer());
+                Ok(eval.try_fold_un_op(parsed_op, &c).map(|result| {
+                    term(Node::create_gen(Lit::Const(result)))
+                }))
+            }
+            None => Ok(None),
+        }
     };
 }
 

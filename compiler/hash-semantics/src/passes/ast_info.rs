@@ -2,8 +2,7 @@ use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 use hash_ast::ast::AstNodeId;
 use hash_tir::{
-    context::ContextMember,
-    stack::StackId,
+    stack::{StackId, StackMember},
     tir::{
         ArgId, ArgsSeqId, CtorDefId, CtorDefsSeqId, DataDefId, FnDefId, ModDefId, ModMemberId,
         ModMembersSeqId, ParamId, ParamsSeqId, PatId, TermId, TyId,
@@ -158,7 +157,7 @@ ast_info! {
     fn_defs: AstMap<FnDefId>,
 
     stacks: AstMap<StackId>,
-    stack_members: AstMap<ContextMember>,
+    stack_members: AstMap<StackMember>,
 
     terms: AstMap<TermId>,
     tys: AstMap<TyId>,

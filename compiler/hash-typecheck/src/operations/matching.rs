@@ -51,6 +51,7 @@ impl<E: TcEnv> OperationsOn<MatchTerm> for Tc<'_, E> {
                 let subject_ty_copy = self.visitor().copy(match_subject_ty);
 
                 self.in_pat.enter(true, || self.check_node(case_data.bind_pat, subject_ty_copy))?;
+                println!("Context BF: {}", self.context());
                 let new_unified_ty =
                     Ty::expect_is(case_data.value, self.visitor().copy(unified_ty));
 
@@ -58,11 +59,13 @@ impl<E: TcEnv> OperationsOn<MatchTerm> for Tc<'_, E> {
                     if let Some(pat_term) = case_data.bind_pat.use_as_non_pat() {
                         self.context().add_assignment(
                             match_subject_var.symbol,
-                            subject_ty_copy,
                             pat_term,
                         );
                     }
                 }
+
+                println!("In case : {}", case_data.value);
+                println!("Context: {}", self.context());
 
                 match match_annotation_ty {
                     _ if self.is_uninhabitable(subject_ty_copy)? => {
@@ -103,13 +106,13 @@ impl<E: TcEnv> OperationsOn<MatchTerm> for Tc<'_, E> {
         // @@Caching: Check if the MatchTerm has already been queued for exhaustiveness,
         // if it hasn't, we can use/make a new ExhaustivenessChecker and then
         // add the job.
-        let pats =
-            match_term.cases.elements().borrow().iter().map(|case| case.bind_pat).collect_vec();
-        let mut eck = self.exhaustiveness_checker(match_term.subject);
-        self.env.record("exhaustiveness", |_| {
-            eck.is_match_exhaustive(&pats, match_subject_ty);
-        });
-        self.append_exhaustiveness_diagnostics(eck);
+        // let pats =
+        //     match_term.cases.elements().borrow().iter().map(|case| case.bind_pat).collect_vec();
+        // let mut eck = self.exhaustiveness_checker(match_term.subject);
+        // self.env.record("exhaustiveness", |_| {
+        //     eck.is_match_exhaustive(&pats, match_subject_ty);
+        // });
+        // self.append_exhaustiveness_diagnostics(eck);
 
         Ok(())
     }
@@ -132,7 +135,7 @@ impl<E: TcEnv> OperationsOn<MatchTerm> for Tc<'_, E> {
                     match self.match_value_and_get_binds(
                         match_term.subject,
                         case.bind_pat,
-                        &mut |name, term_id| self.context().add_untyped_assignment(name, term_id),
+                        &mut |name, term_id| self.context().add_assignment(name, term_id),
                     )? {
                         MatchResult::Successful => {
                             let result = self.normalise_node_and_record(case.value, &st)?;

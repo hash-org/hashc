@@ -2,7 +2,9 @@
 use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_source::{entry_point::EntryPointKind, identifier::IDENTS, ModuleKind};
 use hash_storage::store::statics::{SequenceStoreValue, StoreId};
-use hash_tir::tir::{Arg, CallTerm, FnDefId, HasAstNodeId, Node, NodeId, NodeOrigin, Term};
+use hash_tir::tir::{
+    Arg, CallTerm, FnDefId, FnTy, HasAstNodeId, Node, NodeId, NodeOrigin, Param, Term, Ty,
+};
 
 use crate::{diagnostics::TcResult, env::TcEnv, tc::Tc, traits::OperationsOnNode};
 
@@ -18,6 +20,7 @@ impl<T: TcEnv> Tc<'_, T> {
 
         let fn_def_symbol = fn_def_id.borrow().name;
         let fn_def_name = fn_def_symbol.borrow().name.unwrap();
+        let fn_def_ty = fn_def_id.borrow().ty;
 
         // Check if on item if it has `entry_point`
         let has_entry_point_attr =
@@ -34,18 +37,18 @@ impl<T: TcEnv> Tc<'_, T> {
         };
 
         if let Some(entry_point) = entry_point {
-            // @@MissingOrigin Maybe it is better to check this through a manual procedure
-            // rather than wrapping it in a function call?
-            let call_term = Node::create_at(
-                Term::Call(CallTerm {
-                    subject: Node::create_at(Term::Fn(fn_def_id), NodeOrigin::Generated),
+            let expected_ty = Node::create_at(
+                Ty::FnTy(FnTy {
                     implicit: false,
-                    args: Node::create_at(Node::<Arg>::empty_seq(), NodeOrigin::Generated),
+                    is_unsafe: false,
+                    params: Param::seq_positional([], NodeOrigin::Expected),
+                    pure: false,
+                    return_ty: Term::unit_ty(NodeOrigin::Expected),
                 }),
-                NodeOrigin::Generated,
+                NodeOrigin::Expected,
             );
 
-            self.check_node(call_term, self.fresh_meta(call_term.origin().inferred()))?;
+            self.unify_nodes(Node::create_at(Ty::FnTy(fn_def_ty), fn_def_id.origin()), expected_ty)?;
 
             // If successful, flag it as an entry point.
             self.entry_point().set(fn_def_id, entry_point);

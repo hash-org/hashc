@@ -6,7 +6,7 @@ use hash_tir::{
     context::{HasContext, ScopeKind},
     intrinsics::definitions::usize_ty,
     tir::{
-        CtorDefId, CtorTerm, DataDefCtors, DataDefId, DataTy, NodeId, NodeOrigin,
+        CtorDefId, CtorTerm, DataDefCtors, DataDefId, DataTy, Node, NodeId, NodeOrigin,
         PrimitiveCtorInfo, Term, TermId, Ty, TyId,
     },
     visitor::Map,
@@ -78,22 +78,38 @@ impl<E: TcEnv> OperationsOn<CtorTerm> for Tc<'_, E> {
         // result arguments of the constructor, and the constructor data
         // arguments.
 
-        self.context().enter_scope(ScopeKind::Sub, || {
-            self.check_node_scoped(term.ctor_args, subbed_ctor_params, |inferred_term_ctor_args| {
-                term.ctor_args = inferred_term_ctor_args;
-                original_term_id.set(original_term_id.value().with_data(term.into()));
+        // self.context().enter_scope(ScopeKind::Sub, || {
+        println!("In pat: {}", self.in_pat.get());
+        self.check_node_scoped(term.ctor_args, subbed_ctor_params, |inferred_term_ctor_args| {
+            Ok(())
+        })?;
 
-                self.substituter().apply_sub_from_context(subbed_ctor_params);
+        let sub =
+            self.substituter().create_sub_from_args_of_params(term.ctor_args, subbed_ctor_params);
+        // let subbed_annotation_data_ty_args = self.substituter().apply_sub(annotation_data_ty.args, &sub);
+        self.substituter().apply_sub_in_place(subbed_ctor_result_args, &sub);
+        self.unify_nodes_scoped(subbed_ctor_result_args, annotation_data_ty.args, |_| Ok(()))?;
+        self.unify_nodes(
+            Node::create_at(
+                Term::DataTy(annotation_data_ty),
+                original_term_id.origin().inferred(),
+            ),
+            annotation_ty,
+        )?;
 
-                self.unify_nodes_scoped(subbed_ctor_result_args, annotation_data_ty.args, |_| {
-                    Ok(())
-                })?;
+        Ok(())
 
-                annotation_ty
-                    .set(annotation_ty.value().with_data(Term::DataTy(annotation_data_ty)));
-                Ok(())
-            })
-        })
+        // self.enter_params_scope(subbed_ctor_params, || {
+        //     // original_term_id.set(original_term_id.value().with_data(term.into()));
+
+        //     // self.substituter().apply_sub_from_context(subbed_ctor_params);
+
+        //     println!("In pat: {}", self.in_pat.get());
+        //     println!("In pat: {}", self.in_pat.get());
+
+        //     Ok(())
+        // })
+        // })
     }
 
     fn try_normalise(
@@ -205,7 +221,7 @@ impl<E: TcEnv> OperationsOnNode<DataDefId> for Tc<'_, E> {
     }
 
     fn unify_nodes(&self, src: DataDefId, target: DataDefId) -> TcResult<()> {
-        if src == target {
+        if src == target || src.borrow().ctors.len() == 0 || target.borrow().ctors.len() == 0 {
             Ok(())
         } else {
             Err(TcError::MismatchingDataDefs { expected: src, actual: target })

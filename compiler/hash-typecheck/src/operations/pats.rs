@@ -30,7 +30,6 @@ impl<E: TcEnv> OperationsOn<IfPat> for Tc<'_, E> {
         if let Term::Var(v) = *pat.condition.value() {
             self.context().add_assignment(
                 v.symbol,
-                expected_condition_ty,
                 bool_term(true, pat.condition.origin().inferred()),
             );
         }

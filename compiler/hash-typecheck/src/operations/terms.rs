@@ -2,12 +2,10 @@ use std::{fmt::Display, ops::ControlFlow};
 
 use hash_storage::store::{statics::StoreId, StoreKey};
 use hash_tir::{
-    atom_info::ItemInAtomInfo,
-    tir::{
+    atom_info::ItemInAtomInfo, context::HasContext, tir::{
         ArgsId, BindingPat, NodeId, NodeOrigin, NodesId, Pat, SymbolId, Term, TermId, Ty, TyId,
         VarTerm,
-    },
-    visitor::{Atom, Map, Visitor},
+    }, visitor::{Atom, Map, Visitor}
 };
 
 use crate::{
@@ -35,6 +33,7 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
     type AnnotNode = TyId;
 
     fn check_node(&self, term_id: TermId, annotation_ty: Self::AnnotNode) -> TcResult<()> {
+        println!("Checking term: {}", term_id);
         self.register_new_atom(term_id, annotation_ty);
 
         match *term_id.value() {
@@ -102,15 +101,15 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
     }
 
     fn unify_nodes(&self, src_id: TermId, target_id: TermId) -> TcResult<()> {
-        // if src_id == target_id {
-        //     return Ok(());
-        // }
+        if src_id == target_id {
+            return Ok(());
+        }
 
         // Substitute from context
         let src = self.resolve_metas_and_vars(src_id).0.value().data;
         let target = self.resolve_metas_and_vars(target_id).0.value().data;
 
-        println!("Unifying {} with {:?}", src, target);
+        println!("Unifying {} with {}", src, target);
 
         match (self.classify_meta_call(src), self.classify_meta_call(target)) {
             (Some(v1), Some(v2)) if v1.meta == v2.meta => {
@@ -128,6 +127,7 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
         }
 
         println!("Unifying {} with {}", src, target);
+        println!("Context: {}", self.context());
 
         let unfold = || {
             println!("Unfolding terms: {} and {}", src, target);
@@ -151,6 +151,10 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
             }
             (_, Term::Pat(Pat::Binding(b))) => {
                 self.unify_binding_with(b, src_id).or_else(|_| unfold())
+            }
+
+            (Ty::DataTy(d1), _) if d1.data_def.borrow().ctors.len() == 0 => {
+                Ok(())
             }
 
             // If the source is uninhabitable, then we can unify it with

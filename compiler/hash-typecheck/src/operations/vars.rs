@@ -27,17 +27,10 @@ impl<E: TcEnv> OperationsOn<VarTerm> for Tc<'_, E> {
     ) -> TcResult<()> {
         let term = *term;
 
-        match self.context().try_get_decl(term.symbol) {
-            Some(decl) => {
-                if let Some(ty) = decl.ty {
-                    let ty = self.visitor().copy(ty);
-                    self.unify_nodes(ty, annotation_ty)?;
-                    Ok(())
-                } else if decl.value.is_some() {
-                    panic!("no type found for decl '{}'", decl)
-                } else {
-                    panic!("Found declaration without type or value during inference: {}", decl)
-                }
+        match self.context().try_get_decl_ty(term.symbol) {
+            Some(ty) => {
+                let ty = self.visitor().copy(ty);
+                self.unify_nodes(ty, annotation_ty)
             }
             None => {
                 panic!("no binding found for symbol '{}'", term)
@@ -80,8 +73,10 @@ impl<E: TcEnv> Tc<'_, E> {
         println!("CTX {}", self.context());
         println!("Unifying nodes: {} and {}", var, term);
 
+        // @@LeftOffHere : Need to make unification typed so that we can fill in the type here!
+
         if self.in_pat.get() {
-            self.context().add_untyped_assignment(var.symbol, term);
+            self.context().add_assignment(var.symbol, term);
             Ok(())
         } else {
             // match self.context().try_get_decl_value(var.symbol) {
@@ -92,7 +87,7 @@ impl<E: TcEnv> Tc<'_, E> {
     }
 
     pub(crate) fn unify_binding_with(&self, binding: BindingPat, term: TermId) -> TcResult<()> {
-        self.context().add_untyped_assignment(binding.name, term);
+        self.context().add_assignment(binding.name, term);
         Ok(())
     }
 }
@@ -107,7 +102,7 @@ impl<E: TcEnv> OperationsOn<BindingPat> for Tc<'_, E> {
         annotation_ty: Self::AnnotNode,
         _: Self::Node,
     ) -> TcResult<()> {
-        self.context().add_typing_to_closest_stack(var.name, annotation_ty);
+        self.context().add_typing(var.name, annotation_ty);
         Ok(())
     }
 

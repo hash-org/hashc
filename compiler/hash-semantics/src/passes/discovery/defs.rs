@@ -9,8 +9,7 @@ use hash_storage::store::{
     DefaultPartialStore, PartialStore, SequenceStoreKey, StoreKey,
 };
 use hash_tir::{
-    context::ContextMember,
-    stack::StackId,
+    stack::{StackId, StackMember},
     tir::{
         CtorDef, CtorDefData, CtorDefId, DataDefCtors, DataDefId, FnDefId, HasAstNodeId, ModDef,
         ModDefId, ModKind, ModMember, ModMemberId, ModMemberValue, Node, NodeId, NodeOrigin,
@@ -73,7 +72,7 @@ pub(super) enum ItemId {
 /// contain local definitions.
 #[derive(Debug, Copy, Clone, From)]
 enum StackMemberOrModMember {
-    StackMember(ContextMember),
+    StackMember(StackMember),
     ModMember(ModMember),
 }
 
@@ -481,15 +480,15 @@ impl<'env, E: SemanticEnv + 'env> DiscoveryPass<'env, E> {
     /// resolved at a later stage.
     pub(super) fn add_stack_members_in_pat_to_buf(
         node: AstNodeRef<ast::Pat>,
-        buf: &mut SmallVec<[(AstNodeId, ContextMember); 3]>,
+        buf: &mut SmallVec<[(AstNodeId, StackMember); 3]>,
     ) {
         let register_spread_pat =
             |spread: &AstNode<ast::SpreadPat>,
-             buf: &mut SmallVec<[(AstNodeId, ContextMember); 3]>| {
+             buf: &mut SmallVec<[(AstNodeId, StackMember); 3]>| {
                 if let Some(name) = &spread.name {
                     buf.push((
                         name.id(),
-                        ContextMember {
+                        StackMember {
                             name: SymbolId::from_name(name.ident, NodeOrigin::Given(name.id())),
                             ty: None,
                             value: None,
@@ -502,7 +501,7 @@ impl<'env, E: SemanticEnv + 'env> DiscoveryPass<'env, E> {
             ast::Pat::Binding(binding) => {
                 buf.push((
                     node.id(),
-                    ContextMember {
+                    StackMember {
                         name: SymbolId::from_name(
                             binding.name.ident,
                             NodeOrigin::Given(binding.name.id()),
@@ -555,7 +554,7 @@ impl<'env, E: SemanticEnv + 'env> DiscoveryPass<'env, E> {
             }
             ast::Pat::Wild(_) => buf.push((
                 node.id(),
-                ContextMember {
+                StackMember {
                     name: SymbolId::fresh(NodeOrigin::Given(node.id())),
                     // is_mutable: false,
                     ty: None,
@@ -598,7 +597,7 @@ impl<'env, E: SemanticEnv + 'env> DiscoveryPass<'env, E> {
                 {
                     found_members.push((
                         node.id(),
-                        ContextMember { name: declaration_name, ty: None, value: None },
+                        StackMember { name: declaration_name, ty: None, value: None },
                     ))
                 }
                 _ => Self::add_stack_members_in_pat_to_buf(node, &mut found_members),

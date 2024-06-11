@@ -45,31 +45,34 @@ impl<E: TcEnv> ScopedOperationsOnNode<ArgsId> for Tc<'_, E> {
         // Reorder the arguments to match the annotation parameters:
         let reordered_args_id = validate_and_reorder_args_against_params(args, annotation_params)?;
 
-        // let mut running_sub = Sub::identity();
+        let mut running_sub = Sub::identity();
 
         for (arg, param_id) in args.iter().zip(annotation_params.iter()) {
             let param = param_id.value();
             let param_ty = self.visitor().copy(param.ty);
-            // self.substituter().apply_sub_in_place(param_ty, &running_sub);
+            self.substituter().apply_sub_in_place(param_ty, &running_sub);
             println!("Checking  ({}) : ({})", arg, param_id);
             println!("context: {}", self.context());
 
             // Check each argument against the corresponding parameter type
             let arg = arg.value();
             self.check_node(arg.value, param_ty)?;
+            println!("checked");
 
-            println!(
-                "{} | {:?} | {:?}",
-                arg.value,
-                self.has_effects(arg.value),
-                arg.value.use_as_non_pat().is_some()
-            );
-            if self.has_effects(arg.value) == Some(false)
-                && let Some(value) = arg.value.use_as_non_pat()
-            {
-                println!("Here");
-                self.context().add_assignment(param.name, param_ty, value);
-            }
+            running_sub.extend_from_pairs([(param.name, arg.value)]);
+
+            // println!(
+            //     "{} | {:?} | {:?}",
+            //     arg.value,
+            //     self.has_effects(arg.value),
+            //     arg.value.use_as_non_pat().is_some()
+            // );
+            // if self.has_effects(arg.value) == Some(false)
+            //     && let Some(value) = arg.value.use_as_non_pat()
+            // {
+            //     println!("Here with value: {} : {} = {}", param.name, param_ty, arg.value);
+            //     self.context().add_assignment(param.name, value);
+            // }
         }
         let result = in_arg_scope(reordered_args_id)?;
 

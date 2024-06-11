@@ -177,6 +177,17 @@ pub enum DataDefCtors {
     Primitive(PrimitiveCtorInfo),
 }
 
+impl DataDefCtors {
+    /// Get the amount of constructors in the data definition, or `usize::MAX` if
+    /// unbouded.
+    pub fn len(self) -> usize {
+        match self {
+            DataDefCtors::Defined(ctors) => ctors.len(),
+            DataDefCtors::Primitive(_) => usize::MAX,
+        }
+    }
+}
+
 /// A utility type describing all of the needed information to create
 /// an enum variant. [CtorDefData] is not used because the `args` are not
 /// optional, and here they are.
@@ -483,7 +494,8 @@ impl fmt::Display for CtorDefsId {
 impl Display for CtorTerm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let (ctor_name, data_def_id) = (get!(self.ctor, name), get!(self.ctor, data_def_id));
-        write!(f, "{}::", data_def_id)?;
+        let data_def_name = get!(data_def_id, name);
+        write!(f, "{}::", data_def_name)?;
         write!(f, "{}", ctor_name)?;
         if self.ctor_args.len() > 0 {
             write!(f, "({})", self.ctor_args)?;

@@ -26,10 +26,18 @@ use crate::{
 
 /// A binding that contains a type and optional value.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub struct ContextMember {
-    pub name: SymbolId,
-    pub ty: Option<TyId>,
-    pub value: Option<TermId>,
+pub enum ContextMember {
+    Typing { name: SymbolId, ty: TyId },
+    Assignment { name: SymbolId, value: TermId },
+}
+
+impl ContextMember {
+    pub fn name(&self) -> SymbolId {
+        match self {
+            ContextMember::Typing { name, .. } => *name,
+            ContextMember::Assignment { name, .. } => *name,
+        }
+    }
 }
 
 /// All the different kinds of scope there are, and their associated data.
@@ -72,7 +80,7 @@ impl Scope {
 
     /// Add a binding to the scope.
     pub fn add_decl(&self, decl: ContextMember) {
-        self.decls.borrow_mut().insert(decl.name, decl);
+        self.decls.borrow_mut().insert(decl.name(), decl);
     }
 
     /// Get the decl corresponding to the given symbol.
@@ -167,22 +175,9 @@ impl Context {
         res
     }
 
-    /// Add a new decl to the current scope context.
-    pub fn add_decl(&self, name: SymbolId, ty: Option<TyId>, value: Option<TermId>) {
-        self.get_current_scope_ref().add_decl(ContextMember { name, ty, value })
-    }
-
-    /// Get a decl from the context, reading all accessible scopes.
-    pub fn try_get_decl(&self, name: SymbolId) -> Option<ContextMember> {
-        self.scopes.borrow().iter().rev().find_map(|scope| scope.get_decl(name))
-    }
-
-    /// Get a decl from the context, reading all accessible scopes.
-    ///
-    /// Panics if the decl doesn't exist.
-    pub fn get_decl(&self, name: SymbolId) -> ContextMember {
-        self.try_get_decl(name)
-            .unwrap_or_else(|| panic!("cannot find a declaration with name {}", name))
+    /// Add a declaration to the current scope.
+    pub fn add_decl(&self, decl: ContextMember) {
+        self.get_current_scope_ref().add_decl(decl)
     }
 
     /// Modify a decl in the context, with a function that takes the current
@@ -195,11 +190,6 @@ impl Context {
             .rev()
             .find(|scope| scope.set_existing_decl(name, &f))
             .unwrap_or_else(|| panic!("tried to modify a decl that doesn't exist"));
-    }
-
-    /// Modify a decl in the context.
-    pub fn modify_decl(&self, decl: ContextMember) {
-        self.modify_decl_with(decl.name, |_| decl);
     }
 
     /// Get a reference to the current scope.
@@ -287,17 +277,39 @@ impl Context {
 
     /// Iterate over all the decls in the context for the scope with the
     /// given index (reversed).
-    pub fn for_decls_of_scope_rev(&self, scope_index: usize, mut f: impl FnMut(&ContextMember)) {
-        let _ = self.try_for_decls_of_scope_rev(scope_index, |decl| -> Result<(), Infallible> {
-            f(decl);
-            Ok(())
-        });
+    pub fn for_all_decls(&self, mut f: impl FnMut(&ContextMember)) {
+        for i in self.get_scope_indices() {
+            let _ = self.try_for_decls_of_scope(i, |decl| -> Result<(), Infallible> {
+                f(decl);
+                Ok(())
+            });
+        }
+    }
+
+    /// Iterate over all the decls in the context for the scope with the
+    /// given index (reversed).
+    pub fn for_all_decls_rev(&self, mut f: impl FnMut(&ContextMember)) {
+        for i in self.get_scope_indices().rev() {
+            let _ = self.try_for_decls_of_scope_rev(i, |decl| -> Result<(), Infallible> {
+                f(decl);
+                Ok(())
+            });
+        }
     }
 
     /// Iterate over all the decls in the context for the scope with the
     /// given index.
     pub fn for_decls_of_scope(&self, scope_index: usize, mut f: impl FnMut(&ContextMember)) {
         let _ = self.try_for_decls_of_scope(scope_index, |decl| -> Result<(), Infallible> {
+            f(decl);
+            Ok(())
+        });
+    }
+
+    /// Iterate over all the decls in the context for the scope with the
+    /// given index (reversed).
+    pub fn for_decls_of_scope_rev(&self, scope_index: usize, mut f: impl FnMut(&ContextMember)) {
+        let _ = self.try_for_decls_of_scope_rev(scope_index, |decl| -> Result<(), Infallible> {
             f(decl);
             Ok(())
         });
@@ -330,57 +342,53 @@ impl Context {
     /// that the given parameter belongs to the current scope.
     pub fn add_param_binding(&self, param_id: ParamId) {
         let param = param_id.borrow();
-        self.add_decl(param.name, Some(param.ty), None);
+        self.add_decl(ContextMember::Typing { name: param.name, ty: param.ty });
     }
 
     /// Add an assignment without a type.
-    pub fn add_unknown_var(&self, name: SymbolId) {
-        self.add_decl(name, None, None);
+    pub fn add_typed_assignment(&self, name: SymbolId, ty: TyId, value: TermId) {
+        self.add_decl(ContextMember::Typing { name, ty });
+        self.add_decl(ContextMember::Assignment { name, value });
     }
 
     /// Add an assignment without a type.
-    pub fn add_untyped_assignment(&self, name: SymbolId, term: TermId) {
-        self.add_decl(name, None, Some(term));
+    pub fn add_assignment(&self, name: SymbolId, term: TermId) {
+        debug_assert!(
+            self.try_get_decl_ty(name).is_some(),
+            "Did not find typing for assignment: {} = {}",
+            name,
+            term
+        );
+        self.add_decl(ContextMember::Assignment { name, value: term });
     }
 
     /// Add a typing binding to the closest stack scope.
-    pub fn add_assignment_to_closest_stack(&self, name: SymbolId, ty: TyId, value: TermId) {
-        self.get_closest_stack_scope_ref().add_decl(ContextMember {
-            name,
-            ty: Some(ty),
-            value: Some(value),
-        })
+    pub fn add_typed_assignment_to_closest_stack(&self, name: SymbolId, ty: TyId, value: TermId) {
+        let closest = self.get_closest_stack_scope_ref();
+        closest.add_decl(ContextMember::Typing { name, ty });
+        closest.add_decl(ContextMember::Assignment { name, value })
     }
 
     /// Add a typing binding to the closest stack scope.
     pub fn add_typing_to_closest_stack(&self, name: SymbolId, ty: TyId) {
-        self.get_closest_stack_scope_ref().add_decl(ContextMember {
-            name,
-            ty: Some(ty),
-            value: None,
-        })
+        self.get_closest_stack_scope_ref().add_decl(ContextMember::Typing { name, ty })
     }
 
     /// Add a typing binding.
     pub fn add_typing(&self, name: SymbolId, ty: TyId) {
-        self.add_decl(name, Some(ty), None);
-    }
-
-    /// Add an assignment binding with a value.
-    pub fn add_assignment(&self, name: SymbolId, ty: TyId, value: TermId) {
-        self.add_decl(name, Some(ty), Some(value));
-    }
-
-    /// Modify the type of an assignment binding.
-    pub fn modify_typing(&self, name: SymbolId, new_ty: TyId) {
-        let current_value = self.try_get_decl_value(name);
-        self.modify_decl(ContextMember { name, ty: Some(new_ty), value: current_value })
+        self.add_decl(ContextMember::Typing { name, ty });
     }
 
     /// Modify the value of an assignment binding.
     pub fn modify_assignment(&self, name: SymbolId, new_value: TermId) {
-        let current_ty = self.try_get_decl_ty(name);
-        self.modify_decl(ContextMember { name, ty: current_ty, value: Some(new_value) })
+        self.modify_decl_with(name, |d| match d {
+            ContextMember::Typing { name, .. } => {
+                panic!("tried to modify typing decl as assignment: {}", name)
+            }
+            ContextMember::Assignment { name, .. } => {
+                ContextMember::Assignment { name, value: new_value }
+            }
+        })
     }
 
     /// Add parameter bindings from the given parameters.
@@ -400,17 +408,23 @@ impl Context {
     pub fn add_arg_binding(&self, arg_id: ArgId, param_id: ParamId) {
         let arg = arg_id.borrow();
         let param = param_id.borrow();
-        self.add_decl(param.name, Some(param.ty), Some(arg.value));
+        self.add_typed_assignment(param.name, param.ty, arg.value)
     }
 
     /// Get the value of a binding, if possible.
     pub fn try_get_decl_value(&self, name: SymbolId) -> Option<TermId> {
-        self.try_get_decl(name)?.value
+        self.scopes.borrow().iter().rev().find_map(|scope| match scope.get_decl(name) {
+            Some(ContextMember::Assignment { value, .. }) => Some(value),
+            _ => None,
+        })
     }
 
     /// Get the type of a binding, if possible.
     pub fn try_get_decl_ty(&self, name: SymbolId) -> Option<TyId> {
-        self.try_get_decl(name)?.ty
+        self.scopes.borrow().iter().rev().find_map(|scope| match scope.get_decl(name) {
+            Some(ContextMember::Typing { ty, .. }) => Some(ty),
+            _ => None,
+        })
     }
 
     /// Get the value of a binding.
@@ -440,7 +454,12 @@ impl Context {
     pub fn add_stack_bindings(&self, stack_id: StackId) {
         let stack = stack_id.borrow();
         for member in &stack.members {
-            self.add_decl(member.name, member.ty, member.value);
+            if let Some(ty) = member.ty {
+                self.add_typing(member.name, ty);
+                if let Some(value) = member.value {
+                    self.add_assignment(member.name, value);
+                }
+            }
         }
     }
 
@@ -516,44 +535,30 @@ impl Context {
         }
     }
 
-    /// Add the given substitution to the context.
-    pub fn add_sub_to_scope(&self, sub: &Sub) {
-        for (name, value) in sub.iter() {
-            match self.try_get_decl_ty(name) {
-                Some(ty) => {
-                    self.add_assignment(name, ty, value);
-                }
-                None => {
-                    self.add_untyped_assignment(name, value);
-                }
-            }
-        }
-    }
+    // /// Add the given substitution to the context.
+    // pub fn add_sub_to_scope(&self, sub: &Sub) {
+    //     for (name, value) in sub.iter() {
+    //         self.add_assignment(name, value);
+    //     }
+    // }
 
-    /// Enter a scope with the given substitution.
-    pub fn enter_sub_scope<M>(&self, sub: &Sub, f: impl FnOnce() -> M) -> M {
-        self.enter_scope(ScopeKind::Sub, || {
-            self.add_sub_to_scope(sub);
-            f()
-        })
-    }
+    // /// Enter a scope with the given substitution.
+    // pub fn enter_sub_scope<M>(&self, sub: &Sub, f: impl FnOnce() -> M) -> M {
+    //     self.enter_scope(ScopeKind::Sub, || {
+    //         self.add_sub_to_scope(sub);
+    //         f()
+    //     })
+    // }
 }
 
 impl fmt::Display for ContextMember {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let ty_or_unknown = {
-            if let Some(ty) = self.ty {
-                ty.to_string()
-            } else {
-                "unknown".to_string()
+        match self {
+            ContextMember::Typing { name, ty } => {
+                write!(f, "{}: {}", name, ty)
             }
-        };
-        match self.value {
-            Some(value) => {
-                write!(f, "{}: {} = {}", self.name, ty_or_unknown, value,)
-            }
-            None => {
-                write!(f, "{}: {}", self.name, ty_or_unknown)
+            ContextMember::Assignment { name, value } => {
+                write!(f, "{} = {}", name, value)
             }
         }
     }

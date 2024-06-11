@@ -1,10 +1,31 @@
+use std::fmt::{self, Display, Formatter};
+
 use hash_storage::store::{DefaultPartialStore, PartialCloneStore, PartialStore};
 use hash_tir::tir::{CallTerm, Meta, NodeId, NodeOrigin, SymbolId, Term, TermId};
 
+use hash_storage::store::statics::StoreId;
 use crate::{env::TcEnv, tc::Tc};
 
 pub struct MetaContext {
     pub(crate) metas: DefaultPartialStore<Meta, TermId>, // Contains closed terms!
+}
+
+impl Display for MetaContext {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        writeln!(f, "Metas:")?;
+        for val in self.metas.internal_data().iter() {
+            let (meta, term) = val.pair();
+            match (*term).value().data {
+                Term::Fn(func) => {
+                    writeln!(f, "  {} := {}", meta, func.value().data)?;
+                }
+                _ => {
+                    writeln!(f, "  {} := {}", meta, term)?;
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 impl Default for MetaContext {

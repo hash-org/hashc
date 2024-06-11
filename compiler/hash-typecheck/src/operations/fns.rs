@@ -16,6 +16,8 @@ use crate::{
     traits::{OperationsOn, OperationsOnNode, ScopedOperationsOnNode},
 };
 
+use hash_storage::store::StoreKey;
+
 impl<E: TcEnv> OperationsOn<FnTy> for Tc<'_, E> {
     type AnnotNode = TyId;
     type Node = TyId;
@@ -91,30 +93,32 @@ impl<E: TcEnv> OperationsOn<FnDefId> for Tc<'_, E> {
     ) -> TcResult<()> {
         let fn_def_id = *fn_def_id;
         if let Some(fn_ty) = self.try_get_inferred_ty(fn_def_id) {
+            println!("Found inferred type: {}", fn_ty);
             let expected =
                 Ty::expect_is(original_term_id, Ty::from(fn_ty, fn_def_id.origin().inferred()));
             self.unify_nodes(expected, annotation_ty)?;
             return Ok(());
         }
+        println!("Did not find inferred type for {} : {}", fn_def_id.to_index(), fn_def_id);
 
         self.check_fn_def_id_annotation(fn_def_id, annotation_ty)?;
         let fn_def = fn_def_id.value();
 
-        if self.fn_infer_mode.get() == FnInferMode::Header {
-            // If we are only inferring the header, then we also want to check for
-            // immediate body functions.
-            self.check_node_scoped(fn_def.ty.params, (), |()| {
-                if let Term::Fn(mut immediate_body_fn) = *fn_def.body.value() {
-                    self.check(
-                        &mut immediate_body_fn,
-                        self.fresh_meta_for(fn_def.body),
-                        fn_def.body,
-                    )?;
-                }
-                Ok(())
-            })?;
-            return Ok(());
-        }
+        // if self.fn_infer_mode.get() == FnInferMode::Header {
+        //     // If we are only inferring the header, then we also want to check for
+        //     // immediate body functions.
+        //     self.check_node_scoped(fn_def.ty.params, (), |()| {
+        //         if let Term::Fn(mut immediate_body_fn) = *fn_def.body.value() {
+        //             self.check(
+        //                 &mut immediate_body_fn,
+        //                 self.fresh_meta_for(fn_def.body),
+        //                 fn_def.body,
+        //             )?;
+        //         }
+        //         Ok(())
+        //     })?;
+        //     return Ok(());
+        // }
 
         if self.atom_is_registered(fn_def_id) {
             // Recursive call
@@ -126,8 +130,7 @@ impl<E: TcEnv> OperationsOn<FnDefId> for Tc<'_, E> {
         let fn_def = fn_def_id.value();
 
         self.context().enter_scope(ScopeKind::Fn(fn_def_id), || {
-            self.check_node_scoped(fn_def.ty.params, (), |()| {
-                self.check_node(fn_def.ty.return_ty, Ty::universe_of(fn_def.ty.return_ty))?;
+            self.enter_params_scope(fn_def.ty.params, || {
                 self.check_node(fn_def.body, fn_def.ty.return_ty)
             })
         })?;
@@ -136,7 +139,11 @@ impl<E: TcEnv> OperationsOn<FnDefId> for Tc<'_, E> {
             Ty::expect_is(original_term_id, Ty::from(fn_def.ty, fn_def_id.origin().inferred()));
         self.unify_nodes(fn_ty_id, annotation_ty)?;
 
+        println!("Done checking fn def {}: {}", fn_def_id.to_index(), fn_def_id);
+        println!("Metas: {}", self.meta_context);
+
         self.register_atom_inference(fn_def_id, fn_def_id, fn_def.ty);
+        println!("MUIST SAY TRUE::{:}", self.try_get_inferred_ty(fn_def_id).is_some());
 
         Ok(())
     }

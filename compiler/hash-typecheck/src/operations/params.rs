@@ -61,6 +61,33 @@ impl<E: TcEnv> Tc<'_, E> {
             args.origin().inferred(),
         )
     }
+
+    /// Instantiate the given parameters with holes for each argument.
+    ///
+    /// This will use the origin of the parameters wrapped in
+    /// [`NodeOrigin::InferredFrom`].
+    pub fn args_from_params_as_holes(&self, params_id: ParamsId) -> ArgsId {
+        Node::create_at(
+            Node::seq(
+                params_id
+                    .value()
+                    .iter()
+                    .enumerate()
+                    .map(|(i, param)| {
+                        Node::at(
+                            Arg {
+                                target: ParamIndex::pos(i),
+                                value: Term::fresh_hole(param.origin().computed()),
+                            },
+                            param.origin().computed(),
+                        )
+                    })
+                    .collect_vec(),
+            ),
+            params_id.origin().computed(),
+        )
+    }
+
     /// Instantiate the given parameters with holes for each argument.
     ///
     /// This will use the origin of the parameters wrapped in
@@ -86,6 +113,23 @@ impl<E: TcEnv> Tc<'_, E> {
             params_id.origin().computed(),
         )
     }
+
+    // Enter a parameter scope
+    pub(crate) fn enter_params_scope<T, F: FnOnce() -> TcResult<T>>(
+        &self,
+        params: ParamsId,
+        in_param_scope: F,
+    ) -> TcResult<T> {
+        // Enter the scope
+        self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
+            for param_id in params.iter() {
+                let param = param_id.value();
+                self.context().add_typing(param.name, param.ty);
+            }
+
+            in_param_scope()
+        })
+    }
 }
 
 impl<E: TcEnv> ScopedOperationsOnNode<ParamsId> for Tc<'_, E> {
@@ -101,25 +145,17 @@ impl<E: TcEnv> ScopedOperationsOnNode<ParamsId> for Tc<'_, E> {
         // Validate the parameters
         validate_params(params)?;
 
-        let (result, shadowed_sub) =
-            self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
-                for param_id in params.iter() {
-                    let param = param_id.value();
-                    self.check_node(param.ty, Ty::universe_of(param.ty))?;
-                    self.context().add_typing(param.name, param.ty);
-                }
+        self.context().enter_scope(ScopeKind::Sub, || {
+            for param_id in params.iter() {
+                let param = param_id.value();
+                self.check_node(param.ty, Ty::universe_of(param.ty))?;
+                self.context().add_typing(param.name, param.ty);
+            }
 
-                let result = in_param_scope(())?;
+            let result = in_param_scope(())?;
 
-                // Only keep the substitutions that do not refer to the parameters
-                let scope_sub = self.substituter().create_sub_from_current_scope();
-                let shadowed_sub = self.substituter().hide_param_binds(params.iter(), &scope_sub);
-                Ok((result, shadowed_sub))
-            })?;
-
-        // Add the shadowed substitutions to the ambient scope
-        self.context().add_sub_to_scope(&shadowed_sub);
-        Ok(result)
+            Ok(result)
+        })
     }
 
     fn try_normalise_node(&self, _item: ParamsId) -> NormaliseResult<ControlFlow<ParamsId>> {
@@ -141,42 +177,31 @@ impl<E: TcEnv> ScopedOperationsOnNode<ParamsId> for Tc<'_, E> {
                 annotation_params_id: target_id,
             });
         }
+
         let forward_sub = self.substituter().create_sub_from_param_names(src_id, target_id);
         let backward_sub = self.substituter().create_sub_from_param_names(target_id, src_id);
 
-        let (result, shadowed_sub) =
-            self.context().enter_scope(ScopeKind::Sub, || -> TcResult<_> {
-                for (src_param_id, target_param_id) in src_id.iter().zip(target_id.iter()) {
-                    let src_param = src_param_id.value();
-                    let target_param = target_param_id.value();
+        for (src_param_id, target_param_id) in src_id.iter().zip(target_id.iter()) {
+            let src_param = src_param_id.value();
+            let target_param = target_param_id.value();
 
-                    // Substitute the names
-                    self.context().add_assignment(
-                        src_param.name,
-                        src_param.ty,
-                        Term::from(target_param.name, target_param.origin),
-                    );
+            // Substitute the names
+            // self.context().add_typed_assignment(
+            //     src_param.name,
+            //     src_param.ty,
+            //     Term::from(target_param.name, target_param.origin),
+            // );
 
-                    // Unify the types
-                    self.unify_nodes(src_param.ty, target_param.ty)?;
-                    self.substituter().apply_sub_in_place(target_param.ty, &forward_sub);
-                    self.substituter().apply_sub_in_place(src_param.ty, &backward_sub);
-                }
+            // Unify the types
+            self.unify_nodes(src_param.ty, target_param.ty)?;
+            self.substituter().apply_sub_in_place(target_param.ty, &forward_sub);
+            self.substituter().apply_sub_in_place(src_param.ty, &backward_sub);
+        }
 
-                // Run the in-scope closure
-                let result = in_param_scope(())?;
+        // Run the in-scope closure
+        let result = in_param_scope(())?;
 
-                // Only keep the substitutions that do not refer to the parameters
-                let scope_sub = self.substituter().create_sub_from_current_scope();
-                let shadowed_sub = self
-                    .substituter()
-                    .hide_param_binds(src_id.iter().chain(target_id.iter()), &scope_sub);
-                Ok((result, shadowed_sub))
-            })?;
-
-        // Add the shadowed substitutions to the ambient scope
-        self.context().add_sub_to_scope(&shadowed_sub);
-
+        // Only keep the substitutions that do not refer to the parameters
         Ok(result)
     }
 }

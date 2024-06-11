@@ -6,16 +6,22 @@ use hash_storage::{get, store::statics::StoreId};
 use textwrap::indent;
 
 use crate::{
-    context::ContextMember,
     stores::tir_stores,
-    tir::{ModDefId, Node, NodeOrigin},
+    tir::{ModDefId, Node, NodeOrigin, SymbolId, TermId, TyId},
     tir_node_single_store,
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct StackMember {
+    pub name: SymbolId,
+    pub ty: Option<TyId>,
+    pub value: Option<TermId>,
+}
 
 /// A stack, which is a list of stack members.
 #[derive(Debug, Clone)]
 pub struct Stack {
-    pub members: Vec<ContextMember>,
+    pub members: Vec<StackMember>,
     /// Local module definition containing members that are defined in this
     /// stack.
     pub local_mod_def: Option<ModDefId>,
@@ -29,6 +35,17 @@ impl Stack {
 }
 
 tir_node_single_store!(Stack);
+
+impl fmt::Display for StackMember {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match (self.ty, self.value) {
+            (Some(ty), Some(value)) => write!(f, "{}: {} = {}", self.name, ty, value),
+            (Some(ty), None) => write!(f, "{}: {}", self.name, ty),
+            (None, Some(value)) => write!(f, "{} = {}", self.name, value),
+            (None, None) => write!(f, "{}", self.name),
+        }
+    }
+}
 
 impl fmt::Display for Stack {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

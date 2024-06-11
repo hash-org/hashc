@@ -40,7 +40,7 @@ impl<'env, E: SemanticEnv> Analyser<'env, E> {
         // This needs to be run twice, once to infer the headers of the
         // definitions, and once to infer their bodies.
         InferencePass::new(self.env, &ast_info).pass_source(source)?;
-        InferencePass::new(self.env, &ast_info).pass_source(source)?;
+        // InferencePass::new(self.env, &ast_info).pass_source(source)?;
 
         // Potentially evaluate terms
         EvaluationPass::new(self.env, &ast_info).pass_source(source)?;

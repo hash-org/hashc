@@ -52,12 +52,13 @@ impl<E: TcEnv> OperationsOn<BlockTerm> for Tc<'_, E> {
                         self.in_pat.enter(true, || self.check_node(decl.bind_pat, decl.ty))?;
 
                         // Check that the binding pattern of the declaration is irrefutable.
-                        let mut eck = self.exhaustiveness_checker(decl.bind_pat);
+                        // println!("Checking irrefutability of: {}", decl.bind_pat);
+                        // let mut eck = self.exhaustiveness_checker(decl.bind_pat);
 
-                        self.env.record("exhaustiveness", |_| {
-                            eck.is_pat_irrefutable(&[decl.bind_pat], decl.ty, None)
-                        });
-                        self.append_exhaustiveness_diagnostics(eck);
+                        // self.env.record("exhaustiveness", |_| {
+                        //     eck.is_pat_irrefutable(&[decl.bind_pat], decl.ty, None)
+                        // });
+                        // self.append_exhaustiveness_diagnostics(eck);
 
                         decl.ty
                     }
@@ -124,7 +125,7 @@ impl<E: TcEnv> OperationsOn<BlockTerm> for Tc<'_, E> {
                             decl_term.value,
                             decl_term.bind_pat,
                             &mut |name, term_id| {
-                                self.context().add_untyped_assignment(name, term_id)
+                                self.context().add_assignment(name, term_id)
                             },
                         )? {
                             MatchResult::Successful => {

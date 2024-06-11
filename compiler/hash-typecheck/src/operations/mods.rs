@@ -22,14 +22,15 @@ impl<E: TcEnv> OperationsOnNode<ModDefId> for Tc<'_, E> {
     fn check_node(&self, mod_def_id: ModDefId, _: ()) -> crate::diagnostics::TcResult<()> {
         self.context().enter_scope(mod_def_id.into(), || {
             let members = mod_def_id.borrow().members;
-            let mut error_state = ErrorState::new();
+            // let mut error_state = ErrorState::new();
 
             // Infer each member signature
             for member in members.value().iter() {
-                let _ = error_state.try_or_add_error(self.check_node(member, ()));
+                let _ = self.check_node(member, ())?;
             }
+            Ok(())
 
-            error_state.into_error(|| Ok(()))
+            // error_state.into_error(|| Ok(()))
         })
     }
 

@@ -1,6 +1,6 @@
 subst := <A, a: A, b: A> => #pure (P: A -> Type, p: a ~ b, m: {P(a)}) -> {P(b)} => {
   match p {
-    Equal::Refl(x) => m
+    Equal::Refl(l) => m
   }
 }
 

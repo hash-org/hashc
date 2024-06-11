@@ -11,6 +11,7 @@ use hash_ast_utils::lit::LitHelpers;
 use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_const_eval::op::{BinOp, LogicalBinOp, UnOp};
 use hash_reporting::macros::panic_on_span;
+use hash_source::identifier::IDENTS;
 use hash_storage::store::{
     statics::{SequenceStoreValue, StoreId},
     SequenceStoreKey, TrivialSequenceStoreKey,
@@ -377,9 +378,15 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
         &self,
         node: AstNodeRef<ast::VariableExpr>,
     ) -> SemanticResult<TermId> {
-        let path = self.variable_expr_as_ast_path(node)?;
-        let resolved_path = self.resolve_ast_path(&path)?;
-        self.make_term_from_resolved_ast_path(&resolved_path, node.id())
+        if node.name.is(IDENTS.Type) {
+            Ok(Ty::universe(NodeOrigin::Given(node.id())))
+        } else if node.name.is(IDENTS.underscore) {
+            Ok(Ty::fresh_hole(NodeOrigin::Given(node.id())))
+        } else {
+            let path = self.variable_expr_as_ast_path(node)?;
+            let resolved_path = self.resolve_ast_path(&path)?;
+            self.make_term_from_resolved_ast_path(&resolved_path, node.id())
+        }
     }
 
     /// Make a term from an [`ast::CallExpr`].
@@ -957,7 +964,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
         let rhs = self.make_term_from_ast_expr(rhs)?;
 
         // For the type, we use the type of the lhs
-        let typeof_lhs = Term::from(TyOfTerm { term: lhs }, origin);
+        let typeof_lhs = Term::fresh_hole(origin);
 
         // Pick the right intrinsic function and binary operator number
         let (intrinsic, bin_op_num): (Intrinsic, u8) = match op {
