@@ -67,7 +67,7 @@ pub struct CompilerSettings {
 
     /// Print metrics about each stage when the entire pipeline has completed.
     #[arg(long = "timings", default_value_t = false)]
-    #[serde(default)]
+    #[serde(default, alias = "timings")]
     pub show_timings: bool,
 
     /// The format to use when outputting information about compilation, either
