@@ -5,7 +5,7 @@
     cfg_match,
     decl_macro,
     impl_trait_in_assoc_type,
-    panic_info_message,
+    panic_payload_as_str,
     type_alias_impl_trait
 )]
 
