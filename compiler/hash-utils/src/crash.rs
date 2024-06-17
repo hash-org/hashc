@@ -33,7 +33,7 @@ pub fn crash_handler(info: &PanicInfo) {
 
         if let Some(s) = info.payload().downcast_ref::<&str>() {
             let _ = writeln!(&mut stdout, ": {s}\n");
-        } else if let Some(s) = info.message() {
+        } else if let Some(s) = info.payload_as_str() {
             let _ = writeln!(&mut stdout, ": {s}\n");
         } else {
             let _ = writeln!(&mut stdout, "\n");
