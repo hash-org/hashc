@@ -3,13 +3,18 @@
 use core::fmt;
 use std::time::Duration;
 
-use hash_pipeline::settings::CompilerStageKind;
 use hash_utils::{
     derive_more::Constructor,
     indexmap::IndexMap,
     profiling::{MetricEntry, StageMetrics},
+    schemars::{self, JsonSchema},
+    serde::{self, Serialize},
 };
 
+use crate::settings::CompilerStageKind;
+
+#[derive(Serialize, Clone, JsonSchema)]
+#[serde(crate = "self::serde")]
 pub struct StageMetricEntry {
     /// The total metrics for the stage itself, this recorded by the driver.
     pub total: MetricEntry,
@@ -18,7 +23,15 @@ pub struct StageMetricEntry {
     pub children: StageMetrics,
 }
 
-pub type Metrics = IndexMap<CompilerStageKind, StageMetricEntry>;
+#[derive(Default, Serialize, Clone, JsonSchema)]
+#[serde(crate = "self::serde")]
+pub struct Metrics(pub IndexMap<CompilerStageKind, StageMetricEntry>);
+
+impl Metrics {
+    pub fn new() -> Self {
+        Self(IndexMap::new())
+    }
+}
 
 /// Utility struct to report compiler metrics.
 pub struct AggregateMetricReporter<'a> {
@@ -33,6 +46,7 @@ pub struct AggregateMetricReporter<'a> {
 impl<'a> AggregateMetricReporter<'a> {
     pub fn new(metrics: &'a Metrics) -> Self {
         let longest_metric_key = metrics
+            .0
             .iter()
             .map(|(kind, metrics)| {
                 let label_size = kind.as_str().len();
@@ -56,7 +70,7 @@ impl fmt::Display for AggregateMetricReporter<'_> {
         let mut total_time = Duration::default();
 
         // Iterate over each stage and print out the timings.
-        for (stage_kind, stage_metric) in self.metrics {
+        for (stage_kind, stage_metric) in &self.metrics.0 {
             // This shouldn't occur as we don't record this metric in this way
             if *stage_kind >= CompilerStageKind::Build {
                 continue;

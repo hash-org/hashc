@@ -40,7 +40,10 @@ use hash_testing_internal::{
 };
 use hash_testing_macros::generate_tests;
 use hash_utils::{
-    log, logging::CompilerLogger, path::adjust_canonicalisation, stream::CompilerOutputStream,
+    log,
+    logging::{CompilerLogger, CompilerMessagingFormat},
+    path::adjust_canonicalisation,
+    stream::CompilerOutputStream,
 };
 use regex::Regex;
 
@@ -299,6 +302,7 @@ fn handle_test(test: TestingInput) {
 
     COMPILER_LOGGER.error_stream.set(error_stream()).unwrap();
     COMPILER_LOGGER.output_stream.set(output_stream()).unwrap();
+    COMPILER_LOGGER.set_messaging_format(CompilerMessagingFormat::Normal);
     log::set_logger(&COMPILER_LOGGER).unwrap_or_else(|_| panic!("couldn't initiate logger"));
     log::set_max_level(log::LevelFilter::Info);
 

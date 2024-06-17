@@ -9,6 +9,7 @@ use hash_utils::{
     derive_more::Constructor,
     range_map::RangeMap,
     schemars::{self, JsonSchema},
+    serde::{self, Serialize},
 };
 use line_span::LineSpanExt;
 
@@ -18,7 +19,8 @@ use crate::{SourceId, SourceMapUtils};
 /// The range itself is considered to be inclusive, so ranges such as `0:0`
 /// would include the first byte of the source, and ranges like `0:1` would
 /// include the first two bytes of the source.
-#[derive(Debug, Eq, Hash, Clone, Copy, PartialEq, JsonSchema)]
+#[derive(Debug, Eq, Hash, Clone, Copy, PartialEq, JsonSchema, Serialize)]
+#[serde(crate = "self::serde")]
 pub struct ByteRange(u32, u32);
 
 impl ByteRange {
@@ -105,7 +107,8 @@ impl fmt::Display for ByteRange {
 /// `hash_reporting` crate. Ideally, data structures that need to store
 /// locations of various items should use [ByteRange] and then convert into
 /// [Span]s.
-#[derive(Debug, Clone, Copy, Constructor, PartialEq, Eq, Hash, JsonSchema)]
+#[derive(Debug, Clone, Copy, Constructor, PartialEq, Eq, Hash, JsonSchema, Serialize)]
+#[serde(crate = "self::serde")]
 pub struct Span {
     /// The associated [ByteRange] with the [Span].
     pub range: ByteRange,

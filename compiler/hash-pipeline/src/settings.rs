@@ -13,6 +13,7 @@ use hash_ast_utils::dump::AstDumpMode;
 use hash_target::{HasTarget, Target, HOST_TARGET_TRIPLE};
 use hash_utils::{
     clap::{Args, Parser, ValueEnum},
+    logging::CompilerMessagingFormat,
     schemars::{self, JsonSchema},
     serde::{self, Deserialize, Serialize},
     tree_writing::CharacterSet,
@@ -68,6 +69,12 @@ pub struct CompilerSettings {
     #[arg(long = "timings", default_value_t = false)]
     #[serde(default)]
     pub show_timings: bool,
+
+    /// The format to use when outputting information about compilation, either
+    /// in JSON format or in the normal format.
+    #[arg(long, default_value_t = CompilerMessagingFormat::Normal)]
+    #[serde(default)]
+    pub messaging_format: CompilerMessagingFormat,
 
     /// Whether to output of each stage result.
     #[arg(long, default_value_t = false)]
@@ -362,6 +369,7 @@ impl Default for CompilerSettings {
             entry_point: None,
             output_directory: None,
             output_stage_results: false,
+            messaging_format: CompilerMessagingFormat::Normal,
             show_timings: false,
             skip_prelude: false,
             prelude_is_quiet: false,

@@ -173,6 +173,7 @@ impl<'b, 'm> LLVMBackend<'b> {
                 .write_to_file(module, FileType::Assembly, &asm_path)
                 .map_err(|err| CodeGenError::ModuleWriteFailed { reason: err })?;
 
+            // @@Messaging
             log::info!("wrote assembly file to `{}`", asm_path.to_string_lossy());
         }
 
@@ -270,6 +271,7 @@ impl<'b, 'm> LLVMBackend<'b> {
 
             // Check if we should dump the generated LLVM IR
             if instance.borrow().has_attr(attrs::DUMP_LLVM_IR) {
+                // @@Messaging
                 log::info!(
                     "LLVM IR for function {}\n{}",
                     body.meta.name(),

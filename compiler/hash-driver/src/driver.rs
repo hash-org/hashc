@@ -8,22 +8,21 @@ use std::{
     thread,
 };
 
+use hash_messaging::CompilerOutputMessage;
 use hash_pipeline::{
     fs::{resolve_path, PRELUDE},
     interface::{CompilerInterface, CompilerResult, CompilerStage},
+    metrics::{AggregateMetricReporter, Metrics, StageMetricEntry},
     settings::CompilerStageKind,
 };
 use hash_reporting::reporter::Reporter;
 use hash_source::{ModuleKind, SourceId};
 use hash_utils::{
-    indexmap::IndexMap,
     log,
     profiling::{get_resident_set_size, timed, MetricEntry, StageMetrics},
     stream::CompilerOutputStream,
     stream_writeln,
 };
-
-use crate::metrics::{AggregateMetricReporter, Metrics, StageMetricEntry};
 
 /// The Hash Compiler interface. This interface allows a caller to create a
 /// [Driver] with a `compiler` and a collection of stages which will access
@@ -42,7 +41,7 @@ pub struct Driver<I: CompilerInterface> {
     stages: Vec<Box<dyn CompilerStage<I>>>,
 
     /// A record of all of the stage metrics
-    metrics: IndexMap<CompilerStageKind, StageMetricEntry>,
+    metrics: Metrics,
 
     /// Whether the pipeline is currently bootstrapping, i.e. when
     /// it is running the prelude module in order to place everything
@@ -84,7 +83,9 @@ impl<I: CompilerInterface> Driver<I> {
     /// Function to report the collected metrics on the stages within the
     /// compiler.
     fn report_metrics(&self) {
-        log::info!("compiler pipeline metrics:\n{}", AggregateMetricReporter::new(&self.metrics));
+        let metrics = &self.metrics;
+        let message = CompilerOutputMessage::Metrics(metrics);
+        log::info!(message; "compiler pipeline metrics:\n{}", AggregateMetricReporter::new(metrics));
     }
 
     fn run_stage(&mut self, entry_point: SourceId, index: usize) -> CompilerResult<()> {
@@ -97,6 +98,7 @@ impl<I: CompilerInterface> Driver<I> {
             log::Level::Info,
             |time| {
                 self.metrics
+                    .0
                     .entry(stage_kind)
                     .and_modify(|prev_time| {
                         prev_time.total.duration += time;
@@ -113,7 +115,7 @@ impl<I: CompilerInterface> Driver<I> {
             },
         )?;
 
-        self.metrics.entry(stage_kind).and_modify(|entry| entry.children.merge(&stage.metrics()));
+        self.metrics.0.entry(stage_kind).and_modify(|entry| entry.children.merge(&stage.metrics()));
 
         // If we are bootstrapping, we don't need to run the cleanup
         // function since it will be invoked by the the second run of
@@ -217,7 +219,6 @@ impl<I: CompilerInterface> Driver<I> {
         let mut warn_count = 0;
         let mut stderr = self.compiler.error_stream();
 
-        // @@Copying: Ideally, we would not want to copy here!
         for diagnostic in self.compiler.diagnostics().iter() {
             if diagnostic.is_error() {
                 err_count += 1;
@@ -234,6 +235,7 @@ impl<I: CompilerInterface> Driver<I> {
         // when it was instructed to terminate before all of the stages. For example, if
         // the compiler is just checking the source, then it will terminate early.
         if err_count != 0 || warn_count != 0 {
+            // @@Messaging
             log::info!(
                 "compiler terminated with {err_count} error(s), and {warn_count} warning(s)."
             );

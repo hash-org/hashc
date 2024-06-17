@@ -30,6 +30,11 @@ fn main() {
 
     let settings = utils::emit_on_fatal_error(error_stream(), CompilerSettings::from_cli);
 
+    // @@TODO: find a neater way of setting this, as in what if initialising the
+    // `settings` fails and we need to actually output in the `json` format
+    // right from the start.
+    COMPILER_LOGGER.set_messaging_format(settings.messaging_format);
+
     // if debug is specified, we want to log everything that is debug level...
     if settings.debug {
         log::set_max_level(log::LevelFilter::Debug);

@@ -9,6 +9,7 @@ use hash_source::{
 use hash_utils::{
     highlight::{highlight, Colour, Modifier},
     schemars::{self, JsonSchema},
+    serde::{self, Serialize},
 };
 
 /// A data type representing a comment/message on a specific span in a code
@@ -24,7 +25,8 @@ pub struct ReportCodeBlockInfo {
 
 /// Enumeration describing the kind of [Report]; either being a warning, info or
 /// an error.
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, JsonSchema)]
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, JsonSchema, Serialize)]
+#[serde(crate = "self::serde")]
 pub enum ReportKind {
     /// The report is an error.
     Error,
@@ -66,7 +68,8 @@ impl fmt::Display for ReportKind {
 
 /// The kind of [ReportNote], this is primarily used for rendering the label of
 /// the [ReportNote].
-#[derive(Debug, Clone, PartialEq, Eq, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, JsonSchema, Serialize)]
+#[serde(crate = "self::serde")]
 pub enum ReportNoteKind {
     /// A help message or a suggestion.
     Help,
@@ -106,9 +109,13 @@ impl fmt::Display for ReportNoteKind {
 
 /// Data type representing a report note which consists of a label and the
 /// message.
-#[derive(Debug, Clone, JsonSchema)]
+#[derive(Debug, Clone, JsonSchema, Serialize)]
+#[serde(crate = "self::serde")]
 pub struct ReportNote {
+    /// The severity of the note.
     pub label: ReportNoteKind,
+
+    /// The message associated with the note.
     pub message: String,
 }
 
@@ -121,11 +128,18 @@ impl ReportNote {
 /// Data structure representing an associated block of code with a report. The
 /// type contains the span of the block, the message associated with a block and
 /// optional [ReportCodeBlockInfo] which adds a message pointed to a code item.
-#[derive(Debug, Clone, JsonSchema)]
+#[derive(Debug, Clone, JsonSchema, Serialize)]
+#[serde(crate = "self::serde")]
 pub struct ReportCodeBlock {
+    /// The span of the code block.
     pub span: Span,
+
+    /// The message associated with the code block.
     pub code_message: String,
+
+    /// Internal information for formatting the report.
     #[schemars(skip)]
+    #[serde(skip)]
     pub(crate) info: OnceCell<ReportCodeBlockInfo>,
 }
 
@@ -142,9 +156,13 @@ impl ReportCodeBlock {
 
 /// Enumeration representing types of components of a [Report]. A [Report] can
 /// be made of either [ReportCodeBlock]s or [ReportNote]s.
-#[derive(Debug, Clone, JsonSchema)]
+#[derive(Debug, Clone, JsonSchema, Serialize)]
+#[serde(crate = "self::serde")]
 pub enum ReportElement {
+    /// A note with code block.
     CodeBlock(ReportCodeBlock),
+
+    /// A note on a report, without an associated [Span].
     Note(ReportNote),
 }
 
@@ -172,7 +190,8 @@ pub macro info {
 /// The report data type represents the entire report which might contain many
 /// [ReportElement]s. The report also contains a general [ReportKind] and a
 /// general message.
-#[derive(Debug, Clone, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, schemars::JsonSchema)]
+#[serde(crate = "self::serde")]
 pub struct Report {
     /// The general kind of the report.
     pub kind: ReportKind,

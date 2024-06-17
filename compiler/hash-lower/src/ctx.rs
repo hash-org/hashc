@@ -133,6 +133,8 @@ impl<'ir> BuilderCtx<'ir> {
         let writer_config = LayoutWriterConfig::from_character_set(self.settings.character_set);
 
         // Print the layout
+        //
+        // @@Messaging: provide a format for the layout to be dumped in!
         log::info!(
             "{}",
             LayoutWriter::new_with_config(

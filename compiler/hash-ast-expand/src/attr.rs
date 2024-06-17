@@ -71,6 +71,8 @@ impl AstExpander<'_> {
         if should_dump {
             let mode = self.settings.ast_settings.dump_mode;
             let character_set = self.settings.character_set;
+
+            // @@Messaging: provide a format for the AST to be dumped in!
             log::info!("{}", AstDump::new(subject, mode, character_set));
         }
     }
