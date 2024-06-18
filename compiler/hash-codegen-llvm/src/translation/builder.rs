@@ -735,7 +735,7 @@ impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
         let val: BasicValueEnum = val.try_into().unwrap();
         let ty: BasicTypeEnum = dest_ty.try_into().unwrap();
 
-        self.builder.build_bitcast(val, ty, "").unwrap().into()
+        self.builder.build_bit_cast(val, ty, "").unwrap().into()
     }
 
     fn int_cast(&mut self, val: Self::Value, dest_ty: Self::Type, is_signed: bool) -> Self::Value {
