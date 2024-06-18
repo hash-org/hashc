@@ -38,7 +38,8 @@ appropriately for your system depending on your installation:
 export LIBRARY_PATH="$LIBRARY_PATH:$PATH_TO_ZSTD/lib"
 export DYLD_LIBRARY_PATH="$DYLD_LIBRARY_PATH:$PATH_TO_LLVM/lib"
 export LDFLAGS="-L$PATH_TO_LLVM/lib"
-export CPPFLAGS="-I$PATH_TO_LLVM/include"export PATH="$PATH:$PATH_TO_LLVM/bin"
+export CPPFLAGS="-I$PATH_TO_LLVM/include"
+export PATH="$PATH:$PATH_TO_LLVM/bin"
 export LLVM_SYS_150_PREFIX="$PATH_TO_LLVM"
 ```
 
