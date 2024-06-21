@@ -22,7 +22,7 @@ jobs:
         uses: actions/cache@v2
         with: 
           path: ./llvm
-          key: llvm-15
+          key: llvm-18
 
       - name: Install LLVM
         uses: KyleMayes/install-llvm-action@v1
@@ -39,6 +39,11 @@ jobs:
 
       - name: Dependency caching
         uses: Swatinem/rust-cache@v2
+
+      - name: LLVM location
+        run: |
+          echo $LLVM_PATH
+          $LLVM_PATH/bin/llvm-config --version
       
       - name: Run tests
         run: "LLVM_SYS_181_PREFIX=$LLVM_PATH cargo test --all --verbose"
