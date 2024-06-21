@@ -8,8 +8,8 @@ edition = "2021"
 doctest = false
 
 [dependencies]
-llvm-sys = "180.0.0"
-inkwell = { git = "https://github.com/hash-org/inkwell.git", branch="master", features = ["llvm18-0"] }
+llvm-sys = "181.1.0"
+inkwell = { git = "https://github.com/hash-org/inkwell.git", branch="llvm-18.1", features = ["llvm18-1"] }
 
 hash-attrs = { path = "../hash-attrs" }
 hash-codegen = {path = "../hash-codegen" }
