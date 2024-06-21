@@ -27,7 +27,7 @@ jobs:
       - name: Install LLVM
         uses: KyleMayes/install-llvm-action@v1
         with:
-          version: "15.0.6"
+          version: "18.1.6"
           cached: ${{ steps.cache-llvm.outputs.cache-hit }}
 
       - name: Install Rust nightly
@@ -41,10 +41,10 @@ jobs:
         uses: Swatinem/rust-cache@v2
       
       - name: Run tests
-        run: "LLVM_SYS_150_PREFIX=$LLVM_PATH cargo test --all --verbose"
+        run: "LLVM_SYS_181_PREFIX=$LLVM_PATH cargo test --all --verbose"
 
       - name: Run clippy
-        run: "LLVM_SYS_150_PREFIX=$LLVM_PATH cargo clippy --all -- -D warnings"
+        run: "LLVM_SYS_181_PREFIX=$LLVM_PATH cargo clippy --all -- -D warnings"
 
       - name: Check formatting
         run: "cargo fmt --all -- --check"
