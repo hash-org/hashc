@@ -85,6 +85,6 @@ impl<E: TcEnv> OperationsOn<OrPat> for Tc<'_, E> {
         _: Self::Node,
         _: Self::Node,
     ) -> crate::diagnostics::TcResult<()> {
-        self.unify_nodes_scoped(src.alternatives, target.alternatives, |_| Ok(()))
+        self.unify_nodes(src.alternatives, target.alternatives)
     }
 }

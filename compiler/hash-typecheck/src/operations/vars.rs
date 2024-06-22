@@ -70,11 +70,6 @@ impl<E: TcEnv> Tc<'_, E> {
         var_term: TermId,
         term: TermId,
     ) -> TcResult<()> {
-        println!("CTX {}", self.context());
-        println!("Unifying nodes: {} and {}", var, term);
-
-        // @@LeftOffHere : Need to make unification typed so that we can fill in the type here!
-
         if self.in_pat.get() {
             self.context().add_assignment(var.symbol, term);
             Ok(())

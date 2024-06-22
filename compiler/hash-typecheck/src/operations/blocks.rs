@@ -52,7 +52,6 @@ impl<E: TcEnv> OperationsOn<BlockTerm> for Tc<'_, E> {
                         self.in_pat.enter(true, || self.check_node(decl.bind_pat, decl.ty))?;
 
                         // Check that the binding pattern of the declaration is irrefutable.
-                        // println!("Checking irrefutability of: {}", decl.bind_pat);
                         // let mut eck = self.exhaustiveness_checker(decl.bind_pat);
 
                         // self.env.record("exhaustiveness", |_| {

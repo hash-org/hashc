@@ -13,7 +13,7 @@ use crate::{
     env::TcEnv,
     options::normalisation::{already_normalised, NormaliseResult},
     tc::{FnInferMode, Tc},
-    traits::{OperationsOn, OperationsOnNode, ScopedOperationsOnNode},
+    traits::{OperationsOn, OperationsOnNode},
     utils::dumping::potentially_dump_tir,
 };
 
@@ -33,7 +33,6 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
     type AnnotNode = TyId;
 
     fn check_node(&self, term_id: TermId, annotation_ty: Self::AnnotNode) -> TcResult<()> {
-        println!("Checking term: {}", term_id);
         self.register_new_atom(term_id, annotation_ty);
 
         match *term_id.value() {
@@ -109,28 +108,20 @@ impl<E: TcEnv> OperationsOnNode<TermId> for Tc<'_, E> {
         let src = self.resolve_metas_and_vars(src_id).0.value().data;
         let target = self.resolve_metas_and_vars(target_id).0.value().data;
 
-        println!("Unifying {} with {}", src, target);
-
         match (self.classify_meta_call(src), self.classify_meta_call(target)) {
             (Some(v1), Some(v2)) if v1.meta == v2.meta => {
-                return self.unify_nodes_scoped(v1.args, v2.args, |_| Ok(()));
+                return self.unify_nodes(v1.args, v2.args);
             }
             (Some(v1), None) => {
-                println!("Solving {} with {}", v1.meta, target_id);
                 return self.solve(v1, target_id, src_id, target_id);
             }
             (None, Some(v2)) => {
-                println!("Solving {} with {}", v2.meta, src_id);
                 return self.solve(v2, src_id, src_id, target_id);
             }
             _ => {}
         }
 
-        println!("Unifying {} with {}", src, target);
-        println!("Context: {}", self.context());
-
         let unfold = || {
-            println!("Unfolding terms: {} and {}", src, target);
             self.normalise_and_unify_nodes(
                 Term::from(src, src_id.origin().computed()),
                 Term::from(target, target_id.origin().computed()),
@@ -289,19 +280,15 @@ impl<E: TcEnv> Tc<'_, E> {
             self.potentially_normalise_node_no_signals(target_id)?,
         ) {
             (Some(src_id_new), Some(target_id_new)) => {
-                println!("Both norm: {} and {}", src_id_new, target_id_new);
                 self.unify_nodes(src_id_new, target_id_new)
             }
             (Some(src_id_new), None) => {
-                println!("Src norm: {}", src_id_new);
                 self.unify_nodes(src_id_new, target_id)
             }
             (None, Some(target_id_new)) => {
-                println!("Target norm: {}", target_id_new);
                 self.unify_nodes(src_id, target_id_new)
             }
             (None, None) => {
-                println!("No norm");
                 self.mismatching_atoms(src_id, target_id)
             }
         }

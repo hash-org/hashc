@@ -12,7 +12,7 @@ use crate::{
     diagnostics::TcResult,
     env::TcEnv,
     options::normalisation::{already_normalised, NormaliseResult},
-    tc::{FnInferMode, Tc},
+    tc::Tc,
     traits::{OperationsOn, OperationsOnNode, ScopedOperationsOnNode},
 };
 
@@ -26,7 +26,7 @@ impl<E: TcEnv> Tc<'_, E> {
         params: impl IntoIterator<Item = (ParamsId, bool)>,
         ret: TyId,
     ) -> TyId {
-        params.into_iter().filter(|p| !p.0.value().data.is_empty()).fold(
+        params.into_iter().fold(
             ret,
             |acc, (params, implicit)| {
                 Ty::from(
@@ -113,13 +113,11 @@ impl<E: TcEnv> OperationsOn<FnDefId> for Tc<'_, E> {
     ) -> TcResult<()> {
         let fn_def_id = *fn_def_id;
         if let Some(fn_ty) = self.try_get_inferred_ty(fn_def_id) {
-            println!("Found inferred type: {}", fn_ty);
             let expected =
                 Ty::expect_is(original_term_id, Ty::from(fn_ty, fn_def_id.origin().inferred()));
             self.unify_nodes(expected, annotation_ty)?;
             return Ok(());
         }
-        println!("Did not find inferred type for {} : {}", fn_def_id.to_index(), fn_def_id);
 
         self.check_fn_def_id_annotation(fn_def_id, annotation_ty)?;
         let fn_def = fn_def_id.value();
@@ -159,11 +157,7 @@ impl<E: TcEnv> OperationsOn<FnDefId> for Tc<'_, E> {
             Ty::expect_is(original_term_id, Ty::from(fn_def.ty, fn_def_id.origin().inferred()));
         self.unify_nodes(fn_ty_id, annotation_ty)?;
 
-        println!("Done checking fn def {}: {}", fn_def_id.to_index(), fn_def_id);
-        println!("Metas: {}", self.meta_context);
-
         self.register_atom_inference(fn_def_id, fn_def_id, fn_def.ty);
-        println!("MUIST SAY TRUE::{:}", self.try_get_inferred_ty(fn_def_id).is_some());
 
         Ok(())
     }

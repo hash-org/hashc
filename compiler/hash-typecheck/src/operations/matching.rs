@@ -51,7 +51,6 @@ impl<E: TcEnv> OperationsOn<MatchTerm> for Tc<'_, E> {
                 let subject_ty_copy = self.visitor().copy(match_subject_ty);
 
                 self.in_pat.enter(true, || self.check_node(case_data.bind_pat, subject_ty_copy))?;
-                println!("Context BF: {}", self.context());
                 let new_unified_ty =
                     Ty::expect_is(case_data.value, self.visitor().copy(unified_ty));
 
@@ -63,9 +62,6 @@ impl<E: TcEnv> OperationsOn<MatchTerm> for Tc<'_, E> {
                         );
                     }
                 }
-
-                println!("In case : {}", case_data.value);
-                println!("Context: {}", self.context());
 
                 match match_annotation_ty {
                     _ if self.is_uninhabitable(subject_ty_copy)? => {

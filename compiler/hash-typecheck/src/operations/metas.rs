@@ -61,13 +61,13 @@ impl<E: TcEnv> Tc<'_, E> {
                         implicit: false,
                         pure: true,
                         is_unsafe: false,
-                        params: Param::seq_positional(
+                        params: Param::seq(
                             args_vars
                                 .iter()
-                                .map(|arg| self.fresh_meta(arg.symbol.origin().inferred())),
+                                .map(|arg| (arg.symbol, Term::fresh_hole(arg.symbol.origin().inferred()))),
                             NodeOrigin::Generated,
                         ),
-                        return_ty: self.fresh_meta(rhs.origin().inferred()),
+                        return_ty: Term::fresh_hole(rhs.origin().inferred())
                     },
                     name: meta_call.meta.name(),
                     body: rhs,
@@ -85,10 +85,8 @@ impl<E: TcEnv> Tc<'_, E> {
     /// Returns the
     /// This is shallow.
     pub(crate) fn resolve_metas_and_vars(&self, term: TermId) -> (TermId, Option<MetaCall>) {
-        println!("HERE with term: {}", term);
         match self.classify_meta_call(term.value().data) {
             Some(call) => {
-                println!("IN HERE with term: {}", term);
                 let resolved = self.get_meta(call.meta).map(|s| self.resolve_metas_and_vars(s));
                 match resolved {
                     Some(resolved) => (
@@ -102,7 +100,6 @@ impl<E: TcEnv> Tc<'_, E> {
                 }
             }
             None => {
-                println!("IN HERE 2 with term: {}", term);
                 match *term.value() {
                     Term::Var(v) => {
                         if let Some(val) = self.context.try_get_decl_value(v.symbol) {

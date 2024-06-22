@@ -93,15 +93,13 @@ impl<E: TcEnv> Tc<'_, E> {
                         if let PrimitiveCtorInfo::Array(array_prim) = primitive {
                             // First infer the data arguments
                             let copied_params = self.visitor().copy(data_def.params);
-                            self.check_node_scoped(data.args, copied_params, |_| {
-                                let sub = self.substituter().create_sub_from_current_scope();
-                                let subbed_element_ty =
-                                    self.substituter().apply_sub(array_prim.element_ty, &sub);
-                                let subbed_index = array_prim
-                                    .length
-                                    .map(|l| self.substituter().apply_sub(l, &sub));
-                                Ok(Some((subbed_element_ty, subbed_index)))
-                            })
+                            self.check_node(data.args, copied_params)?;
+                            let sub = self.substituter().create_sub_from_args_of_params(data.args, copied_params);
+                            let subbed_element_ty = self.substituter().apply_sub(array_prim.element_ty, &sub);
+                            let subbed_index = array_prim
+                                .length
+                                .map(|l| self.substituter().apply_sub(l, &sub));
+                            Ok(Some((subbed_element_ty, subbed_index)))
                         } else {
                             mismatch()
                         }
@@ -203,7 +201,7 @@ impl<E: TcEnv> OperationsOn<ArrayTerm> for Tc<'_, E> {
     ) -> TcResult<()> {
         match (src, target) {
             (ArrayTerm::Normal(src), ArrayTerm::Normal(target)) => {
-                self.unify_nodes_scoped(*src, *target, |_| Ok(()))
+                self.unify_nodes(*src, *target)
             }
             (ArrayTerm::Repeated(src, src_repeat), ArrayTerm::Repeated(target, target_repeat)) => {
                 self.unify_nodes(*src, *target)?;

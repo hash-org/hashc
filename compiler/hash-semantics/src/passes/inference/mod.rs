@@ -105,8 +105,6 @@ impl<E: SemanticEnv> AnalysisPass for InferencePass<'_, E> {
 
         let mod_def_id = self.ast_info.mod_defs().get_data_by_node(node.id()).unwrap();
 
-        println!("Module: {}", mod_def_id);
-
         // Infer the whole module
         let _ = self.infer_fully(
             source,

@@ -23,6 +23,8 @@ pub mod utils;
 
 pub use utils::*;
 
+use super::Symbol;
+
 /// A parameter, declaring a potentially named variable with a given type and
 /// possibly a default value.
 #[derive(Debug, Clone, Copy)]
@@ -46,6 +48,22 @@ impl Param {
     /// Get the name of the parameter, if it has one.
     pub fn name(&self) -> Option<Identifier> {
         self.name.value().name
+    }
+
+    pub fn seq(tys: impl IntoIterator<Item = (SymbolId, TyId)>, origin: NodeOrigin) -> ParamsId {
+        Node::create(Node::at(
+            Node::seq(
+                tys.into_iter()
+                    .map(|(name, ty)| {
+                        Node::at(
+                            Param { name, ty, default: None },
+                            ty.origin(),
+                        )
+                    })
+                    .collect_vec(),
+            ),
+            origin,
+        ))
     }
 
     pub fn seq_positional(tys: impl IntoIterator<Item = TyId>, origin: NodeOrigin) -> ParamsId {

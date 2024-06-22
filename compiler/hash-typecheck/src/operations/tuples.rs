@@ -45,12 +45,7 @@ impl<E: TcEnv> OperationsOn<TupleTerm> for Tc<'_, E> {
                 }
             })?;
 
-            let mut tuple_term = *tuple_term;
-            self.check_node_scoped(tuple_term.data, params, |new_args| {
-                tuple_term.data = new_args;
-                original_term_id.set(original_term_id.value().with_data(tuple_term.into()));
-                Ok(())
-            })?;
+            self.check_node(tuple_term.data, params)?;
 
             let tuple_ty = Ty::expect_is(
                 original_term_id,
@@ -76,7 +71,7 @@ impl<E: TcEnv> OperationsOn<TupleTerm> for Tc<'_, E> {
         _: Self::Node,
         _: Self::Node,
     ) -> TcResult<()> {
-        self.unify_nodes_scoped(src.data, target.data, |_| Ok(()))
+        self.unify_nodes(src.data, target.data)
     }
 }
 

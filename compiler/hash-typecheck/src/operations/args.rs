@@ -31,55 +31,38 @@ use crate::{
     utils::matching::MatchResult,
 };
 
-impl<E: TcEnv> ScopedOperationsOnNode<ArgsId> for Tc<'_, E> {
+impl<E: TcEnv> OperationsOnNode<ArgsId> for Tc<'_, E> {
     type AnnotNode = ParamsId;
-    type CallbackArg = ArgsId;
 
-    fn check_node_scoped<T, F: FnMut(Self::CallbackArg) -> TcResult<T>>(
+    fn check_node(
         &self,
         args: ArgsId,
         annotation_params: Self::AnnotNode,
-        mut in_arg_scope: F,
-    ) -> TcResult<T> {
+    ) -> TcResult<()> {
         self.register_new_atom(args, annotation_params);
         // Reorder the arguments to match the annotation parameters:
         let reordered_args_id = validate_and_reorder_args_against_params(args, annotation_params)?;
 
         let mut running_sub = Sub::identity();
 
-        for (arg, param_id) in args.iter().zip(annotation_params.iter()) {
+        for (arg, param_id) in reordered_args_id.iter().zip(annotation_params.iter()) {
             let param = param_id.value();
             let param_ty = self.visitor().copy(param.ty);
             self.substituter().apply_sub_in_place(param_ty, &running_sub);
-            println!("Checking  ({}) : ({})", arg, param_id);
-            println!("context: {}", self.context());
 
             // Check each argument against the corresponding parameter type
             let arg = arg.value();
             self.check_node(arg.value, param_ty)?;
-            println!("checked");
 
-            running_sub.extend_from_pairs([(param.name, arg.value)]);
-
-            // println!(
-            //     "{} | {:?} | {:?}",
-            //     arg.value,
-            //     self.has_effects(arg.value),
-            //     arg.value.use_as_non_pat().is_some()
-            // );
             // if self.has_effects(arg.value) == Some(false)
             //     && let Some(value) = arg.value.use_as_non_pat()
-            // {
-            //     println!("Here with value: {} : {} = {}", param.name, param_ty, arg.value);
-            //     self.context().add_assignment(param.name, value);
+            running_sub.extend_from_pairs([(param.name, arg.value)]);
             // }
         }
-        let result = in_arg_scope(reordered_args_id)?;
 
-        // // Add the shadowed substitutions to the ambient scope
-        // self.context().add_sub_to_scope(&shadowed_sub);
+        args.set(reordered_args_id.value());
 
-        Ok(result)
+        Ok(())
     }
 
     fn try_normalise_node(&self, _: ArgsId) -> NormaliseResult<ControlFlow<ArgsId>> {
@@ -88,12 +71,11 @@ impl<E: TcEnv> ScopedOperationsOnNode<ArgsId> for Tc<'_, E> {
         normalise_nested()
     }
 
-    fn unify_nodes_scoped<T, F: FnMut(Self::CallbackArg) -> TcResult<T>>(
+    fn unify_nodes(
         &self,
         src_id: ArgsId,
         target_id: ArgsId,
-        mut f: F,
-    ) -> TcResult<T> {
+    ) -> TcResult<()> {
         if src_id.len() != target_id.len() {
             return Err(TcError::DifferentParamOrArgLengths {
                 a: src_id.into(),
@@ -106,7 +88,7 @@ impl<E: TcEnv> ScopedOperationsOnNode<ArgsId> for Tc<'_, E> {
             let target_arg = target_arg_id.value();
             self.unify_nodes(src_arg.value, target_arg.value)?;
         }
-        f(src_id)
+        Ok(())
     }
 }
 

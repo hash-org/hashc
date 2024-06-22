@@ -286,8 +286,7 @@ impl Context {
         }
     }
 
-    /// Iterate over all the decls in the context for the scope with the
-    /// given index (reversed).
+    /// Iterate over all the decls in the context (reversed).
     pub fn for_all_decls_rev(&self, mut f: impl FnMut(&ContextMember)) {
         for i in self.get_scope_indices().rev() {
             let _ = self.try_for_decls_of_scope_rev(i, |decl| -> Result<(), Infallible> {
