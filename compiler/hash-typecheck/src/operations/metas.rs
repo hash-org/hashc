@@ -2,10 +2,9 @@ use std::ops::ControlFlow;
 
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
-    context::HasContext,
-    tir::{
+    atom_info::ItemInAtomInfo, context::HasContext, tir::{
         ArgsId, CallTerm, FnDef, FnTy, Meta, Node, NodeId, NodeOrigin, Param, Term, TermId, TyId,
-    },
+    }
 };
 
 use crate::{
@@ -54,28 +53,33 @@ impl<E: TcEnv> Tc<'_, E> {
 
         self.normalise_node_in_place_no_signals(rhs)?;
 
-        let solution = Term::from(
-            Node::create_at(
-                FnDef {
-                    ty: FnTy {
-                        implicit: false,
-                        pure: true,
-                        is_unsafe: false,
-                        params: Param::seq(
-                            args_vars.iter().map(|arg| {
-                                (arg.symbol, Term::fresh_hole(arg.symbol.origin().inferred()))
-                            }),
-                            NodeOrigin::Generated,
-                        ),
-                        return_ty: Term::fresh_hole(rhs.origin().inferred()),
-                    },
-                    name: meta_call.meta.name(),
-                    body: rhs,
-                },
+        let fn_ty = FnTy {
+            implicit: false,
+            pure: true,
+            is_unsafe: false,
+            params: Param::seq(
+                args_vars
+                    .iter()
+                    .map(|arg| (arg.symbol, Term::fresh_hole(arg.symbol.origin().inferred()))),
                 NodeOrigin::Generated,
             ),
+            return_ty: Term::fresh_hole(rhs.origin().inferred()),
+        };
+
+        let solution_fn =
+            Node::create_at(
+                FnDef { ty: fn_ty, name: meta_call.meta.name(), body: rhs },
+                NodeOrigin::Generated,
+            );
+
+        let solution = Term::from(
+            solution_fn,
             NodeOrigin::Generated,
         );
+
+        self.register_atom_inference(solution_fn, solution_fn, fn_ty);
+        self.register_atom_inference(solution, solution, Term::from(fn_ty, NodeOrigin::Generated));
+
         self.solve_meta(meta_call.meta, solution);
         Ok(())
     }

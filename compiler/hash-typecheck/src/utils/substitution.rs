@@ -181,27 +181,6 @@ impl<'a, T: TcEnv> Substituter<'a, T> {
         sub
     }
 
-    /// Hide the given set of parameters from the substitution.
-    pub fn hide_param_binds(&self, params: impl IntoIterator<Item = ParamId>, sub: &Sub) -> Sub {
-        let mut shadowed_sub = Sub::identity();
-        let param_names = params.into_iter().map(|p| p.borrow().name).collect::<HashSet<_>>();
-
-        for (name, value) in sub.iter() {
-            // If the substitution is from that parameter, skip it.
-            if param_names.contains(&name) {
-                continue;
-            }
-            // If the substitution is to that parameter, skip it.
-            if self.contains_vars(value, &param_names) {
-                continue;
-            }
-
-            shadowed_sub.insert(name, value);
-        }
-
-        shadowed_sub
-    }
-
     /// Check whether the given `Params` contains any of the variables inside
     /// `var_matches`.
     ///

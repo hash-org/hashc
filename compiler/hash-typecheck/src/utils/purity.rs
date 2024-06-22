@@ -42,91 +42,89 @@ impl<E: TcEnv> Tc<'_, E> {
         has_effects: &mut Option<bool>,
     ) -> ControlFlow<()> {
         match atom {
-            Atom::Term(term) => match *term.value() {
-                // Never has effects
-                Term::Intrinsic(_) | Term::Meta(_) | Term::Fn(_) => ControlFlow::Break(()),
+            Atom::Term(term) => {
+                let (term_res, meta) = self.resolve_metas_and_vars(term);
+                if meta.is_some() {
+                    // Metas are always pure
+                    *has_effects = Some(false);
+                    return ControlFlow::Break(())
+                }
+                match *term_res.value() {
+                    // Never has effects
+                    Term::Intrinsic(_) | Term::Meta(_) | Term::Fn(_) => ControlFlow::Break(()),
 
-                // These have effects if their constituents do
-                Term::Lit(_)
-                | Term::Ctor(_)
-                | Term::Pat(_)
-                | Term::Tuple(_)
-                | Term::Var(_)
-                | Term::Match(_)
-                | Term::Unsafe(_)
-                | Term::Access(_)
-                | Term::Array(_)
-                | Term::Index(_)
-                | Term::Annot(_)
-                | Term::TyOf(_)
-                | Term::DataTy(_)
-                | Term::RefTy(_)
-                | Term::Universe(_)
-                | Term::TupleTy(_)
-                | Term::FnTy(_)
-                | Term::Block(_) => ControlFlow::Continue(()),
+                    // These have effects if their constituents do
+                    Term::Lit(_)
+                    | Term::Ctor(_)
+                    | Term::Pat(_)
+                    | Term::Tuple(_)
+                    | Term::Var(_)
+                    | Term::Match(_)
+                    | Term::Unsafe(_)
+                    | Term::Access(_)
+                    | Term::Array(_)
+                    | Term::Index(_)
+                    | Term::Annot(_)
+                    | Term::TyOf(_)
+                    | Term::DataTy(_)
+                    | Term::RefTy(_)
+                    | Term::Universe(_)
+                    | Term::TupleTy(_)
+                    | Term::FnTy(_)
+                    | Term::Block(_) => ControlFlow::Continue(()),
 
-                Term::Call(fn_call) => {
-                    match self.classify_meta_call(Term::Call(fn_call)) {
-                        None => {
-                            // Get its inferred type and check if it is pure
-                            match self.try_get_inferred_ty(fn_call.subject) {
-                                Some(fn_ty) => {
-                                    match *fn_ty.value() {
-                                        Ty::FnTy(fn_ty) => {
-                                            // If it is a function, check if it is pure
-                                            if fn_ty.pure {
-                                                // Check its args too
-                                                visitor.visit(fn_call.args, &mut |atom| {
-                                                    self.atom_has_effects_once(
-                                                        visitor,
-                                                        atom,
-                                                        has_effects,
-                                                    )
-                                                });
-                                                ControlFlow::Break(())
-                                            } else {
-                                                *has_effects = Some(true);
-                                                ControlFlow::Break(())
-                                            }
-                                        }
-                                        _ => {
-                                            // If it is not a function, it is a function reference,
-                                            // which is
-                                            // pure
-                                            info!(
-                                        "Found a function term that is not typed as a function: {}",
-                                        fn_call.subject
-                                    );
-                                            ControlFlow::Break(())
-                                        }
+                    Term::Call(fn_call) => {
+                        // Get its inferred type and check if it is pure
+                        let Some(fn_ty) = self.try_get_inferred_ty(fn_call.subject) else {
+                            // Unknown
+                            *has_effects = None;
+                            return ControlFlow::Break(())
+                        };
+                        let (fn_ty_res, meta) = self.resolve_metas_and_vars(fn_ty);
+                        if meta.is_some() {
+                            // If the type is a meta call, we don't know if it is effectful.
+                            *has_effects = None;
+                            ControlFlow::Break(())
+                        } else {
+                            match *fn_ty_res.value() {
+                                Ty::FnTy(fn_ty) => {
+                                    // If it is a function, check if it is pure
+                                    if fn_ty.pure {
+                                        // Check its args too
+                                        visitor.visit(fn_call.args, &mut |atom| {
+                                            self.atom_has_effects_once(visitor, atom, has_effects)
+                                        });
+                                        ControlFlow::Break(())
+                                    } else {
+                                        *has_effects = Some(true);
+                                        ControlFlow::Break(())
                                     }
                                 }
-                                None => {
-                                    // Unknown
-                                    *has_effects = None;
+                                _ => {
+                                    // If it is not a function, it is a function reference,
+                                    // which is
+                                    // pure
+                                    info!(
+                                        "Found a function term that is not typed as a function: {} : {}",
+                                        fn_call.subject,
+                                        fn_ty
+                                    );
                                     ControlFlow::Break(())
                                 }
                             }
                         }
-                        Some(_) => {
-                            // If it is a meta call, we treat it as if it doesn't have effects
-                            // @@Correctness: this is not sound!
-                            *has_effects = Some(false);
-                            ControlFlow::Break(())
-                        }
                     }
-                }
 
-                // These always have effects
-                Term::Ref(_)
-                | Term::Deref(_)
-                | Term::Assign(_)
-                | Term::Loop(_)
-                | Term::LoopControl(_)
-                | Term::Return(_) => {
-                    *has_effects = Some(true);
-                    ControlFlow::Break(())
+                    // These always have effects
+                    Term::Ref(_)
+                    | Term::Deref(_)
+                    | Term::Assign(_)
+                    | Term::Loop(_)
+                    | Term::LoopControl(_)
+                    | Term::Return(_) => {
+                        *has_effects = Some(true);
+                        ControlFlow::Break(())
+                    }
                 }
             },
             Atom::FnDef(fn_def_id) => {

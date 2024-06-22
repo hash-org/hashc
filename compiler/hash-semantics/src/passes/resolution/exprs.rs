@@ -967,26 +967,26 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
         let typeof_lhs = Term::fresh_hole(origin);
 
         // Pick the right intrinsic function and binary operator number
-        let (intrinsic, bin_op_num): (Intrinsic, u8) = match op {
-            ast::BinOp::EqEq => (Intrinsic::CondBinOp, BinOp::Eq.into()),
-            ast::BinOp::NotEq => (Intrinsic::CondBinOp, BinOp::Neq.into()),
-            ast::BinOp::BitOr => (Intrinsic::BinOp, BinOp::BitOr.into()),
-            ast::BinOp::Or => (Intrinsic::ShortCircuitingBoolOp, LogicalBinOp::Or.into()),
-            ast::BinOp::And => (Intrinsic::ShortCircuitingBoolOp, LogicalBinOp::And.into()),
-            ast::BinOp::BitAnd => (Intrinsic::BinOp, BinOp::BitAnd.into()),
-            ast::BinOp::BitXor => (Intrinsic::BinOp, BinOp::BitXor.into()),
-            ast::BinOp::Exp => (Intrinsic::BinOp, BinOp::Exp.into()),
-            ast::BinOp::Gt => (Intrinsic::CondBinOp, BinOp::Gt.into()),
-            ast::BinOp::GtEq => (Intrinsic::CondBinOp, BinOp::GtEq.into()),
-            ast::BinOp::Lt => (Intrinsic::CondBinOp, BinOp::Lt.into()),
-            ast::BinOp::LtEq => (Intrinsic::CondBinOp, BinOp::LtEq.into()),
-            ast::BinOp::Shr => (Intrinsic::BinOp, BinOp::Shr.into()),
-            ast::BinOp::Shl => (Intrinsic::BinOp, BinOp::Shl.into()),
-            ast::BinOp::Add => (Intrinsic::BinOp, BinOp::Add.into()),
-            ast::BinOp::Sub => (Intrinsic::BinOp, BinOp::Sub.into()),
-            ast::BinOp::Mul => (Intrinsic::BinOp, BinOp::Mul.into()),
-            ast::BinOp::Div => (Intrinsic::BinOp, BinOp::Div.into()),
-            ast::BinOp::Mod => (Intrinsic::BinOp, BinOp::Mod.into()),
+        let (intrinsic, bin_op_num, need_typeof): (Intrinsic, u8, bool) = match op {
+            ast::BinOp::EqEq => (Intrinsic::CondBinOp, BinOp::Eq.into(), true),
+            ast::BinOp::NotEq => (Intrinsic::CondBinOp, BinOp::Neq.into(), true),
+            ast::BinOp::BitOr => (Intrinsic::BinOp, BinOp::BitOr.into(), true),
+            ast::BinOp::Or => (Intrinsic::ShortCircuitingBoolOp, LogicalBinOp::Or.into(), false),
+            ast::BinOp::And => (Intrinsic::ShortCircuitingBoolOp, LogicalBinOp::And.into(), false),
+            ast::BinOp::BitAnd => (Intrinsic::BinOp, BinOp::BitAnd.into(), true),
+            ast::BinOp::BitXor => (Intrinsic::BinOp, BinOp::BitXor.into(), true),
+            ast::BinOp::Exp => (Intrinsic::BinOp, BinOp::Exp.into(), true),
+            ast::BinOp::Gt => (Intrinsic::CondBinOp, BinOp::Gt.into(), true),
+            ast::BinOp::GtEq => (Intrinsic::CondBinOp, BinOp::GtEq.into(), true),
+            ast::BinOp::Lt => (Intrinsic::CondBinOp, BinOp::Lt.into(), true),
+            ast::BinOp::LtEq => (Intrinsic::CondBinOp, BinOp::LtEq.into(), true),
+            ast::BinOp::Shr => (Intrinsic::BinOp, BinOp::Shr.into(), true),
+            ast::BinOp::Shl => (Intrinsic::BinOp, BinOp::Shl.into(), true),
+            ast::BinOp::Add => (Intrinsic::BinOp, BinOp::Add.into(), true),
+            ast::BinOp::Sub => (Intrinsic::BinOp, BinOp::Sub.into(), true),
+            ast::BinOp::Mul => (Intrinsic::BinOp, BinOp::Mul.into(), true),
+            ast::BinOp::Div => (Intrinsic::BinOp, BinOp::Div.into(), true),
+            ast::BinOp::Mod => (Intrinsic::BinOp, BinOp::Mod.into(), true),
             ast::BinOp::As => {
                 return Ok(Term::from(AnnotTerm { subject_term: lhs, target_ty: rhs }, origin));
             }
@@ -999,10 +999,18 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
         Ok(Term::from(
             CallTerm {
                 subject: Term::from(intrinsic, origin),
-                args: Arg::seq_positional(
-                    [typeof_lhs, create_term_from_const(bin_op_num, origin), lhs, rhs],
-                    origin,
-                ),
+                args: if need_typeof {
+                    Arg::seq_positional(
+                        [typeof_lhs, create_term_from_const(bin_op_num, origin), lhs, rhs],
+                        origin,
+                    )
+                } else {
+                    Arg::seq_positional(
+                        [create_term_from_const(bin_op_num, origin), lhs, rhs],
+                        origin,
+                    )
+                },
+
                 implicit: false,
             },
             origin,
