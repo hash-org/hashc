@@ -12,7 +12,7 @@ use crate::{
     diagnostics::TcResult,
     env::TcEnv,
     options::normalisation::{already_normalised, NormaliseResult},
-    tc::Tc,
+    tc::{FnInferMode, Tc},
     traits::{OperationsOn, OperationsOnNode, ScopedOperationsOnNode},
 };
 
@@ -121,22 +121,6 @@ impl<E: TcEnv> OperationsOn<FnDefId> for Tc<'_, E> {
 
         self.check_fn_def_id_annotation(fn_def_id, annotation_ty)?;
         let fn_def = fn_def_id.value();
-
-        // if self.fn_infer_mode.get() == FnInferMode::Header {
-        //     // If we are only inferring the header, then we also want to check for
-        //     // immediate body functions.
-        //     self.check_node_scoped(fn_def.ty.params, (), |()| {
-        //         if let Term::Fn(mut immediate_body_fn) = *fn_def.body.value() {
-        //             self.check(
-        //                 &mut immediate_body_fn,
-        //                 self.fresh_meta_for(fn_def.body),
-        //                 fn_def.body,
-        //             )?;
-        //         }
-        //         Ok(())
-        //     })?;
-        //     return Ok(());
-        // }
 
         if self.atom_is_registered(fn_def_id) {
             // Recursive call
