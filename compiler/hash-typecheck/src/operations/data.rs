@@ -24,10 +24,11 @@ impl<E: TcEnv> Tc<'_, E> {
     pub(crate) fn get_fn_ty_for_ctor(&self, ctor: CtorDefId, origin: NodeOrigin) -> TermId {
         let ctor = ctor.value();
         let data_def = ctor.data_def_id.value();
-        self.params_and_ret_to_fn_ty(
+        let res = self.params_and_ret_to_fn_ty(
             [(data_def.params, true), (ctor.params, false)],
             Ty::from(DataTy { args: ctor.result_args, data_def: ctor.data_def_id }, origin),
-        )
+        );
+        res
     }
 
     pub(crate) fn get_fn_ty_for_data(&self, data: DataDefId, origin: NodeOrigin) -> TermId {
@@ -48,11 +49,46 @@ impl<E: TcEnv> OperationsOn<CtorTerm> for Tc<'_, E> {
     ) -> TcResult<()> {
         let fn_ty = self.get_fn_ty_for_ctor(term.ctor, original_term_id.origin());
 
-        match self.check_args_against_fn_ty(fn_ty, term.ctor_args, false, annotation_ty, original_term_id)? {
-            Some(inserted_args) => {
-                unimplemented!("Inserting implicit args in constructor: {:?}", inserted_args)
+        match term.data_ty_args {
+            Some(data_ty_args) => {
+                let subject_ty = self.fresh_meta_for(original_term_id);
+                match self.check_args_against_fn_ty(
+                    fn_ty,
+                    data_ty_args,
+                    true,
+                    subject_ty,
+                    original_term_id, // @@Fixme: this is not the right originator
+                )? {
+                    Some(_) => unreachable!(),
+                    None => {
+                        match self.check_args_against_fn_ty(
+                            subject_ty,
+                            term.ctor_args,
+                            false,
+                            annotation_ty,
+                            original_term_id,
+                        )? {
+                            Some(_) => unreachable!(),
+                            None => Ok(()),
+                        }
+                    }
+                }
             }
-            None => Ok(())
+            None => {
+                match self.check_args_against_fn_ty(
+                    fn_ty,
+                    term.ctor_args,
+                    false,
+                    annotation_ty,
+                    original_term_id,
+                )? {
+                    Some(inserted_args) => {
+                        term.data_ty_args = Some(inserted_args);
+                        self.check(term, annotation_ty, original_term_id)
+                    }
+                    None => Ok(()),
+                }
+            }
         }
     }
 
@@ -89,10 +125,8 @@ impl<E: TcEnv> OperationsOn<DataTy> for Tc<'_, E> {
     ) -> TcResult<()> {
         let fn_ty = self.get_fn_ty_for_data(data_ty.data_def, term_id.origin());
         match self.check_args_against_fn_ty(fn_ty, data_ty.args, true, annotation_ty, term_id)? {
-            Some(inserted_args) => {
-                unimplemented!("Inserting implicit args in data type: {:?}", inserted_args)
-            }
-            None => Ok(())
+            Some(_) => unreachable!(), // @@Fixme: this might occur
+            None => Ok(()),
         }
     }
 

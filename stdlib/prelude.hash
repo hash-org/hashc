@@ -1,7 +1,7 @@
 /// The Hash Compiler Prelude, this defines core language functionality
 /// that is expected to be available to all running contexts.
 
-// eq := import("eq")
+eq := import("eq")
 
 /// The `cast(..)` function is used to cast some value into another
 /// type provided that the types are cast compatible.
@@ -40,7 +40,7 @@ print := (msg: str, /* end: char = '\n' */) => {
 
     // We transmute the message into a SizedPointer and then write it out to
     // stdout.
-    SizedPointer(bytes, len) := transmute<str, SizedPointer>(msg);
+    SizedPointer(bytes, len) := transmute<_, SizedPointer>(msg);
 
     libc::write(STDOUT, bytes, len);
 

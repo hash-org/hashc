@@ -281,173 +281,173 @@ impl Visit<TermId> for Visitor {
 impl Map<TermId> for Visitor {
     fn try_map<E, F: TryMapFn<E>>(&self, term_id: TermId, f: F) -> Result<TermId, E> {
         let origin = term_id.origin();
+        let cont = |val| match val {
+            Term::Tuple(tuple_term) => {
+                let data = self.try_map(tuple_term.data, f)?;
+                Ok(Term::from(Term::Tuple(TupleTerm { data }), origin))
+            }
+            Term::Lit(lit) => Ok(Term::from(Term::Lit(lit), origin)),
+            Term::Array(array_term) => match array_term {
+                ArrayTerm::Normal(elements) => {
+                    let elements = self.try_map(elements, f)?;
+                    Ok(Term::from(Term::Array(ArrayTerm::Normal(elements)), origin))
+                }
+                ArrayTerm::Repeated(subject, repeat) => {
+                    let subject = self.try_map(subject, f)?;
+                    let repeat = self.try_map(repeat, f)?;
+                    Ok(Term::from(Term::Array(ArrayTerm::Repeated(subject, repeat)), origin))
+                }
+            },
+            Term::Ctor(ctor_term) => {
+                let ctor_args = self.try_map(ctor_term.ctor_args, f)?;
+                let data_ty_args =
+                    ctor_term.data_ty_args.map(|args| self.try_map(args, f)).transpose()?;
+                Ok(Term::from(CtorTerm { ctor: ctor_term.ctor, ctor_args, data_ty_args }, origin))
+            }
+            Term::Call(fn_call_term) => {
+                let subject = self.try_map(fn_call_term.subject, f)?;
+                let args = self.try_map(fn_call_term.args, f)?;
+                Ok(Term::from(CallTerm { args, subject, implicit: fn_call_term.implicit }, origin))
+            }
+            Term::Fn(fn_def_id) => {
+                let fn_def_id = self.try_map(fn_def_id, f)?;
+                Ok(Term::from(Term::Fn(fn_def_id), origin))
+            }
+            Term::Block(block_term) => {
+                let statements = self.try_map(block_term.statements, f)?;
+                let expr = self.try_map(block_term.expr, f)?;
+                Ok(Term::from(
+                    BlockTerm { statements, stack_id: block_term.stack_id, expr },
+                    origin,
+                ))
+            }
+            Term::Var(var_term) => Ok(Term::from(var_term, origin)),
+            Term::Loop(loop_term) => {
+                let inner = self.try_map(loop_term.inner, f)?;
+                Ok(Term::from(LoopTerm { inner }, origin))
+            }
+            Term::LoopControl(loop_control_term) => Ok(Term::from(loop_control_term, origin)),
+            Term::Match(match_term) => {
+                let subject = self.try_map(match_term.subject, f)?;
+
+                let cases = Node::<MatchCase>::seq(
+                    match_term
+                        .cases
+                        .value()
+                        .iter()
+                        .map(|case| {
+                            let case_value = case.value();
+                            let bind_pat = self.try_map(case_value.bind_pat, f)?;
+                            let value = self.try_map(case_value.value, f)?;
+                            Ok(Node::at(
+                                MatchCase { bind_pat, value, stack_id: case_value.stack_id },
+                                case_value.origin,
+                            ))
+                        })
+                        .collect::<Result<Vec<_>, _>>()?,
+                );
+                Ok(Term::from(
+                    MatchTerm {
+                        cases: Node::create_at(cases, match_term.cases.origin()),
+                        subject,
+                        origin: match_term.origin,
+                    },
+                    origin,
+                ))
+            }
+            Term::Return(return_term) => {
+                let expression = self.try_map(return_term.expression, f)?;
+                Ok(Term::from(ReturnTerm { expression }, origin))
+            }
+            Term::Assign(assign_term) => {
+                let subject = self.try_map(assign_term.subject, f)?;
+                let value = self.try_map(assign_term.value, f)?;
+                Ok(Term::from(AssignTerm { subject, value }, origin))
+            }
+            Term::Unsafe(unsafe_term) => {
+                let inner = self.try_map(unsafe_term.inner, f)?;
+                Ok(Term::from(UnsafeTerm { inner }, origin))
+            }
+            Term::Access(access_term) => {
+                let subject = self.try_map(access_term.subject, f)?;
+                Ok(Term::from(AccessTerm { subject, field: access_term.field }, origin))
+            }
+            Term::Index(index_term) => {
+                let subject = self.try_map(index_term.subject, f)?;
+                let index = self.try_map(index_term.index, f)?;
+                Ok(Term::from(IndexTerm { subject, index }, origin))
+            }
+            Term::Annot(cast_term) => {
+                let subject_term = self.try_map(cast_term.subject_term, f)?;
+                let target_ty = self.try_map(cast_term.target_ty, f)?;
+                Ok(Term::from(AnnotTerm { subject_term, target_ty }, origin))
+            }
+            Term::TyOf(type_of_term) => {
+                let term = self.try_map(type_of_term.term, f)?;
+                Ok(Term::from(TyOfTerm { term }, origin))
+            }
+            Term::Ref(ref_term) => {
+                let subject = self.try_map(ref_term.subject, f)?;
+                Ok(Term::from(
+                    RefTerm { subject, kind: ref_term.kind, mutable: ref_term.mutable },
+                    origin,
+                ))
+            }
+            Term::Deref(deref_term) => {
+                let subject = self.try_map(deref_term.subject, f)?;
+                Ok(Term::from(DerefTerm { subject }, origin))
+            }
+            Term::Meta(hole_term) => Ok(Term::from(hole_term, origin)),
+            Term::Intrinsic(intrinsic) => Ok(Term::from(intrinsic, origin)),
+            Ty::TupleTy(tuple_ty) => {
+                let data = self.try_map(tuple_ty.data, f)?;
+                Ok(Ty::from(TupleTy { data }, origin))
+            }
+            Ty::FnTy(fn_ty) => {
+                let params = self.try_map(fn_ty.params, f)?;
+                let return_ty = self.try_map(fn_ty.return_ty, f)?;
+                Ok(Ty::from(
+                    FnTy {
+                        params,
+                        return_ty,
+                        implicit: fn_ty.implicit,
+                        is_unsafe: fn_ty.is_unsafe,
+                        pure: fn_ty.pure,
+                    },
+                    origin,
+                ))
+            }
+            Ty::RefTy(ref_ty) => {
+                let ty = self.try_map(ref_ty.ty, f)?;
+                Ok(Ty::from(RefTy { ty, kind: ref_ty.kind, mutable: ref_ty.mutable }, origin))
+            }
+            Ty::DataTy(data_ty) => {
+                let args = self.try_map(data_ty.args, f)?;
+                Ok(Ty::from(DataTy { args, data_def: data_ty.data_def }, origin))
+            }
+            Ty::Universe(_) => Ok(Ty::from(Ty::Universe(UniverseTy), origin)),
+            Term::Pat(pat) => match pat {
+                Pat::Binding(_binding_pat) => Ok(Term::from(pat, origin)),
+                Pat::Range(_range_pat) => Ok(Term::from(pat, origin)),
+                Pat::Or(or_pat) => {
+                    let alternatives = self.try_map(or_pat.alternatives, f)?;
+                    Ok(Term::from(Term::Pat(OrPat { alternatives }.into()), origin))
+                }
+                Pat::If(if_pat) => {
+                    let pat = self.try_map(if_pat.pat, f)?;
+                    let condition = self.try_map(if_pat.condition, f)?;
+                    Ok(Term::from(Term::Pat(IfPat { pat, condition }.into()), origin))
+                }
+                Pat::Spread(_spread) => Ok(Term::from(pat, origin)),
+            },
+        };
         let result = match f(term_id.into())? {
             ControlFlow::Break(atom) => match atom {
                 Atom::Term(t) => Ok(t),
                 Atom::FnDef(fn_def_id) => Ok(Node::create_at(Term::Fn(fn_def_id), origin)),
                 Atom::Lit(lit_id) => Ok(Node::create_at(Term::Lit(lit_id), origin)),
             },
-            ControlFlow::Continue(()) => match *term_id.value() {
-                Term::Tuple(tuple_term) => {
-                    let data = self.try_map(tuple_term.data, f)?;
-                    Ok(Term::from(Term::Tuple(TupleTerm { data }), origin))
-                }
-                Term::Lit(lit) => Ok(Term::from(Term::Lit(lit), origin)),
-                Term::Array(array_term) => match array_term {
-                    ArrayTerm::Normal(elements) => {
-                        let elements = self.try_map(elements, f)?;
-                        Ok(Term::from(Term::Array(ArrayTerm::Normal(elements)), origin))
-                    }
-                    ArrayTerm::Repeated(subject, repeat) => {
-                        let subject = self.try_map(subject, f)?;
-                        let repeat = self.try_map(repeat, f)?;
-                        Ok(Term::from(Term::Array(ArrayTerm::Repeated(subject, repeat)), origin))
-                    }
-                },
-                Term::Ctor(ctor_term) => {
-                    let ctor_args = self.try_map(ctor_term.ctor_args, f)?;
-                    Ok(Term::from(CtorTerm { ctor: ctor_term.ctor, ctor_args }, origin))
-                }
-                Term::Call(fn_call_term) => {
-                    let subject = self.try_map(fn_call_term.subject, f)?;
-                    let args = self.try_map(fn_call_term.args, f)?;
-                    Ok(Term::from(
-                        CallTerm { args, subject, implicit: fn_call_term.implicit },
-                        origin,
-                    ))
-                }
-                Term::Fn(fn_def_id) => {
-                    let fn_def_id = self.try_map(fn_def_id, f)?;
-                    Ok(Term::from(Term::Fn(fn_def_id), origin))
-                }
-                Term::Block(block_term) => {
-                    let statements = self.try_map(block_term.statements, f)?;
-                    let expr = self.try_map(block_term.expr, f)?;
-                    Ok(Term::from(
-                        BlockTerm { statements, stack_id: block_term.stack_id, expr },
-                        origin,
-                    ))
-                }
-                Term::Var(var_term) => Ok(Term::from(var_term, origin)),
-                Term::Loop(loop_term) => {
-                    let inner = self.try_map(loop_term.inner, f)?;
-                    Ok(Term::from(LoopTerm { inner }, origin))
-                }
-                Term::LoopControl(loop_control_term) => Ok(Term::from(loop_control_term, origin)),
-                Term::Match(match_term) => {
-                    let subject = self.try_map(match_term.subject, f)?;
-
-                    let cases = Node::<MatchCase>::seq(
-                        match_term
-                            .cases
-                            .value()
-                            .iter()
-                            .map(|case| {
-                                let case_value = case.value();
-                                let bind_pat = self.try_map(case_value.bind_pat, f)?;
-                                let value = self.try_map(case_value.value, f)?;
-                                Ok(Node::at(
-                                    MatchCase { bind_pat, value, stack_id: case_value.stack_id },
-                                    case_value.origin,
-                                ))
-                            })
-                            .collect::<Result<Vec<_>, _>>()?,
-                    );
-                    Ok(Term::from(
-                        MatchTerm {
-                            cases: Node::create_at(cases, match_term.cases.origin()),
-                            subject,
-                            origin: match_term.origin,
-                        },
-                        origin,
-                    ))
-                }
-                Term::Return(return_term) => {
-                    let expression = self.try_map(return_term.expression, f)?;
-                    Ok(Term::from(ReturnTerm { expression }, origin))
-                }
-                Term::Assign(assign_term) => {
-                    let subject = self.try_map(assign_term.subject, f)?;
-                    let value = self.try_map(assign_term.value, f)?;
-                    Ok(Term::from(AssignTerm { subject, value }, origin))
-                }
-                Term::Unsafe(unsafe_term) => {
-                    let inner = self.try_map(unsafe_term.inner, f)?;
-                    Ok(Term::from(UnsafeTerm { inner }, origin))
-                }
-                Term::Access(access_term) => {
-                    let subject = self.try_map(access_term.subject, f)?;
-                    Ok(Term::from(AccessTerm { subject, field: access_term.field }, origin))
-                }
-                Term::Index(index_term) => {
-                    let subject = self.try_map(index_term.subject, f)?;
-                    let index = self.try_map(index_term.index, f)?;
-                    Ok(Term::from(IndexTerm { subject, index }, origin))
-                }
-                Term::Annot(cast_term) => {
-                    let subject_term = self.try_map(cast_term.subject_term, f)?;
-                    let target_ty = self.try_map(cast_term.target_ty, f)?;
-                    Ok(Term::from(AnnotTerm { subject_term, target_ty }, origin))
-                }
-                Term::TyOf(type_of_term) => {
-                    let term = self.try_map(type_of_term.term, f)?;
-                    Ok(Term::from(TyOfTerm { term }, origin))
-                }
-                Term::Ref(ref_term) => {
-                    let subject = self.try_map(ref_term.subject, f)?;
-                    Ok(Term::from(
-                        RefTerm { subject, kind: ref_term.kind, mutable: ref_term.mutable },
-                        origin,
-                    ))
-                }
-                Term::Deref(deref_term) => {
-                    let subject = self.try_map(deref_term.subject, f)?;
-                    Ok(Term::from(DerefTerm { subject }, origin))
-                }
-                Term::Meta(hole_term) => Ok(Term::from(hole_term, origin)),
-                Term::Intrinsic(intrinsic) => Ok(Term::from(intrinsic, origin)),
-                Ty::TupleTy(tuple_ty) => {
-                    let data = self.try_map(tuple_ty.data, f)?;
-                    Ok(Ty::from(TupleTy { data }, origin))
-                }
-                Ty::FnTy(fn_ty) => {
-                    let params = self.try_map(fn_ty.params, f)?;
-                    let return_ty = self.try_map(fn_ty.return_ty, f)?;
-                    Ok(Ty::from(
-                        FnTy {
-                            params,
-                            return_ty,
-                            implicit: fn_ty.implicit,
-                            is_unsafe: fn_ty.is_unsafe,
-                            pure: fn_ty.pure,
-                        },
-                        origin,
-                    ))
-                }
-                Ty::RefTy(ref_ty) => {
-                    let ty = self.try_map(ref_ty.ty, f)?;
-                    Ok(Ty::from(RefTy { ty, kind: ref_ty.kind, mutable: ref_ty.mutable }, origin))
-                }
-                Ty::DataTy(data_ty) => {
-                    let args = self.try_map(data_ty.args, f)?;
-                    Ok(Ty::from(DataTy { args, data_def: data_ty.data_def }, origin))
-                }
-                Ty::Universe(_) => Ok(Ty::from(Ty::Universe(UniverseTy), origin)),
-                Term::Pat(pat) => match pat {
-                    Pat::Binding(_binding_pat) => Ok(Term::from(pat, origin)),
-                    Pat::Range(_range_pat) => Ok(Term::from(pat, origin)),
-                    Pat::Or(or_pat) => {
-                        let alternatives = self.try_map(or_pat.alternatives, f)?;
-                        Ok(Term::from(Term::Pat(OrPat { alternatives }.into()), origin))
-                    }
-                    Pat::If(if_pat) => {
-                        let pat = self.try_map(if_pat.pat, f)?;
-                        let condition = self.try_map(if_pat.condition, f)?;
-                        Ok(Term::from(Term::Pat(IfPat { pat, condition }.into()), origin))
-                    }
-                    Pat::Spread(_spread) => Ok(Term::from(pat, origin)),
-                },
-            },
+            ControlFlow::Continue(()) => cont(*term_id.value()),
         }?;
 
         Ok(result)

@@ -21,20 +21,20 @@ impl<E: TcEnv> Tc<'_, E> {
     /// a return type.
     ///
     /// If one parameter list is empty, it is skipped.
-    pub(crate) fn params_and_ret_to_fn_ty(
+    pub(crate) fn params_and_ret_to_fn_ty<I: IntoIterator<Item = (ParamsId, bool)>>(
         &self,
-        params: impl IntoIterator<Item = (ParamsId, bool)>,
+        params: I,
         ret: TyId,
-    ) -> TyId {
-        params.into_iter().fold(
-            ret,
-            |acc, (params, implicit)| {
-                Ty::from(
-                    FnTy { params, return_ty: ret, implicit, is_unsafe: false, pure: true },
-                    acc.origin(),
-                )
-            },
-        )
+    ) -> TyId
+    where
+        I::IntoIter: DoubleEndedIterator,
+    {
+        params.into_iter().rev().fold(ret, |acc, (params, implicit)| {
+            Ty::from(
+                FnTy { params, return_ty: acc, implicit, is_unsafe: false, pure: true },
+                acc.origin(),
+            )
+        })
     }
 }
 

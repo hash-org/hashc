@@ -260,15 +260,14 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                                     NonTerminalResolvedPathComponent::Data(data_def_id, args),
                                 ))
                             }
-                            // @@Todo: remove this kind of code from here...
-                            // Should be done in TC!
+                            // @@Todo: error on implicit arguments given
                             (
-                                ResolvedArgs::Term(_data_args),
+                                ResolvedArgs::Term(data_args),
                                 Some(ResolvedArgs::Pat(ctor_args)),
                             ) => match data_def_single_ctor {
                                 Some(ctor) => Ok(ResolvedAstPathComponent::Terminal(
                                     TerminalResolvedPathComponent::CtorPat(Node::at(
-                                        CtorTerm { ctor, ctor_args },
+                                        CtorTerm { ctor, ctor_args, data_ty_args: None },
                                         component.origin(),
                                     )),
                                 )),
@@ -282,7 +281,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                             ) => match data_def_single_ctor {
                                 Some(ctor) => Ok(ResolvedAstPathComponent::Terminal(
                                     TerminalResolvedPathComponent::CtorTerm(Node::at(
-                                        CtorTerm { ctor, ctor_args },
+                                        CtorTerm { ctor, ctor_args, data_ty_args: None },
                                         component.origin(),
                                     )),
                                 )),
@@ -362,7 +361,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                                 ResolvedArgs::Term(ctor_args) => {
                                     Ok(ResolvedAstPathComponent::Terminal(
                                         TerminalResolvedPathComponent::CtorTerm(Node::at(
-                                            CtorTerm { ctor: ctor_def_id, ctor_args },
+                                            CtorTerm { ctor: ctor_def_id, ctor_args, data_ty_args: None },
                                             component.origin(),
                                         )),
                                     ))
@@ -370,7 +369,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                                 ResolvedArgs::Pat(ctor_args) => {
                                     Ok(ResolvedAstPathComponent::Terminal(
                                         TerminalResolvedPathComponent::CtorPat(Node::at(
-                                            CtorTerm { ctor: ctor_def_id, ctor_args },
+                                            CtorTerm { ctor: ctor_def_id, ctor_args, data_ty_args: None },
                                             component.origin(),
                                         )),
                                     ))

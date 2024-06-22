@@ -5,10 +5,11 @@ use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
 use hash_tir::{
     context::HasContext,
     tir::{ModDefId, ModMemberId, ModMemberValue, NodeId, Term},
+    visitor::{Atom, Map, Visit},
 };
 
 use crate::{
-    diagnostics::TcError,
+    diagnostics::{TcError, TcResult},
     env::TcEnv,
     options::normalisation::{already_normalised, NormaliseResult},
     tc::{FnInferMode, Tc},
@@ -19,26 +20,35 @@ use crate::{
 impl<E: TcEnv> OperationsOnNode<ModDefId> for Tc<'_, E> {
     type AnnotNode = ();
 
-    fn check_node(&self, mod_def_id: ModDefId, _: ()) -> crate::diagnostics::TcResult<()> {
-        self.context().enter_scope(mod_def_id.into(), || {
+    fn check_node(&self, mod_def_id: ModDefId, _: ()) -> TcResult<()> {
+        self.context().enter_scope(mod_def_id.into(), || -> TcResult<()> {
             let members = mod_def_id.borrow().members;
-            // let mut error_state = ErrorState::new();
 
             // Infer each member signature
             for member in members.value().iter() {
-                let _ = self.check_node(member, ())?;
+                self.check_node(member, ())?;
             }
-            Ok(())
 
-            // error_state.into_error(|| Ok(()))
-        })
+            Ok(())
+        })?;
+
+        self.visitor().visit(mod_def_id, &mut |atom| match atom {
+            Atom::Term(term) => {
+                term.set(self.resolve_metas_and_vars(term).0.value());
+                ControlFlow::Continue(())
+            }
+            Atom::FnDef(_) => ControlFlow::Continue(()),
+            Atom::Lit(_) => ControlFlow::Break(()),
+        });
+
+        Ok(())
     }
 
     fn try_normalise_node(&self, _item: ModDefId) -> NormaliseResult<ControlFlow<ModDefId>> {
         already_normalised()
     }
 
-    fn unify_nodes(&self, src: ModDefId, target: ModDefId) -> crate::diagnostics::TcResult<()> {
+    fn unify_nodes(&self, src: ModDefId, target: ModDefId) -> TcResult<()> {
         if src == target {
             Ok(())
         } else {
@@ -50,11 +60,7 @@ impl<E: TcEnv> OperationsOnNode<ModDefId> for Tc<'_, E> {
 impl<E: TcEnv> OperationsOnNode<ModMemberId> for Tc<'_, E> {
     type AnnotNode = ();
 
-    fn check_node(
-        &self,
-        mod_member: ModMemberId,
-        _: Self::AnnotNode,
-    ) -> crate::diagnostics::TcResult<()> {
+    fn check_node(&self, mod_member: ModMemberId, _: Self::AnnotNode) -> TcResult<()> {
         let value = mod_member.borrow().value;
         match value {
             ModMemberValue::Data(data_def_id) => {
@@ -92,7 +98,7 @@ impl<E: TcEnv> OperationsOnNode<ModMemberId> for Tc<'_, E> {
         already_normalised()
     }
 
-    fn unify_nodes(&self, _: ModMemberId, _: ModMemberId) -> crate::diagnostics::TcResult<()> {
+    fn unify_nodes(&self, _: ModMemberId, _: ModMemberId) -> TcResult<()> {
         // Not needed
         unreachable!()
     }

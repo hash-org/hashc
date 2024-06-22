@@ -62,12 +62,12 @@ impl<E: TcEnv> Tc<'_, E> {
                         pure: true,
                         is_unsafe: false,
                         params: Param::seq(
-                            args_vars
-                                .iter()
-                                .map(|arg| (arg.symbol, Term::fresh_hole(arg.symbol.origin().inferred()))),
+                            args_vars.iter().map(|arg| {
+                                (arg.symbol, Term::fresh_hole(arg.symbol.origin().inferred()))
+                            }),
                             NodeOrigin::Generated,
                         ),
-                        return_ty: Term::fresh_hole(rhs.origin().inferred())
+                        return_ty: Term::fresh_hole(rhs.origin().inferred()),
                     },
                     name: meta_call.meta.name(),
                     body: rhs,
@@ -90,30 +90,29 @@ impl<E: TcEnv> Tc<'_, E> {
                 let resolved = self.get_meta(call.meta).map(|s| self.resolve_metas_and_vars(s));
                 match resolved {
                     Some(resolved) => (
-                        Term::from(
+                        self.normalise_node_no_signals(Term::from(
                             CallTerm { subject: resolved.0, args: call.args, implicit: false },
                             term.origin(),
-                        ),
+                        ))
+                        .unwrap(),
                         None,
                     ),
                     None => (term, Some(call)),
                 }
             }
-            None => {
-                match *term.value() {
-                    Term::Var(v) => {
-                        if let Some(val) = self.context.try_get_decl_value(v.symbol) {
-                            match val.value().data {
-                                Term::Var(v_p) if v_p.symbol == v.symbol => (term, None),
-                                _ => self.resolve_metas_and_vars(val),
-                            }
-                        } else {
-                            (term, None)
+            None => match *term.value() {
+                Term::Var(v) => {
+                    if let Some(val) = self.context.try_get_decl_value(v.symbol) {
+                        match val.value().data {
+                            Term::Var(v_p) if v_p.symbol == v.symbol => (term, None),
+                            _ => self.resolve_metas_and_vars(val),
                         }
+                    } else {
+                        (term, None)
                     }
-                    _ => (term, None),
                 }
-            }
+                _ => (term, None),
+            },
         }
     }
 }

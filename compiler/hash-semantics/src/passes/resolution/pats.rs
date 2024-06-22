@@ -222,6 +222,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                                 Node::<Arg>::seq(empty()),
                                 ctor_term.ctor_args.origin(),
                             ),
+                            data_ty_args: None,
                         }),
                         origin,
                     ))

@@ -76,6 +76,8 @@ pub struct CtorTerm {
     pub ctor: CtorDefId,
     /// The arguments to the constructor.
     pub ctor_args: ArgsId,
+    /// Data type arguments
+    pub data_ty_args: Option<ArgsId>,
 }
 
 /// The number of bits in a numeric constructor.
@@ -497,6 +499,9 @@ impl Display for CtorTerm {
         let data_def_name = get!(data_def_id, name);
         write!(f, "{}::", data_def_name)?;
         write!(f, "{}", ctor_name)?;
+        if let Some(data_ty_args) = self.data_ty_args {
+            write!(f, "<{}>", data_ty_args)?;
+        }
         if self.ctor_args.len() > 0 {
             write!(f, "({})", self.ctor_args)?;
         }
