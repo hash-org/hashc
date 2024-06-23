@@ -47,6 +47,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: LLVM location
+        # @@Dumbness: we need to install `libtinfo5` because of:
+        # - https://github.com/hash-org/hashc/actions/runs/9634436024/job/26570084536
         run: |
           sudo apt install -y libtinfo5
           echo $LLVM_PATH
