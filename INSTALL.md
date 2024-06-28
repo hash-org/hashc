@@ -10,12 +10,18 @@ compiler. The easiest way to install Rust is using [rustup](https://rustup.rs/).
 One of the Hash compiler code generation backends is LLVM, so you will need to
 install LLVM on your system. Currently, the compiler uses LLVM 15.0.6.
 
-**Note**: Currently it requires some extra steps to install LLVM due to the
-specific version that `hashc` uses. We want to move away from this and bundle
-LLVM with `hashc` as a submodule, but for now these are the steps you need to
-follow.
+### Building without LLVM
 
-## Linux, macOS
+We all know that LLVM is a huge and bulky dependency, which isn't always easy to install on a local machine. Therefore, this project
+provides a way to build the compiler without LLVM. To do so, you can simply build the main package in the following way:
+
+```bash
+cargo build -p hashc --no-default-features
+```
+
+This will build the compiler without the `llvm` feature, and hence you won't have the LLVM backend available.
+
+### Linux, macOS
 
 You can download this version of LLVM from
 [here](https://github.com/llvm/llvm-project/releases/tag/llvmorg-15.0.6) for
@@ -43,7 +49,7 @@ whenever you want to use `hashc` (the former is recommended).
 
 Now, you should be able to run `cargo build` on `hashc` and it should work.
 
-## Windows
+### Windows
 
 To install on Windows, the simplest way to install it is using
 [Chocolatey](https://chocolatey.org/):
