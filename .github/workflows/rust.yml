@@ -11,8 +11,14 @@ env:
 
 jobs:
   build_and_test:
-    name: Test, clippy, and format
-    runs-on: ubuntu-latest
+    runs-on: ["${{ matrix.distro }}"]
+    name: Build on ${{ matrix.distro }} ${{ matrix.arch }}
+
+    strategy:
+      matrix:
+        include:
+          - arch: x64
+            distro: ubuntu-latest
     steps:
       - name: Checkout source code
         uses: actions/checkout@v2
@@ -22,12 +28,12 @@ jobs:
         uses: actions/cache@v2
         with: 
           path: ./llvm
-          key: llvm-15
+          key: llvm-18
 
       - name: Install LLVM
-        uses: KyleMayes/install-llvm-action@v1
+        uses: KyleMayes/install-llvm-action@abb6cec0ec431e834bc5e5090ea39a2d1d63a4c6 # v2.0.3
         with:
-          version: "15.0.6"
+          version: "18.1.4"
           cached: ${{ steps.cache-llvm.outputs.cache-hit }}
 
       - name: Install Rust nightly
@@ -39,12 +45,20 @@ jobs:
 
       - name: Dependency caching
         uses: Swatinem/rust-cache@v2
+
+      - name: LLVM location
+        # @@Dumbness: we need to install `libtinfo5` because of:
+        # - https://github.com/hash-org/hashc/actions/runs/9634436024/job/26570084536
+        run: |
+          sudo apt install -y libtinfo5
+          echo $LLVM_PATH
+          $LLVM_PATH/bin/llvm-config --version
       
       - name: Run tests
-        run: "LLVM_SYS_150_PREFIX=$LLVM_PATH cargo test --all --verbose"
+        run: "LLVM_SYS_181_PREFIX=$LLVM_PATH cargo test --all --verbose"
 
       - name: Run clippy
-        run: "LLVM_SYS_150_PREFIX=$LLVM_PATH cargo clippy --all -- -D warnings"
+        run: "LLVM_SYS_181_PREFIX=$LLVM_PATH cargo clippy --all -- -D warnings"
 
       - name: Check formatting
         run: "cargo fmt --all -- --check"

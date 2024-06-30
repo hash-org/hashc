@@ -39,7 +39,7 @@ use inkwell as llvm;
 use llvm::{
     context::Context as LLVMContext,
     module::Module as LLVMModule,
-    passes::{PassManager, PassManagerBuilder},
+    passes::PassManager,
     targets::{FileType, TargetTriple},
     types::AnyType,
     values::{AnyValue, FunctionValue},
@@ -132,17 +132,7 @@ impl<'b, 'm> LLVMBackend<'b> {
     /// Create an [PassManager] for LLVM, apply the optimisation options and run
     /// the optimised on the given [LLVMModule].
     fn optimise(&self, module: &LLVMModule) -> CompilerResult<()> {
-        let pass_manager_builder = PassManagerBuilder::create();
-
-        let OptimisationLevelWrapper(opt_level) = self.settings.optimisation_level.into();
-        pass_manager_builder.set_optimization_level(opt_level);
-
-        let size_opt_level = self.settings.optimisation_level.size_level();
-        pass_manager_builder.set_size_level(size_opt_level as u32);
-
-        // Now run the optimisations on the given module.
         let pass_manager = PassManager::create(());
-        pass_manager_builder.populate_module_pass_manager(&pass_manager);
         pass_manager.run_on(module);
 
         Ok(())

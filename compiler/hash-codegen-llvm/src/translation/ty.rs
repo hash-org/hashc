@@ -225,6 +225,7 @@ impl<'b, 'm> TypeBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
             LLVMTypeKind::LLVMScalableVectorTypeKind => TypeKind::ScalableVector,
             LLVMTypeKind::LLVMBFloatTypeKind => TypeKind::Float,
             LLVMTypeKind::LLVMX86_AMXTypeKind => TypeKind::X86AMX,
+            LLVMTypeKind::LLVMTargetExtTypeKind => TypeKind::TargetExtensionTy,
         }
     }
 
