@@ -67,7 +67,7 @@ pub struct CompilerSettings {
 
     /// Print metrics about each stage when the entire pipeline has completed.
     #[arg(long = "timings", default_value_t = false)]
-    #[serde(default)]
+    #[serde(default, alias = "timings")]
     pub show_timings: bool,
 
     /// The format to use when outputting information about compilation, either
@@ -165,6 +165,7 @@ impl MergeConfig for CompilerSettings {
         self.worker_count = config.worker_count;
         self.skip_prelude |= config.skip_prelude;
         self.prelude_is_quiet |= config.prelude_is_quiet;
+        self.messaging_format = config.messaging_format;
         self.emit_errors |= config.emit_errors;
         self.emit_schema |= config.emit_schema;
         self.character_set = config.character_set;
