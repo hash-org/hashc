@@ -27,6 +27,7 @@ use crate::{
 #[derive(
     ValueEnum, Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, JsonSchema, Default,
 )]
+#[serde(rename_all = "lowercase")]
 pub enum CompilerMessagingFormat {
     /// All messages that are emitted to and from the compiler will be in JSON
     /// format according to the schema that represents [CompilerMessage].

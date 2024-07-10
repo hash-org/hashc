@@ -402,7 +402,7 @@ impl Default for CompilerSettings {
     Serialize,
     JsonSchema,
 )]
-#[serde(crate = "self::serde")]
+#[serde(crate = "self::serde", rename_all = "kebab-case")]
 pub enum OptimisationLevel {
     /// Run the compiler using the debug optimisation level. This will
     /// disable most optimisations that the compiler would otherwise do.
@@ -687,7 +687,7 @@ impl Default for CodeGenSettings {
 /// All of the current possible code generation backends that
 /// are available.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Serialize, Deserialize, JsonSchema)]
-#[serde(crate = "self::serde")]
+#[serde(crate = "self::serde", rename_all = "kebab-case")]
 pub enum CodeGenBackend {
     /// The LLVM backend is target for code generation.
     #[cfg(feature = "llvm")]
@@ -756,7 +756,7 @@ impl fmt::Display for CodeGenBackend {
     Serialize,
     JsonSchema,
 )]
-#[serde(crate = "self::serde")]
+#[serde(crate = "self::serde", rename_all = "kebab-case")]
 pub enum CompilerStageKind {
     /// Parse the source code into an AST.
     Parse,
