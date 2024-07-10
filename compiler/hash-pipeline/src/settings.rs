@@ -25,7 +25,7 @@ use crate::{error::PipelineError, fs::resolve_path};
 /// Various settings that are present on the compiler pipeline when initially
 /// launching.
 #[derive(Parser, Debug, Clone, Deserialize, Serialize, JsonSchema)]
-#[serde(crate = "self::serde")]
+#[serde(crate = "self::serde", deny_unknown_fields)]
 #[command(name = "hashc", version = env!("COMPILER_VERSION"), about = "", author)]
 pub struct CompilerSettings {
     /// An optionally specified entry point for the compiler.
