@@ -25,7 +25,7 @@ use crate::{error::PipelineError, fs::resolve_path};
 /// Various settings that are present on the compiler pipeline when initially
 /// launching.
 #[derive(Parser, Debug, Clone, Deserialize, Serialize, JsonSchema)]
-#[serde(crate = "self::serde")]
+#[serde(crate = "self::serde", deny_unknown_fields)]
 #[command(name = "hashc", version = env!("COMPILER_VERSION"), about = "", author)]
 pub struct CompilerSettings {
     /// An optionally specified entry point for the compiler.
@@ -67,7 +67,7 @@ pub struct CompilerSettings {
 
     /// Print metrics about each stage when the entire pipeline has completed.
     #[arg(long = "timings", default_value_t = false)]
-    #[serde(default)]
+    #[serde(default, alias = "timings")]
     pub show_timings: bool,
 
     /// The format to use when outputting information about compilation, either
@@ -165,6 +165,7 @@ impl MergeConfig for CompilerSettings {
         self.worker_count = config.worker_count;
         self.skip_prelude |= config.skip_prelude;
         self.prelude_is_quiet |= config.prelude_is_quiet;
+        self.messaging_format = config.messaging_format;
         self.emit_errors |= config.emit_errors;
         self.emit_schema |= config.emit_schema;
         self.character_set = config.character_set;
@@ -401,7 +402,7 @@ impl Default for CompilerSettings {
     Serialize,
     JsonSchema,
 )]
-#[serde(crate = "self::serde")]
+#[serde(crate = "self::serde", rename_all = "kebab-case")]
 pub enum OptimisationLevel {
     /// Run the compiler using the debug optimisation level. This will
     /// disable most optimisations that the compiler would otherwise do.
@@ -686,7 +687,7 @@ impl Default for CodeGenSettings {
 /// All of the current possible code generation backends that
 /// are available.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Serialize, Deserialize, JsonSchema)]
-#[serde(crate = "self::serde")]
+#[serde(crate = "self::serde", rename_all = "kebab-case")]
 pub enum CodeGenBackend {
     /// The LLVM backend is target for code generation.
     #[cfg(feature = "llvm")]
@@ -755,7 +756,7 @@ impl fmt::Display for CodeGenBackend {
     Serialize,
     JsonSchema,
 )]
-#[serde(crate = "self::serde")]
+#[serde(crate = "self::serde", rename_all = "kebab-case")]
 pub enum CompilerStageKind {
     /// Parse the source code into an AST.
     Parse,
