@@ -83,8 +83,8 @@ make_intrinsics! {
         }
     };
 
-    debug_print := (T: Type(), a: ty(T)) -> never_gen_ty() => |env| {
-        stream_less_writeln!("{}", a);
+    debug_print := (T: Type(), item: ty(T)) -> never_gen_ty() => |env| {
+        stream_less_writeln!("{}", item);
         Ok(Some(unit_term()))
     };
 

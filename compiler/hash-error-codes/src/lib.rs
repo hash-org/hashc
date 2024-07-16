@@ -2,8 +2,14 @@
 
 macro_rules! error_codes {
     ($($name:ident = $code:expr),* $(,)?) => (
+        use hash_utils::{
+            schemars::{self, JsonSchema},
+            serde::{self, Serialize},
+        };
+
         /// Error code macro is used to generate the [HashErrorCode] macro.
-        #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+        #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, JsonSchema, Serialize)]
+        #[serde(crate = "self::serde")]
         #[allow(dead_code)]
         pub enum HashErrorCode {
             $($name, )*

@@ -1,10 +1,9 @@
 //! Defines the [BuilderCtx] which is a collection of all the
 //! information required to lower all the TIR into IR, among
 //! other operations.
-use std::io::Write;
 
 use hash_ir::{ty::ReprTyId, HasIrCtx, IrCtx};
-use hash_pipeline::{interface::CompilerOutputStream, settings::CompilerSettings};
+use hash_pipeline::settings::CompilerSettings;
 use hash_repr::{
     compute::{LayoutComputer, LayoutError},
     write::{LayoutWriter, LayoutWriterConfig},
@@ -19,7 +18,7 @@ use hash_tir::{
     tir::{Arg, DataDefId, DataTy, ModDefId, Node, NodeId},
 };
 use hash_tir_utils::lower::{HasTyCache, TyCache, TyLowerEnv};
-use hash_utils::stream_writeln;
+use hash_utils::log;
 
 use crate::LoweringCtx;
 
@@ -124,7 +123,7 @@ impl<'ir> BuilderCtx<'ir> {
     }
 
     /// Dump the layout of a given type.
-    pub(crate) fn dump_ty_layout(&self, data_def: DataDefId, mut out: CompilerOutputStream) {
+    pub(crate) fn dump_ty_layout(&self, data_def: DataDefId) {
         let ty = self.repr_ty_from_tir_data_ty(DataTy {
             args: Node::create_at(Node::<Arg>::empty_seq(), data_def.origin()),
             data_def,
@@ -134,8 +133,9 @@ impl<'ir> BuilderCtx<'ir> {
         let writer_config = LayoutWriterConfig::from_character_set(self.settings.character_set);
 
         // Print the layout
-        stream_writeln!(
-            out,
+        //
+        // @@Messaging: provide a format for the layout to be dumped in!
+        log::info!(
             "{}",
             LayoutWriter::new_with_config(
                 TyInfo { ty, layout },

@@ -10,8 +10,10 @@ use std::{
 use derive_more::Constructor;
 use indexmap::IndexMap;
 use log::{log_enabled, Level};
+use schemars::JsonSchema;
+use serde::Serialize;
 
-#[derive(Debug, Clone, Copy, Constructor)]
+#[derive(Debug, Clone, Copy, Constructor, Serialize, JsonSchema)]
 pub struct MetricEntry {
     /// The time taken for the operation to complete.
     pub duration: Duration,
@@ -62,17 +64,18 @@ impl AddAssign for MetricEntry {
 }
 
 /// A [StageMetrics] is a collection of timings for each section of a stage.
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, Serialize, JsonSchema)]
 pub struct StageMetrics {
     /// The collected timings for each section of the stage.
     pub metrics: IndexMap<&'static str, MetricEntry>,
 
-    /// Whether to report RSS statisics. This option is useful to
-    /// silence stages that are paralelised or out of order meaning that
+    /// Whether to report RSS statistics. This option is useful to
+    /// silence stages that are parallelised or out of order meaning that
     /// measuring RSS at various stages of the compiler pipeline produces
     /// useless results in the sense that stage is capturing memory usage
     /// which it hasn't directly caused. In this case, we don't want to emit
     /// RSS metrics for these stages.
+    #[serde(skip)]
     pub report_rss: bool,
 }
 

@@ -1,4 +1,4 @@
-
+info: IR dump:
 IR dump for function `boo` defined at $DIR/early_returns.hash:4:8-14:2
 boo := (_1: i32, _2: i32) -> i32 {
     mut _0: i32;
@@ -146,4 +146,5 @@ foo := (_1: i32) -> i32 {
         return;
     }
 }
+
 

@@ -5,7 +5,7 @@
     cfg_match,
     decl_macro,
     impl_trait_in_assoc_type,
-    panic_info_message,
+    panic_payload_as_str,
     type_alias_impl_trait
 )]
 
@@ -22,6 +22,7 @@ pub mod range_map;
 pub mod scoping;
 pub mod stack;
 pub mod state;
+pub mod stream;
 pub mod temp_writer;
 pub mod tree_writing;
 
@@ -44,5 +45,7 @@ pub use num_bigint;
 pub use num_traits;
 pub use parking_lot;
 pub use rayon;
+pub use schemars;
+pub use serde;
 pub use smallvec;
 pub use thin_vec;

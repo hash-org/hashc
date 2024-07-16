@@ -7,9 +7,9 @@
 
 // @@Todo: add unit tests for the graph writer.
 
-use std::io;
+use std::fmt;
 
-use hash_const_eval::print::pretty_print_const;
+use hash_const_eval::print::ConstWriter;
 use hash_ir::ir::{BasicBlock, BasicBlockData, Body, BodySource, TerminatorKind};
 use hash_repr::{compute::LayoutComputer, constant::Const};
 use hash_target::data_layout::HasDataLayout;
@@ -29,7 +29,7 @@ pub struct IrGraphOptions {
     font: String,
 
     /// The background colour of each node as the header of the graph.
-    background_colour: String,
+    _background_colour: String,
 
     /// Whether the body should be written directly to the graph or a
     /// sub-graph should be created. If the `use_subgraph` option is
@@ -42,14 +42,14 @@ impl Default for IrGraphOptions {
     fn default() -> Self {
         Self {
             font: "Courier, monospace".to_string(),
-            background_colour: "gray".to_string(),
+            _background_colour: "gray".to_string(),
             use_subgraph: None,
         }
     }
 }
 
 #[derive(Constructor)]
-pub struct IrGraphWriter<'ir> {
+pub struct IrBodyWriter<'ir> {
     /// The body that is being outputted as a graph
     body: &'ir Body,
 
@@ -60,9 +60,8 @@ pub struct IrGraphWriter<'ir> {
     options: IrGraphOptions,
 }
 
-impl<'ir> IrGraphWriter<'ir> {
-    /// Function that writes the body to the appropriate writer.
-    pub fn write_body(&self, w: &mut impl io::Write) -> io::Result<()> {
+impl fmt::Display for IrBodyWriter<'_> {
+    fn fmt(&self, w: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(index) = self.options.use_subgraph {
             writeln!(w, "subgraph cluster_{index} {{")?;
         } else {
@@ -138,7 +137,7 @@ impl<'ir> IrGraphWriter<'ir> {
 
         // Now we write all of the blocks
         for (id, block) in self.body.blocks().iter_enumerated() {
-            self.write_block(w, id, block)?;
+            write!(w, "{}", IrBlockWriter::new(self.body, id, block, &self.options, self.lc))?;
         }
 
         // Now we need to write all of the edges of the control flow graph
@@ -172,9 +171,11 @@ impl<'ir> IrGraphWriter<'ir> {
                             let value =
                                 Const::from_scalar_like(value, target_ty, self.lc.data_layout());
 
-                            writeln!(w, r#"  {prefix}{id:?} -> {prefix}{target:?} [label=""#)?;
-                            pretty_print_const(w, &value, self.lc).unwrap();
-                            writeln!(w, r#""];"#)?;
+                            writeln!(
+                                w,
+                                r#"  {prefix}{id:?} -> {prefix}{target:?} [label="{}"];"#,
+                                ConstWriter::new(&value, self.lc)
+                            )?;
                         }
 
                         // Add the otherwise case
@@ -194,50 +195,52 @@ impl<'ir> IrGraphWriter<'ir> {
 
         writeln!(w, "}}")
     }
+}
 
-    /// Function that writes a block to the appropriate writer. Each block is
-    /// written with as a table of the name of the block (which is the table
-    /// header) and a collection of rows which are the statements of the
-    /// particular block. This function does not deal with all of the
-    /// outgoing edges of the block, but rather just the statements.
-    /// The terminator is printed in a similar way to statements, i.e. without
-    /// denoting all of the edges.
-    ///
-    /// So for a basic block that has the following shape:
-    /// ```text
-    /// bb0 {
-    ///    _1 = moo(const 2_i32) -> bb1;
-    /// }
-    /// ```
-    /// In this example, the local `_1` is being assigned with the return value
-    /// of `moo`, and after the function `moo` returns, the control flow will
-    /// jump to `bb1` (since function calls are terminators in the IR).
-    ///
-    /// An example output table would look like:
-    /// ```html
-    /// <table border="0" cellborder="1" cellspacing="0">
-    ///     <tr>
-    ///         <td bgcolor="gray" align="center" colspan="1">0</td>
-    ///     </tr>
-    ///     <tr>
-    ///         <td align="left">_1 = moo(const 2_i32)</td>
-    ///     </tr>
-    /// </table>
-    /// ```
-    /// Each row of the table corresponds to a statement within the block, and
-    /// the header is the ID of the block.
-    fn write_block(
-        &self,
-        w: &mut impl io::Write,
-        id: BasicBlock,
-        block: &'ir BasicBlockData,
-    ) -> io::Result<()> {
+/// Function that writes a block to the appropriate writer. Each block is
+/// written with as a table of the name of the block (which is the table
+/// header) and a collection of rows which are the statements of the
+/// particular block. This function does not deal with all of the
+/// outgoing edges of the block, but rather just the statements.
+/// The terminator is printed in a similar way to statements, i.e. without
+/// denoting all of the edges.
+///
+/// So for a basic block that has the following shape:
+/// ```text
+/// bb0 {
+///    _1 = moo(const 2_i32) -> bb1;
+/// }
+/// ```
+/// In this example, the local `_1` is being assigned with the return value
+/// of `moo`, and after the function `moo` returns, the control flow will
+/// jump to `bb1` (since function calls are terminators in the IR).
+///
+/// An example output table would look like:
+/// ```html
+/// <table border="0" cellborder="1" cellspacing="0">
+///     <tr>
+///         <td bgcolor="gray" align="center" colspan="1">0</td>
+///     </tr>
+///     <tr>
+///         <td align="left">_1 = moo(const 2_i32)</td>
+///     </tr>
+/// </table>
+/// ```
+/// Each row of the table corresponds to a statement within the block, and
+/// the header is the ID of the block.
+#[derive(Constructor)]
+struct IrBlockWriter<'ir> {
+    body: &'ir Body,
+    id: BasicBlock,
+    block: &'ir BasicBlockData,
+    options: &'ir IrGraphOptions,
+    lc: LayoutComputer<'ir>,
+}
+
+impl fmt::Display for IrBlockWriter<'_> {
+    fn fmt(&self, w: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Now we write the first row, which is the basic block header
-        let block_id = if let Some(index) = self.options.use_subgraph {
-            format!("c{index}_{id:?}")
-        } else {
-            format!("{:?}", id.raw())
-        };
+        let block_id = format!("{:?}", self.id.raw());
 
         // First write the table, and the header of the table
         write!(
@@ -248,12 +251,12 @@ impl<'ir> IrGraphWriter<'ir> {
         write!(
             w,
             r#"<tr><td bgcolor="{}" align="center" colspan="1">{}</td></tr>"#,
-            self.options.background_colour,
-            id.raw(),
+            self.options._background_colour,
+            self.id.raw(),
         )?;
 
         // Now we can write all of the statements within this block
-        for statement in block.statements.iter() {
+        for statement in self.block.statements.iter() {
             write!(
                 w,
                 r#"<tr><td align="left" balign="left">{}</td></tr>"#,
@@ -262,7 +265,7 @@ impl<'ir> IrGraphWriter<'ir> {
         }
 
         // write the terminator as the last item of the table
-        if let Some(terminator) = &block.terminator {
+        if let Some(terminator) = &self.block.terminator {
             write!(
                 w,
                 r#"<tr><td align="left">{}</td></tr>"#,
@@ -275,32 +278,26 @@ impl<'ir> IrGraphWriter<'ir> {
     }
 }
 
-/// Dump all of the provided [Body]s to standard output using the `dot` format.
-pub fn dump_ir_bodies(
-    bodies: &[Body],
-    dump_all: bool,
-    prelude_is_quiet: bool,
-    lc: LayoutComputer<'_>,
-    writer: &mut impl io::Write,
-) -> io::Result<()> {
-    writeln!(writer, "digraph program {{")?;
+/// Utility struct to dump all of the provided [Body]s to standard output using
+/// the `dot` format.
+#[derive(Constructor)]
+pub struct IrGraphWriter<'ir> {
+    /// The body that is being outputted as a graph
+    body: &'ir [&'ir Body],
 
-    for (id, body) in bodies.iter().enumerate() {
-        // Skip the prelude if we're in quiet mode
-        if prelude_is_quiet && body.source().is_prelude() {
-            continue;
+    /// The layout computer.
+    lc: LayoutComputer<'ir>,
+}
+
+impl fmt::Display for IrGraphWriter<'_> {
+    fn fmt(&self, w: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(w, "digraph program {{")?;
+
+        for (id, body) in self.body.iter().enumerate() {
+            let opts = IrGraphOptions { use_subgraph: Some(id), ..IrGraphOptions::default() };
+            writeln!(w, "{}", IrBodyWriter::new(body, self.lc, opts))?;
         }
 
-        // Check if we need to print this body (or if we're printing all of them)
-        // and then skip bodies that we didn't request to print.
-        if !dump_all && !body.needs_dumping() {
-            continue;
-        }
-
-        let opts = IrGraphOptions { use_subgraph: Some(id), ..IrGraphOptions::default() };
-        let dumper = IrGraphWriter::new(body, lc, opts);
-        dumper.write_body(writer)?;
+        writeln!(w, "}}")
     }
-
-    writeln!(writer, "}}")
 }

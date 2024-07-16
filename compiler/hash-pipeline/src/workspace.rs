@@ -5,18 +5,21 @@
 //! given [ModuleEntry]. This can only be known by the [SourceMap] which stores
 //! all of the relevant [SourceId]s and their corresponding sources.
 
+use core::fmt;
 use std::{collections::HashSet, path::PathBuf};
 
 use hash_ast::{
     ast::OwnsAstNode,
     node_map::{InteractiveBlock, NodeMap},
 };
-use hash_ast_utils::dump::{dump_ast, AstDumpMode};
+use hash_ast_utils::dump::{AstDump, AstDumpMode};
 use hash_source::{ModuleId, ModuleKind, SourceId, SourceMapUtils};
 use hash_target::HasTarget;
 use hash_utils::{
     bitflags::bitflags,
+    derive_more::Constructor,
     fxhash::{FxHashMap, FxHashSet},
+    log,
     tree_writing::CharacterSet,
 };
 
@@ -306,20 +309,41 @@ impl Workspace {
 
     /// Utility function used by AST-like stages in order to print the
     /// current [NodeMap].
-    pub fn print_sources(
-        &self,
-        source: SourceId,
-        mode: AstDumpMode,
-        character_set: CharacterSet,
-        writer: &mut impl std::io::Write,
-    ) -> std::io::Result<()> {
-        if source.is_interactive() {
-            let node = self.node_map.get_interactive_block(source.into()).node().ast_ref();
-            dump_ast(node.into(), mode, character_set, writer)?;
+    pub fn print_sources(&self, mode: AstDumpMode, character_set: CharacterSet) {
+        // @@Messaging: Provide a format for sending the AST as an output.
+        log::info!("{}", WorkspaceAstDump::new(self, mode, character_set));
+    }
+}
+
+#[derive(Constructor)]
+pub struct WorkspaceAstDump<'ast> {
+    /// The workspace.
+    workspace: &'ast Workspace,
+
+    /// The style in which the AST should be dumped.
+    mode: AstDumpMode,
+
+    /// The character set that should be used when dumping
+    /// the AST in the `tree` format. It can a number of options such as, but
+    /// not limited to [`CharacterSet::Ascii`] or [`CharacterSet::Unicode`].
+    character_set: CharacterSet,
+}
+
+impl fmt::Display for WorkspaceAstDump<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self { workspace, mode, character_set } = self;
+
+        // @@Todo: use the entry_point on the workspace.
+        let entry_point = SourceMapUtils::entry_point().unwrap();
+
+        if entry_point.is_interactive() {
+            let node =
+                workspace.node_map.get_interactive_block(entry_point.into()).node().ast_ref();
+            writeln!(f, "{}", AstDump::new(node.into(), *mode, *character_set))?;
         }
 
-        for (_, module) in self.node_map.iter_modules() {
-            dump_ast(module.node_ref().into(), mode, character_set, writer)?;
+        for (_, module) in workspace.node_map.iter_modules() {
+            writeln!(f, "{}", AstDump::new(module.node_ref().into(), *mode, *character_set))?;
         }
 
         Ok(())

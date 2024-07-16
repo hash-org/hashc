@@ -5,7 +5,12 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use hash_utils::{derive_more::Constructor, range_map::RangeMap};
+use hash_utils::{
+    derive_more::Constructor,
+    range_map::RangeMap,
+    schemars::{self, JsonSchema},
+    serde::{self, Serialize},
+};
 use line_span::LineSpanExt;
 
 use crate::{SourceId, SourceMapUtils};
@@ -14,7 +19,8 @@ use crate::{SourceId, SourceMapUtils};
 /// The range itself is considered to be inclusive, so ranges such as `0:0`
 /// would include the first byte of the source, and ranges like `0:1` would
 /// include the first two bytes of the source.
-#[derive(Debug, Eq, Hash, Clone, Copy, PartialEq)]
+#[derive(Debug, Eq, Hash, Clone, Copy, PartialEq, JsonSchema, Serialize)]
+#[serde(crate = "self::serde")]
 pub struct ByteRange(u32, u32);
 
 impl ByteRange {
@@ -101,7 +107,8 @@ impl fmt::Display for ByteRange {
 /// `hash_reporting` crate. Ideally, data structures that need to store
 /// locations of various items should use [ByteRange] and then convert into
 /// [Span]s.
-#[derive(Debug, Clone, Copy, Constructor, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Constructor, PartialEq, Eq, Hash, JsonSchema, Serialize)]
+#[serde(crate = "self::serde")]
 pub struct Span {
     /// The associated [ByteRange] with the [Span].
     pub range: ByteRange,
@@ -168,7 +175,7 @@ impl Span {
 }
 
 /// Represents a position within a source using a `row` and `column`
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, JsonSchema)]
 pub struct RowCol {
     /// The row number, indexing starts from `0`, but when printed, one is
     /// always added as most editors display rows beginning from `1`.
@@ -188,7 +195,7 @@ impl Display for RowCol {
 /// rows and columns to denote offsets within the source file. [RowColRange] is
 /// only re-used when specific line numbers need to be reported, this shouldn't
 /// be used for general purpose storage of positions of source items.
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, JsonSchema)]
 pub struct RowColRange {
     /// The starting position of the [RowColRange].
     pub start: RowCol,

@@ -1,4 +1,4 @@
-
+info: IR dump:
 IR dump for function `main` defined at $DIR/loops.hash:5:9-16:2
 main := () -> () {
     mut _0: ();
@@ -48,4 +48,5 @@ main := () -> () {
         goto -> bb1;
     }
 }
+
 

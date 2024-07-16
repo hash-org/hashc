@@ -12,6 +12,8 @@ use crate::fs::ImportError;
 /// program.
 #[derive(Debug)]
 pub enum PipelineError {
+    ParseError(clap::Error),
+
     /// Error that can occur when the pipeline tried to
     /// create a resource on the operating system, but the resource
     /// couldn't be created for some reason.
@@ -39,6 +41,8 @@ impl From<PipelineError> for Report {
     fn from(value: PipelineError) -> Self {
         let mut report = Report::new();
         let message = match value {
+            PipelineError::ParseError(err) => err.to_string(),
+
             PipelineError::ResourceCreation { path, error } => {
                 let kind = error.kind();
 

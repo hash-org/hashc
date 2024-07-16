@@ -6,3 +6,7 @@ edition = "2021"
 
 [lib]
 doctest = false
+
+
+[dependencies]
+hash-utils = { path = "../hash-utils" }

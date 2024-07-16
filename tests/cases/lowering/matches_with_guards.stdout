@@ -1,4 +1,4 @@
-
+info: IR dump:
 IR dump for function `main` defined at $DIR/matches_with_guards.hash:3:9-17:2
 main := () -> () {
     mut _0: ();
@@ -61,4 +61,5 @@ main := () -> () {
         return;
     }
 }
+
 
