@@ -345,7 +345,7 @@ impl ReprTy {
                 | Self::Bool)
 
             // A reference to `str` is non-scalar since it is a fat pointer.
-            || matches!(self, Self::Ref(element, _, RefKind::Normal | RefKind::Raw) if element.is_str())
+            || matches!(self, Self::Ref(element, _, RefKind::Normal | RefKind::Raw) if !element.is_str())
     }
 
     /// Check if the type is an array.
