@@ -255,7 +255,7 @@ impl Report {
         )))
     }
 
-    /// Add a [`ReportNoteKind::Empty`] note with the given message to the
+    /// Add a [`ReportNoteKind::Raw`] note with the given message to the
     /// [Report].
     pub fn add_empty(&mut self, message: impl ToString) -> &mut Self {
         self.add_element(ReportElement::Note(ReportNote::new(
@@ -273,7 +273,7 @@ impl Report {
         )))
     }
 
-    /// Add a code block at the given location to the [Report].
+    /// Add a code block at the given [Span] to the [Report].
     pub fn add_span(&mut self, location: Span) -> &mut Self {
         self.add_element(ReportElement::CodeBlock(ReportCodeBlock::new(location, "")))
     }
