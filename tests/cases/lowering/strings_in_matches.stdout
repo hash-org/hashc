@@ -24,33 +24,39 @@ main := () -> () {
     }
 
     bb1 {
-        _3 = Eq(const "Alex", _1);
-        switch(_3) [false -> bb3, otherwise -> bb2];
+        _2 = str_eq(_1, const "Alex") -> bb2;
     }
 
     bb2 {
-        _0 = println(const "Hi Alex!") -> bb7;
+        switch(_2) [false -> bb4, otherwise -> bb3];
     }
 
     bb3 {
-        _2 = Eq(const "John", _1);
-        switch(_2) [false -> bb5, otherwise -> bb4];
+        _0 = println(const "Hi Alex!") -> bb9;
     }
 
     bb4 {
-        _0 = println(const "Hi John!") -> bb7;
+        _3 = str_eq(_1, const "John") -> bb5;
     }
 
     bb5 {
-        _4 = _1;
-        _5 = print(const "Hi! It's nice to meet you ") -> bb6;
+        switch(_3) [false -> bb7, otherwise -> bb6];
     }
 
     bb6 {
-        _0 = println(_4) -> bb7;
+        _0 = println(const "Hi John!") -> bb9;
     }
 
     bb7 {
+        _4 = _1;
+        _5 = print(const "Hi! It's nice to meet you ") -> bb8;
+    }
+
+    bb8 {
+        _0 = println(_4) -> bb9;
+    }
+
+    bb9 {
         return;
     }
 }
