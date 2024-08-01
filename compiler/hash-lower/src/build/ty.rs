@@ -11,7 +11,7 @@ use hash_const_eval::{
     Const, ConstKind,
 };
 use hash_ir::{
-    ir::Scalar,
+    ir::{BodyInfo, Scalar},
     ty::{ReprTy, ReprTyId},
 };
 use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
@@ -182,6 +182,11 @@ impl<'tcx> BodyBuilder<'tcx> {
             }
             _ => FnCallTermKind::Call,
         }
+    }
+
+    /// Get a [BodyInfo] from the current [BodyBuilder] state.
+    pub fn body_info(&self) -> BodyInfo<'_> {
+        BodyInfo { locals: &self.locals, projections: &self.projections }
     }
 
     /// Convert the [LitPat] into a [Const] and return the value of the constant

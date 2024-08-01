@@ -8,7 +8,10 @@ use hash_const_eval::{
 };
 use hash_ir::{
     cast::CastKind,
-    ir::{AssertKind, BasicBlock, Const, ConstKind, Operand, RValue, Scalar},
+    ir::{
+        AssertKind, BasicBlock, Const, ConstKind, Operand, Place, RValue, Scalar, TerminatorKind,
+    },
+    lang_items::LangItem,
     ty::{Mutability, ReprTy, ReprTyId, COMMON_REPR_TYS},
 };
 use hash_source::constant::IntTy;
@@ -336,6 +339,83 @@ impl<'tcx> BodyBuilder<'tcx> {
             }
         }
 
-        block.and(RValue::BinaryOp(op, operands))
+        // Bail early if we didn't get a equality comparator.
+        if !matches!(op, BinOp::Eq | BinOp::Neq) {
+            return block.and(RValue::BinaryOp(op, operands));
+        }
+
+        let lhs_ty = lhs.ty(&self.body_info());
+
+        if lhs_ty.borrow().is_scalar() {
+            block.and(RValue::BinaryOp(op, operands))
+        } else if lhs_ty != COMMON_REPR_TYS.str {
+            panic!("unsupported non-scalar compare for type: {:?}", ty);
+        } else {
+            let place =
+                unpack!(block = self.build_non_scalar_binary_compare(block, lhs, rhs, origin));
+
+            // If the operator is `!=`, we need to invert the value.
+            let op = if matches!(op, BinOp::Neq) {
+                RValue::UnaryOp(UnOp::Not, Operand::Place(place))
+            } else {
+                RValue::Use(Operand::Place(place))
+            };
+
+            block.and(op)
+        }
+    }
+
+    /// Construct a call to `str_eq` so that we can correctly
+    /// compare `str` values using the `==`. We essentially have to generate
+    /// the following code:
+    ///
+    /// @@Note: this only supports string operands, we shouldn't be
+    /// able to get here if it isn't a `str` operand.
+    /// ```rust,ignore
+    /// 
+    /// bb1 {
+    ///     // compare `src` & `dest` using `LangItems::str_eq`
+    ///     _temp = str_eq(_lhs, _rhs) -> bb2;
+    /// }
+    ///
+    /// bb2 {
+    ///    _dest := _temp
+    ///    switch(_dest) [false -> bb3; otherwise -> bb4]
+    /// }
+    ///
+    /// bb3 {
+    ///    ...
+    /// }
+    ///
+    /// bb4 {
+    ///    ...
+    /// }
+    /// ```
+    ///
+    /// ##Hack ##Hack ##Hack: we should be able to resolve this much
+    /// earlier, i.e. in TC via a trait or a known way to specify `Eq`
+    /// for the `str` type itself.
+    pub fn build_non_scalar_binary_compare(
+        &mut self,
+        block: BasicBlock,
+        lhs: Operand,
+        rhs: Operand,
+        span: AstNodeId,
+    ) -> BlockAnd<Place> {
+        let str_eq = self.get_lang_item(LangItem::StrEq);
+        let eq_result = self.temp_place(COMMON_REPR_TYS.bool);
+        let eq_block = self.control_flow_graph.start_new_block();
+        self.control_flow_graph.terminate(
+            block,
+            span,
+            TerminatorKind::Call {
+                op: Const::zst(str_eq).into(),
+                args: vec![lhs, rhs],
+                destination: eq_result,
+                target: Some(eq_block),
+            },
+        );
+
+        eq_block.and(eq_result)
     }
 }

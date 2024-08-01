@@ -1,7 +1,10 @@
 //! Utility macros for performing various operations when it comes to
 //! working with reports
+use hash_source::location::Span;
 #[allow(unused_imports)]
 use hash_utils::stream_less_ewriteln;
+
+use crate::reporter::Reporter;
 
 /// The macro `panic_on_span` is essentially used to create a
 /// [crate::report::Report], build it and then print it whilst panicking. This
@@ -29,33 +32,27 @@ pub macro panic_on_span {
 /// standard output, this does not panic, it is intended as a debugging utility
 /// to quickly print the `span` of something and the `message` associated with
 /// it.
-pub macro note_on_span {
-    ($(@no_prelude: $no_prelude:expr,)? $location:expr, $fmt: expr) => {
-        {
-            let mut print_it = true;
+///
+/// Examples of use:
+///
+/// ```rust
+/// 
+/// // Don't print on `prelude` module.
+/// note_on_span!(@no_prelude: true, item.span(), "compiling `item`");
+///
+/// // Always print.
+/// note_on_span!(item.span(), "compiling `item`");
+/// ```
+#[track_caller]
+pub fn note_on_span(location: impl Into<Span>, message: impl ToString) {
+    let mut reporter = Reporter::new();
+    reporter
+        .info()
+        .title(message)
+        .add_labelled_span(location.into(), "here")
+        .add_note(format!("invoked at {}", ::core::panic::Location::caller()));
 
-            // If the user specifies that they do not want to print the prelude
-            $(
-                if $no_prelude && $location.id.is_prelude() {
-                    print_it = false;
-               }
-            )?
-
-            if print_it {
-                use hash_utils::stream_less_ewriteln;
-
-                let mut reporter = $crate::reporter::Reporter::new();
-                reporter.info()
-                    .title($fmt)
-                    .add_labelled_span($location, "here");
-
-                stream_less_ewriteln!("{}", reporter);
-            }
-        }
-    },
-    ($(@no_prelude: $no_prelude:expr,)? $location:expr, $fmt: expr, $($arg:tt)*) => {
-        note_on_span!($(@no_prelude $no_prelude,)? location, format!($fmt, $($arg)*))
-    }
+    stream_less_ewriteln!("{}", reporter);
 }
 
 /// A macro which doesn't invoke the printing of a given format expression when

@@ -156,7 +156,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                     return;
                 }
 
-                // Optimisation for immediates, we can use llvm.memset.p0i8.* to
+                // Optimisation for immediate, we can use llvm.memset.p0i8.* to
                 // initialise the memory.
                 if let OperandValue::Immediate(val) = op.value {
                     let zero = builder.const_usize(0);

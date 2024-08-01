@@ -12,7 +12,6 @@ use hash_ir::{
         BasicBlock, BinOp, Const, ConstKind, Operand, Place, PlaceProjection, RValue,
         SwitchTargets, TerminatorKind,
     },
-    lang_items::LangItem,
     ty::{AdtId, ReprTy, ReprTyId, ToReprTy, VariantIdx, COMMON_REPR_TYS},
 };
 use hash_reporting::macros::panic_on_span;
@@ -27,7 +26,7 @@ use super::{
     candidate::{Candidate, MatchPair},
     const_range::ConstRange,
 };
-use crate::build::{place::PlaceBuilder, BodyBuilder};
+use crate::build::{place::PlaceBuilder, unpack, BodyBuilder};
 
 #[derive(PartialEq, Debug)]
 pub(super) enum TestKind {
@@ -755,7 +754,7 @@ impl<'tcx> BodyBuilder<'tcx> {
     /// other type.
     fn non_scalar_compare(
         &mut self,
-        block: BasicBlock,
+        mut block: BasicBlock,
         make_target_blocks: impl FnOnce(&mut Self) -> Vec<BasicBlock>,
         expected: Const,
         value: Place,
@@ -775,18 +774,9 @@ impl<'tcx> BodyBuilder<'tcx> {
             panic!("unsupported non-scalar compare for type: {:?}", ty);
         }
 
-        let str_eq = self.get_lang_item(LangItem::StrEq);
-        let eq_result = self.temp_place(COMMON_REPR_TYS.bool);
-        let eq_block = self.control_flow_graph.start_new_block();
-        self.control_flow_graph.terminate(
-            block,
-            span,
-            TerminatorKind::Call {
-                op: Const::zst(str_eq).into(),
-                args: vec![Operand::Place(value), expected],
-                destination: eq_result,
-                target: Some(eq_block),
-            },
+        let eq_result = unpack!(
+            block =
+                self.build_non_scalar_binary_compare(block, Operand::Place(value), expected, span)
         );
 
         let [success_block, fail_block] = *make_target_blocks(self) else {
@@ -795,7 +785,7 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         // Act upon the result
         self.control_flow_graph.terminate(
-            eq_block,
+            block,
             span,
             TerminatorKind::make_if(Operand::Place(eq_result), success_block, fail_block),
         );
