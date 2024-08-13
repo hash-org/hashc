@@ -27,18 +27,14 @@ use crate::{
     env::TcEnv,
     options::normalisation::{normalise_nested, NormaliseResult, NormaliseSignal},
     tc::Tc,
-    traits::{OperationsOnNode, ScopedOperationsOnNode},
+    traits::OperationsOnNode,
     utils::matching::MatchResult,
 };
 
 impl<E: TcEnv> OperationsOnNode<ArgsId> for Tc<'_, E> {
     type AnnotNode = ParamsId;
 
-    fn check_node(
-        &self,
-        args: ArgsId,
-        annotation_params: Self::AnnotNode,
-    ) -> TcResult<()> {
+    fn check_node(&self, args: ArgsId, annotation_params: Self::AnnotNode) -> TcResult<()> {
         self.register_new_atom(args, annotation_params);
         // Reorder the arguments to match the annotation parameters:
         let reordered_args_id = validate_and_reorder_args_against_params(args, annotation_params)?;
@@ -54,6 +50,7 @@ impl<E: TcEnv> OperationsOnNode<ArgsId> for Tc<'_, E> {
             let arg = arg.value();
             self.check_node(arg.value, param_ty)?;
 
+            // @@Todo: restore this
             // if self.has_effects(arg.value) == Some(false)
             //     && let Some(value) = arg.value.use_as_non_pat()
             running_sub.extend_from_pairs([(param.name, arg.value)]);
@@ -71,11 +68,7 @@ impl<E: TcEnv> OperationsOnNode<ArgsId> for Tc<'_, E> {
         normalise_nested()
     }
 
-    fn unify_nodes(
-        &self,
-        src_id: ArgsId,
-        target_id: ArgsId,
-    ) -> TcResult<()> {
+    fn unify_nodes(&self, src_id: ArgsId, target_id: ArgsId) -> TcResult<()> {
         if src_id.len() != target_id.len() {
             return Err(TcError::DifferentParamOrArgLengths {
                 a: src_id.into(),

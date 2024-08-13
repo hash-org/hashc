@@ -3,13 +3,11 @@ use std::ops::ControlFlow;
 use hash_reporting::diagnostic::ErrorState;
 use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
 use hash_tir::{
-    context::{HasContext, ScopeKind},
     intrinsics::definitions::usize_ty,
     tir::{
-        CtorDefId, CtorTerm, DataDefCtors, DataDefId, DataTy, FnTy, Node, NodeId, NodeOrigin,
-        PrimitiveCtorInfo, Term, TermId, Ty, TyId,
+        CtorDefId, CtorTerm, DataDefCtors, DataDefId, DataTy, NodeId, NodeOrigin,
+        PrimitiveCtorInfo, TermId, Ty, TyId,
     },
-    visitor::Map,
 };
 
 use crate::{
@@ -24,11 +22,10 @@ impl<E: TcEnv> Tc<'_, E> {
     pub(crate) fn get_fn_ty_for_ctor(&self, ctor: CtorDefId, origin: NodeOrigin) -> TermId {
         let ctor = ctor.value();
         let data_def = ctor.data_def_id.value();
-        let res = self.params_and_ret_to_fn_ty(
+        self.params_and_ret_to_fn_ty(
             [(data_def.params, true), (ctor.params, false)],
             Ty::from(DataTy { args: ctor.result_args, data_def: ctor.data_def_id }, origin),
-        );
-        res
+        )
     }
 
     pub(crate) fn get_fn_ty_for_data(&self, data: DataDefId, origin: NodeOrigin) -> TermId {
@@ -208,7 +205,7 @@ impl<E: TcEnv> OperationsOnNode<CtorDefId> for Tc<'_, E> {
 
     fn check_node(&self, ctor: CtorDefId, _: Self::AnnotNode) -> TcResult<()> {
         let ctor_def = ctor.value();
-        self.check_node_scoped(ctor_def.params, (), |()| {
+        self.check_node_scoped(ctor_def.params, (), |_| {
             let return_ty = Ty::from(
                 DataTy { data_def: ctor_def.data_def_id, args: ctor_def.result_args },
                 ctor.origin(),

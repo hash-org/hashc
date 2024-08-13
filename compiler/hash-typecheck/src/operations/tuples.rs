@@ -30,10 +30,10 @@ impl<E: TcEnv> OperationsOn<TupleTerm> for Tc<'_, E> {
                 match *annotation_ty.value() {
                     Ty::TupleTy(tuple_ty) => Ok(self.visitor().copy(tuple_ty.data)),
                     _ if meta.is_some() => {
-                        Ok(self.params_from_args_with_hole_types(tuple_term.data))
+                        Ok(self.params_from_args_with_meta_types(tuple_term.data))
                     }
                     _ => {
-                        let inferred = self.params_from_args_with_hole_types(tuple_term.data);
+                        let inferred = self.params_from_args_with_meta_types(tuple_term.data);
                         Err(TcError::MismatchingTypes {
                             expected: annotation_ty,
                             actual: Ty::from(
@@ -86,7 +86,7 @@ impl<E: TcEnv> OperationsOn<TupleTy> for Tc<'_, E> {
         _original_term_id: Self::Node,
     ) -> TcResult<()> {
         self.context().enter_scope(ScopeKind::TupleTy(*tuple_ty), || {
-            self.check_node_scoped(tuple_ty.data, (), |()| Ok(()))
+            self.check_node_scoped(tuple_ty.data, (), |_| Ok(()))
         })?;
 
         self.check_is_universe(annotation_ty)?;

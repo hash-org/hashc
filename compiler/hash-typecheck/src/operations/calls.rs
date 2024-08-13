@@ -1,7 +1,6 @@
 use std::ops::ControlFlow;
 
 use hash_storage::store::statics::StoreId;
-use hash_storage::store::sequence::SequenceStoreKey;
 use hash_tir::{
     context::HasContext, intrinsics::make::IsIntrinsic, tir::{ArgsId, CallTerm, NodeId, NodesId, Term, TermId, TyId}
 };

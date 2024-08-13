@@ -164,7 +164,7 @@ impl<'a, T: TcEnv> Substituter<'a, T> {
     /// Create a substitution from the given source parameter names to the
     /// target parameter names.
     ///
-    /// Invariant: the parameters unify.
+    /// Invariant: the parameters have the same length.
     pub fn create_sub_from_param_names(
         &self,
         src_params: ParamsId,

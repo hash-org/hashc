@@ -84,32 +84,37 @@ impl<E: TcEnv> Tc<'_, E> {
             })
         };
 
-        match *annotation_ty.value() {
-            Ty::DataTy(data) => {
-                let data_def = data.data_def.value();
+        self.try_or_normalise(annotation_ty, |annotation_ty, meta| {
+            match *annotation_ty.value() {
+                Ty::DataTy(data) => {
+                    let data_def = data.data_def.value();
 
-                match data_def.ctors {
-                    DataDefCtors::Primitive(primitive) => {
-                        if let PrimitiveCtorInfo::Array(array_prim) = primitive {
-                            // First infer the data arguments
-                            let copied_params = self.visitor().copy(data_def.params);
-                            self.check_node(data.args, copied_params)?;
-                            let sub = self.substituter().create_sub_from_args_of_params(data.args, copied_params);
-                            let subbed_element_ty = self.substituter().apply_sub(array_prim.element_ty, &sub);
-                            let subbed_index = array_prim
-                                .length
-                                .map(|l| self.substituter().apply_sub(l, &sub));
-                            Ok(Some((subbed_element_ty, subbed_index)))
-                        } else {
-                            mismatch()
+                    match data_def.ctors {
+                        DataDefCtors::Primitive(primitive) => {
+                            if let PrimitiveCtorInfo::Array(array_prim) = primitive {
+                                // First infer the data arguments
+                                let copied_params = self.visitor().copy(data_def.params);
+                                self.check_node(data.args, copied_params)?;
+                                let sub = self
+                                    .substituter()
+                                    .create_sub_from_args_of_params(data.args, copied_params);
+                                let subbed_element_ty =
+                                    self.substituter().apply_sub(array_prim.element_ty, &sub);
+                                let subbed_index = array_prim
+                                    .length
+                                    .map(|l| self.substituter().apply_sub(l, &sub));
+                                Ok(Some((subbed_element_ty, subbed_index)))
+                            } else {
+                                mismatch()
+                            }
                         }
+                        _ => mismatch(),
                     }
-                    _ => mismatch(),
                 }
+                _ if meta.is_some() => Ok(None),
+                _ => mismatch(),
             }
-            Ty::Meta(_) => Ok(None),
-            _ => mismatch(),
-        }
+        })
     }
 
     pub fn normalise_array_term_len(&self, array: ArrayTerm) -> NormaliseResult<usize> {
@@ -137,9 +142,11 @@ impl<E: TcEnv> OperationsOn<ArrayTerm> for Tc<'_, E> {
         _: Self::Node,
     ) -> TcResult<()> {
         let array_len_origin = array_term.length_origin();
-        let (inner_ty, array_len) = self
-            .use_ty_as_array_ty(annotation_ty)?
-            .unwrap_or_else(|| (self.fresh_meta(array_len_origin.inferred()), None));
+        let mut annot_is_meta = false;
+        let (inner_ty, array_len) = self.use_ty_as_array_ty(annotation_ty)?.unwrap_or_else(|| {
+            annot_is_meta = true;
+            (self.fresh_meta(array_len_origin.inferred()), None)
+        });
 
         // Now unify that the terms that are specified in the array match the
         // annotation type.
@@ -172,7 +179,7 @@ impl<E: TcEnv> OperationsOn<ArrayTerm> for Tc<'_, E> {
         //   array of the specified length.
         //
         // - Otherwise, we just default to a list type.
-        if let Ty::Meta(_) = *annotation_ty.value() {
+        if annot_is_meta {
             let default_annotation = match array_term {
                 ArrayTerm::Normal(_) => list_ty(inner_ty, NodeOrigin::Expected),
                 ArrayTerm::Repeated(_, repeat) => array_ty(inner_ty, *repeat, NodeOrigin::Expected),
@@ -200,9 +207,7 @@ impl<E: TcEnv> OperationsOn<ArrayTerm> for Tc<'_, E> {
         target_node: Self::Node,
     ) -> TcResult<()> {
         match (src, target) {
-            (ArrayTerm::Normal(src), ArrayTerm::Normal(target)) => {
-                self.unify_nodes(*src, *target)
-            }
+            (ArrayTerm::Normal(src), ArrayTerm::Normal(target)) => self.unify_nodes(*src, *target),
             (ArrayTerm::Repeated(src, src_repeat), ArrayTerm::Repeated(target, target_repeat)) => {
                 self.unify_nodes(*src, *target)?;
                 self.unify_nodes(*src_repeat, *target_repeat)

@@ -115,6 +115,7 @@ impl Size {
     /// representable within this size.
     #[inline]
     pub fn unsigned_int_max(&self) -> u128 {
+        println!("{}", self.bits());
         u128::MAX >> (128 - self.bits())
     }
 

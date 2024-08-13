@@ -44,7 +44,7 @@ impl<E: TcEnv> OperationsOn<FnTy> for Tc<'_, E> {
 
     fn check(&self, fn_ty: &mut FnTy, item_ty: Self::AnnotNode, _: Self::Node) -> TcResult<()> {
         self.check_is_universe(item_ty)?;
-        self.check_node_scoped(fn_ty.params, (), |()| {
+        self.check_node_scoped(fn_ty.params, (), |_| {
             self.check_node(fn_ty.return_ty, Ty::universe(NodeOrigin::Expected))
         })?;
         Ok(())
@@ -70,8 +70,11 @@ impl<E: TcEnv> OperationsOn<FnTy> for Tc<'_, E> {
             Ok(())
         } else {
             // Unify parameters and apply to return types
-            self.unify_nodes_scoped(f1.params, f2.params, |()| {
-                self.unify_nodes(f1.return_ty, f2.return_ty)
+            self.unify_nodes_scoped(f1.params, f2.params, |_| {
+                let s = self.substituter();
+                let sub = s.create_sub_from_param_names(f2.params, f1.params);
+                let f2_return_ty_subbed = s.apply_sub(f2.return_ty, &sub);
+                self.unify_nodes(f1.return_ty, f2_return_ty_subbed)
             })?;
             Ok(())
         }
