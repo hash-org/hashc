@@ -242,7 +242,11 @@ pub trait SequenceStoreIter<Key: SequenceStoreKey, Value: Clone> {
 impl<Key: SequenceStoreKey, Value: Clone, T: SequenceStore<Key, Value>>
     SequenceStoreIter<Key, Value> for T
 {
-    type Iter<'s> = impl Iterator<Item = Value> + 's where T: 's, Key: 's;
+    type Iter<'s>
+        = impl Iterator<Item = Value> + 's
+    where
+        T: 's,
+        Key: 's;
     fn iter(&self, key: Key) -> Self::Iter<'_> {
         unsafe {
             key.to_index_range().map(move |index| {
