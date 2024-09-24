@@ -16,7 +16,7 @@ use crate::{
 };
 
 /// A wrapper trait around `HasDiagnostics` for specifically diagnostics that
-/// can accomodate `TcError`s, `ExhaustivenessError`s and
+/// can accommodate `TcError`s, `ExhaustivenessError`s and
 /// `ExhaustivenessWarning`s. (and `TcWarning`s in the future.)
 pub trait HasTcDiagnostics: HasDiagnostics<Diagnostics = Self::TcDiagnostics> {
     type ForeignError: From<TcError> + From<ExhaustivenessError>;
@@ -51,7 +51,7 @@ pub trait TcEnv:
     }
 
     /// Create a new typechecker using the given context.
-    fn checker<'a>(&'a self, context: &'a Context) -> Tc<Self> {
+    fn checker<'a>(&'a self, context: &'a Context) -> Tc<'a, Self> {
         Tc {
             env: self,
             context,
