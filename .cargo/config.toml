@@ -4,3 +4,9 @@ rustdocflags = ["--show-type-layout", "-Z", "unstable-options"]
 
 [stable]
 sparse-registry = true
+
+
+[target.'cfg(all())']
+rustflags = [
+    "-Aclippy::too_long_first_doc_paragraph",
+]
