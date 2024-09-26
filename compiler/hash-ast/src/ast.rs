@@ -69,7 +69,6 @@ impl Hunk {
 /// [`AstNode<T>`] itself in order for other data structures to be able
 /// to query the [Span] of a node simply by using the [AstNodeId] of the
 /// node.
-
 static SPAN_MAP: Lazy<RwLock<Vec<Span>>> = Lazy::new(|| {
     // We initialise the map with a NULL node-id so we can use it as the default
     // for items that need a node, but don't have one.

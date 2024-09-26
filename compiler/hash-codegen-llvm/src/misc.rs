@@ -244,7 +244,6 @@ impl AttributeKind {
 
 /// A wrapper type to convert the generic [CodeModel] into the
 /// [inkwell::targets::CodeModel] equivalent type.
-
 pub struct CodeModelWrapper(pub inkwell::targets::CodeModel);
 
 impl From<CodeModel> for CodeModelWrapper {

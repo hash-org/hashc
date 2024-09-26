@@ -699,13 +699,6 @@ impl fmt::Display for &ReprTy {
     }
 }
 
-// new_sequence_store_key_indirect!(pub ReprTyListId, ReprTyId, derives =
-// Debug);
-
-/// Define the [TyListStore], which is a sequence of [ReprTy]s associated
-/// with a [ReprTyListId].
-// pub type TyListStore = DefaultSequenceStore<ReprTyListId, ReprTyId>;
-
 impl fmt::Display for ReprTyListId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let value = self.value();

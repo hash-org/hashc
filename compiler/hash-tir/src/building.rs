@@ -1,4 +1,4 @@
-/// Building utilities for TIR nodes.
+//! Building utilities for TIR nodes.
 
 /// Building utilities for TIR nodes which do not have an origin, i.e. are
 /// "generated".
