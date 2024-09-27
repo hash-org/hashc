@@ -374,9 +374,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                 let resolved_path = self.resolve_ast_path(&path)?;
                 self.make_pat_from_resolved_ast_path(&resolved_path, node.id())
             }
-            ast::Pat::Macro(invocation) => {
-                return self.make_pat_from_ast_pat(invocation.subject.ast_ref())
-            }
+            ast::Pat::Macro(invocation) => self.make_pat_from_ast_pat(invocation.subject.ast_ref()),
             ast::Pat::Module(_) => {
                 // This should be handled earlier
                 panic_on_span!(node.span(), "Found module pattern during symbol resolution")

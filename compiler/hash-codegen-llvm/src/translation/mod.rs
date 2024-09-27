@@ -28,7 +28,7 @@ mod statics;
 pub(crate) mod ty;
 
 /// An empty c-string.
-const EMPTY_C_STR: &CStr = unsafe { CStr::from_bytes_with_nul_unchecked(b"\0") };
+const EMPTY_C_STR: &CStr = c"";
 
 /// Used to fill in names where LLVM requires a name for an instruction, or some
 /// value. We don't care about the names, so we just use an empty c-string.
