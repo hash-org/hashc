@@ -61,6 +61,10 @@ Variants := enum(
 #layout_of
 Empty := enum();
 
-
+#layout_of
+Boon := enum(
+    Foo(x: i32, y: i32),
+    Faz(z: f64),
+);
 
 main := () => {}
