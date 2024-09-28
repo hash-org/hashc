@@ -101,7 +101,7 @@ impl Display for Lit {
                 match constant.kind {
                     ConstKind::Zero => write!(f, "()"),
                     ConstKind::Scalar(scalar) => {
-                        write!(f, "{}", ScalarPrinter::new(scalar, &ty, Size::ZERO, true))
+                        write!(f, "{}", ScalarPrinter::new(scalar, &ty, Size::from_bits(64), true))
                     }
                     ConstKind::Pair { data, .. } if ty.is_str() => {
                         write!(f, "\"{}\"", data.to_str())
