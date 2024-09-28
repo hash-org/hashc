@@ -547,9 +547,9 @@ impl Default for LoweringSettings {
 
 impl MergeConfig for LoweringSettings {
     fn merge_config(&mut self, config: &Self) {
-        self.dump |= config.dump;
+        self.dump = config.dump;
         self.dump_mode = config.dump_mode;
-        self.checked_operations |= config.checked_operations;
+        self.checked_operations = config.checked_operations;
     }
 }
 
