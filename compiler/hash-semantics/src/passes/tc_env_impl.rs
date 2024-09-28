@@ -7,7 +7,7 @@ use hash_target::{HasTarget, Target};
 use hash_tir::{
     atom_info::{AtomInfoStore, HasAtomInfo},
     stores::tir_stores,
-    tir::FnDefId,
+    tir::{FnDefId, HasMetas},
 };
 use hash_tir_utils::lower::{HasTyCache, TyCache};
 use hash_typecheck::env::{HasTcDiagnostics, TcEnv};
@@ -83,6 +83,12 @@ impl<E: SemanticEnv> HasCompilerSettings for TcEnvImpl<'_, E> {
 impl<E: SemanticEnv> HasAtomInfo for TcEnvImpl<'_, E> {
     fn atom_info(&self) -> &AtomInfoStore {
         tir_stores().atom_info()
+    }
+}
+
+impl<E: SemanticEnv> HasMetas for TcEnvImpl<'_, E> {
+    fn metas(&self) -> &hash_tir::tir::Metas {
+        self.env.metas()
     }
 }
 

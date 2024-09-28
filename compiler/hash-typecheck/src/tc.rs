@@ -12,7 +12,7 @@ use hash_utils::{derive_more::Deref, state::LightState};
 use crate::{
     env::{HasTcEnv, TcEnv},
     options::{normalisation::NormalisationOptions, unification::UnificationOptions},
-    utils::{metas::MetaContext, substitution::Substituter},
+    utils::substitution::Substituter,
 };
 
 /// The mode in which to infer the type of a function.
@@ -41,7 +41,6 @@ pub struct Tc<'tc, E> {
     #[deref]
     pub env: &'tc E,
     pub context: &'tc Context,
-    pub meta_context: MetaContext,
     pub fn_infer_mode: LightState<FnInferMode>,
     pub unification_opts: UnificationOptions,
     pub normalisation_opts: NormalisationOptions,

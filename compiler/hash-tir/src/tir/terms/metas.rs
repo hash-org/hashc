@@ -1,8 +1,12 @@
 //! Definitions related to term holes.
 
 use core::fmt;
+use std::fmt::{Display, Formatter};
 
-use crate::tir::{NodeOrigin, SymbolId};
+use hash_storage::store::{statics::StoreId, DefaultPartialStore, PartialCloneStore, PartialStore};
+
+use super::{CallTerm, Term, TermId};
+use crate::tir::{ArgsId, NodeId, NodeOrigin, SymbolId};
 
 /// A metavariable, or in other words a variable which will be resolved as a
 /// term later.
@@ -36,5 +40,77 @@ impl fmt::Display for Meta {
 impl Meta {
     pub fn fresh_hole(origin: NodeOrigin) -> Self {
         Meta::Hole(SymbolId::fresh_prefixed("h", origin))
+    }
+}
+
+#[derive(Default)]
+pub struct Metas(DefaultPartialStore<Meta, TermId>);
+
+impl Metas {
+    pub fn new() -> Metas {
+        Self::default()
+    }
+}
+
+pub trait HasMetas {
+    fn metas(&self) -> &Metas;
+
+    fn get_meta(&self, meta: Meta) -> Option<TermId> {
+        self.metas().0.get(meta)
+    }
+
+    fn new_meta(&self, origin: NodeOrigin) -> Meta {
+        Meta::Generated(SymbolId::fresh_prefixed("m", origin))
+    }
+
+    fn classify_meta_call(&self, term: Term) -> Option<MetaCall> {
+        match term {
+            Term::Call(CallTerm { subject, args, .. }) => match subject.value().data {
+                Term::Meta(meta) => Some(MetaCall { meta, args }),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    fn solve_meta(&self, meta: Meta, term: TermId) -> Option<TermId> {
+        self.metas().0.insert(meta, term)
+    }
+
+    fn force(&self, term: TermId) -> TermId {
+        match self.classify_meta_call(term.value().data) {
+            Some(call) => match self.get_meta(call.meta).map(|s| self.force(s)) {
+                Some(resolved) => self.force(Term::from(
+                    CallTerm { subject: resolved, args: call.args, implicit: false },
+                    term.origin(),
+                )),
+                None => term,
+            },
+            None => term,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct MetaCall {
+    pub meta: Meta,
+    pub args: ArgsId,
+}
+
+impl Display for Metas {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        writeln!(f, "Metas:")?;
+        for val in self.0.internal_data().iter() {
+            let (meta, term) = val.pair();
+            match (*term).value().data {
+                Term::Fn(func) => {
+                    writeln!(f, "  {} := {}", meta, func.value().data)?;
+                }
+                _ => {
+                    writeln!(f, "  {} := {}", meta, term)?;
+                }
+            }
+        }
+        Ok(())
     }
 }

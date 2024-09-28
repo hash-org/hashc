@@ -5,7 +5,7 @@ use hash_reporting::diagnostic::{Diagnostics, HasDiagnostics};
 use hash_repr::HasLayout;
 use hash_source::{entry_point::EntryPointState, SourceId};
 use hash_target::HasTarget;
-use hash_tir::{atom_info::HasAtomInfo, context::Context, tir::FnDefId};
+use hash_tir::{atom_info::HasAtomInfo, context::Context, tir::{FnDefId, HasMetas}};
 use hash_tir_utils::lower::{HasTyCache, TyLowerEnv};
 use hash_utils::{profiling::HasMetrics, state::LightState};
 
@@ -13,7 +13,6 @@ use crate::{
     diagnostics::TcError,
     options::{normalisation::NormalisationOptions, unification::UnificationOptions},
     tc::{FnInferMode, Tc},
-    utils::metas::MetaContext,
 };
 
 /// A wrapper trait around `HasDiagnostics` for specifically diagnostics that
@@ -34,6 +33,7 @@ pub trait TcEnv:
     + HasTarget
     + HasIrCtx
     + HasTyCache
+    + HasMetas
     + HasLayout
     + HasAtomInfo
     + HasCompilerSettings
@@ -56,7 +56,6 @@ pub trait TcEnv:
         Tc {
             env: self,
             context,
-            meta_context: MetaContext::new(),
             in_pat: LightState::new(false),
             fn_infer_mode: LightState::new(FnInferMode::Body),
             unification_opts: UnificationOptions::default(),

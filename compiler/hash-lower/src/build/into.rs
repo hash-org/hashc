@@ -41,8 +41,8 @@ impl<'tcx> BodyBuilder<'tcx> {
     ) -> BlockAnd<()> {
         let span = self.span_of_term(term);
 
+
         let block_and = match *term.value() {
-            // // This includes `loop { ... } `, `{ ... }`, `match { ... }`
             Term::Block(_) | Term::Match(_) | Term::Loop(_) => {
                 self.block_into_dest(destination, block, term)
             }

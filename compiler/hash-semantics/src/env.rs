@@ -5,7 +5,7 @@ use hash_reporting::diagnostic::{Diagnostics, HasDiagnostics};
 use hash_repr::HasLayout;
 use hash_source::entry_point::EntryPointState;
 use hash_target::HasTarget;
-use hash_tir::tir::{FnDefId, ModDefId};
+use hash_tir::tir::{FnDefId, HasMetas, ModDefId};
 use hash_tir_utils::lower::HasTyCache;
 use hash_utils::profiling::HasMetrics;
 use once_cell::sync::OnceCell;
@@ -26,6 +26,7 @@ pub trait SemanticEnv:
     + HasCompilerSettings
     + HasTarget
     + HasLayout
+    + HasMetas
     + HasIrCtx
     + HasTyCache
 {

@@ -43,7 +43,7 @@ impl<E: SemanticEnv> InferencePass<'_, E> {
             return Err(TcError::Signal);
         }
 
-        // If we have holes, error
+        // // If we have holes, error
         // if let Some(subject) = subject
         //     && let Some(hole) = subject_has_holes(subject)
         //     && self.get_current_progress(source) == AnalysisStage::BodyInference

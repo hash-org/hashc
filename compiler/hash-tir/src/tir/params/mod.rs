@@ -23,8 +23,6 @@ pub mod utils;
 
 pub use utils::*;
 
-use super::Symbol;
-
 /// A parameter, declaring a potentially named variable with a given type and
 /// possibly a default value.
 #[derive(Debug, Clone, Copy)]

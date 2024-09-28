@@ -21,6 +21,7 @@ use hash_reporting::diagnostic::{DiagnosticCellStore, Diagnostics, HasDiagnostic
 use hash_repr::{compute::LayoutComputer, HasLayout, LayoutStorage};
 use hash_source::SourceId;
 use hash_target::{HasTarget, Target};
+use hash_tir::tir::{HasMetas, Metas};
 use hash_tir_utils::lower::{HasTyCache, TyCache};
 use hash_utils::profiling::{CellStageMetrics, HasMetrics, StageMetrics};
 use storage::SemanticStorage;
@@ -165,6 +166,12 @@ impl HasIrCtx for SemanticEnvImpl<'_> {
 impl HasTyCache for SemanticEnvImpl<'_> {
     fn repr_ty_cache(&self) -> &TyCache {
         &self.ctx.semantic_storage.repr_ty_cache
+    }
+}
+
+impl HasMetas for SemanticEnvImpl<'_> {
+    fn metas(&self) -> &Metas {
+        &self.ctx.semantic_storage.metas
     }
 }
 

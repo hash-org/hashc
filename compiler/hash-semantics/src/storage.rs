@@ -1,3 +1,4 @@
+use hash_tir::tir::Metas;
 use hash_tir_utils::lower::TyCache;
 
 use crate::{prelude::DistinguishedItems, progress::AnalysisProgress};
@@ -15,4 +16,7 @@ pub struct SemanticStorage {
 
     /// The conversion cache between TIR types to Repr types.
     pub repr_ty_cache: TyCache,
+
+    /// Metavariables of TIR terms.
+    pub metas: Metas,
 }
