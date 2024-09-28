@@ -240,12 +240,17 @@ struct IrBlockWriter<'ir> {
 impl fmt::Display for IrBlockWriter<'_> {
     fn fmt(&self, w: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Now we write the first row, which is the basic block header
-        let block_id = format!("{:?}", self.id.raw());
+        let prefix = if let Some(index) = self.options.use_subgraph {
+            format!("c{index}_")
+        } else {
+            "".to_string()
+        };
+        let id = format!("{prefix}{:?}", self.id);
 
         // First write the table, and the header of the table
         write!(
             w,
-            r#"  {block_id} [shape="none", label=<<table border="0" cellborder="1" cellspacing="0">"#
+            r#"  {id} [shape="none", label=<<table border="0" cellborder="1" cellspacing="0">"#
         )?;
 
         write!(
