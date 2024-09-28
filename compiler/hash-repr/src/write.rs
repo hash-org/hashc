@@ -338,8 +338,10 @@ impl BoxRow {
             return;
         }
 
-        // Insert an empty box to fill in the missing gap.
-        if width - current_width > 2 {
+        // For singletons, insert an empty box to fill in the missing gap.
+        let singleton = self.contents.len() == 1;
+
+        if singleton && width - current_width > 2 {
             let empty_width = width - current_width - 1;
             self.widths.push(empty_width);
             self.contents.push(BoxContent::new_empty(empty_width));
