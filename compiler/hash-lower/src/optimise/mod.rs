@@ -54,6 +54,7 @@ impl<'ir> Optimiser<'ir> {
             passes: vec![
                 Box::new(simplify_graph::SimplifyGraphPass),
                 Box::new(cleanup_locals::CleanupLocalPass),
+                Box::new(simplify_graph::SimplifyGraphPass),
             ],
             metrics: CellStageMetrics::default(),
         }

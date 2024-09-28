@@ -183,7 +183,9 @@ impl MergeConfig for CompilerSettings {
 impl CompilerSettings {
     /// Create a new [CompilerSettings].
     pub fn new() -> Self {
-        Self::default()
+        let mut s = Self::default();
+        s.post_init();
+        s
     }
 
     /// Create a new [CompilerSettings] from the command-line arguments.
@@ -207,7 +209,17 @@ impl CompilerSettings {
             },
         )?;
 
+        settings.post_init();
         Ok(settings)
+    }
+
+    /// Run any post-init adjustments that must happen after the settings.
+    ///
+    /// Add some kind of utility to guarantee a `PostInit` trait that can be
+    /// implemented by the settings.
+    #[inline]
+    fn post_init(&mut self) {
+        self.apply_optimisation_level(self.optimisation_level);
     }
 
     /// Get the entry point filename from the [CompilerSettings]. If
@@ -535,9 +547,9 @@ impl Default for LoweringSettings {
 
 impl MergeConfig for LoweringSettings {
     fn merge_config(&mut self, config: &Self) {
-        self.dump |= config.dump;
+        self.dump = config.dump;
         self.dump_mode = config.dump_mode;
-        self.checked_operations |= config.checked_operations;
+        self.checked_operations = config.checked_operations;
     }
 }
 
