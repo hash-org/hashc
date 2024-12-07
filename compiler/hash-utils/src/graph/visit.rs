@@ -30,7 +30,7 @@ pub fn post_order_from_to<G: DirectedGraph + WithSuccessors>(
 
         visited[node] = true;
 
-        if end_node.map_or(true, |end_node| node != end_node) {
+        if end_node != Some(node) {
             stack.push(node);
             for successor in graph.successors(node) {
                 stack.push(successor);

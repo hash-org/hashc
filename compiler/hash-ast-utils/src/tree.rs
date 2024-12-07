@@ -417,7 +417,7 @@ impl AstVisitor for AstTreePrinter {
     ) -> Result<Self::RefTyRet, Self::Error> {
         let walk::RefTy { inner, mutability, .. } = walk::walk_ref_ty(self, node)?;
 
-        let label = if node.kind.as_ref().map_or(false, |t| *t.body() == ast::RefKind::Raw) {
+        let label = if node.kind.as_ref().is_some_and(|t| *t.body() == ast::RefKind::Raw) {
             "raw_ref"
         } else {
             "ref"

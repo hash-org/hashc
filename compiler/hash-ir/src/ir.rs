@@ -840,7 +840,7 @@ impl BasicBlockData {
     /// the terminator is of kind [TerminatorKind::Unreachable].
     pub fn is_empty_and_unreachable(&self) -> bool {
         self.statements.is_empty()
-            && self.terminator.as_ref().map_or(false, |t| t.kind == TerminatorKind::Unreachable)
+            && self.terminator.as_ref().is_some_and(|t| t.kind == TerminatorKind::Unreachable)
     }
 }
 

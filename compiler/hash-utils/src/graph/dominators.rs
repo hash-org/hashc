@@ -119,7 +119,7 @@ fn from_fn_n<I: Idx, T>(func: impl FnMut(I) -> T, n: usize) -> IndexVec<I, T> {
 }
 
 fn is_processed(node: PreOrderIndex, last_linked: Option<PreOrderIndex>) -> bool {
-    last_linked.map_or(false, |last_linked| node >= last_linked)
+    last_linked.is_some_and(|last_linked| node >= last_linked)
 }
 
 fn compress(
