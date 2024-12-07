@@ -752,7 +752,10 @@ impl AstGen<'_> {
 
                 // We want to emit a redundant parentheses warning if it is not a binary-like
                 // expression since it does not affect the precedence...
-                if !matches!(expr.body(), Expr::BinaryExpr(_) | Expr::Cast(_) | Expr::FnDef(_)) {
+                if !matches!(
+                    expr.body(),
+                    Expr::BinaryExpr(_) | Expr::Cast(_) | Expr::FnDef(_) | Expr::Deref(_)
+                ) {
                     gen.add_warning(ParseWarning::new(
                         WarningKind::RedundantParenthesis(expr.body().into()),
                         gen.make_span(gen.range()),
