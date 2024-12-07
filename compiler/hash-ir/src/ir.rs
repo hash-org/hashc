@@ -709,7 +709,7 @@ pub struct SwitchTargetsIter<'a> {
     inner: iter::Zip<slice::Iter<'a, u128>, slice::Iter<'a, BasicBlock>>,
 }
 
-impl<'a> Iterator for SwitchTargetsIter<'a> {
+impl Iterator for SwitchTargetsIter<'_> {
     type Item = (u128, BasicBlock);
 
     fn next(&mut self) -> Option<Self::Item> {

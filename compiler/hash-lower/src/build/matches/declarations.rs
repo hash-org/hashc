@@ -15,7 +15,7 @@ use hash_tir::tir::{
 use super::{candidate::Candidate, BlockAnd, BodyBuilder};
 use crate::build::{place::PlaceBuilder, unpack, BlockAndExtend};
 
-impl<'tcx> BodyBuilder<'tcx> {
+impl BodyBuilder<'_> {
     /// Push a [LocalDecl] in the current [BodyBuilder] with the associated
     /// [Symbol]. This will put the [LocalDecl] into the declarations, and
     /// create an entry in the lookup map so that the [Local] can be looked up

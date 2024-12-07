@@ -89,7 +89,7 @@ impl CollectionPrintingOptions {
     }
 }
 
-impl<'ast, T> AstPrettyPrinter<'ast, T>
+impl<T> AstPrettyPrinter<'_, T>
 where
     T: std::io::Write,
 {

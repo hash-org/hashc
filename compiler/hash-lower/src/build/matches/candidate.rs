@@ -172,7 +172,7 @@ pub(super) enum BindingMode {
     ByRef,
 }
 
-impl<'tcx> BodyBuilder<'tcx> {
+impl BodyBuilder<'_> {
     /// This function attempts to simplify a [Candidate] so that all match pairs
     /// can be tested. This method will also split the candidate in which
     /// the only match pair is a `or` pattern, in order for matches like:

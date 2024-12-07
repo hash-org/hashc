@@ -13,7 +13,7 @@ use crate::diagnostics::{
     warning::{ParseWarning, WarningKind},
 };
 
-impl<'s> AstGen<'s> {
+impl AstGen<'_> {
     /// Parse a top level [Expr] that are optionally terminated with a
     /// semi-colon.
     #[profiling::function]

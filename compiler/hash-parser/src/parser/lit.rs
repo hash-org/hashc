@@ -8,7 +8,7 @@ use hash_utils::thin_vec::thin_vec;
 use super::AstGen;
 use crate::diagnostics::error::ParseResult;
 
-impl<'s> AstGen<'s> {
+impl AstGen<'_> {
     /// Parse a primitive literal, which means it can be either a `char`,
     /// `integer`, `float` or a `string`.
     pub(crate) fn parse_primitive_lit(&mut self) -> AstNode<Lit> {

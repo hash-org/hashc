@@ -23,7 +23,7 @@ pub struct ConstFolder<'ctx> {
 
 type OverflowingOp = fn(i128, i128) -> (i128, bool);
 
-impl<'ctx> ConstFolder<'ctx> {
+impl ConstFolder<'_> {
     /// Attempt to evaluate two [Const]s and a binary operator.
     pub fn try_fold_bin_op(&self, op: BinOp, lhs: &Const, rhs: &Const) -> Option<Const> {
         // If the two constants are non-scalar, then we abort the folding...

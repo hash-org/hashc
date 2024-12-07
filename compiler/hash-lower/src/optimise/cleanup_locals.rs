@@ -259,7 +259,7 @@ impl LocalUpdater {
     }
 }
 
-impl<'ir> ModifyingIrVisitor<'ir> for LocalUpdater {
+impl ModifyingIrVisitor<'_> for LocalUpdater {
     /// Perform a remapping of the [Local] within the [Place] to a new [Local].
     fn visit_local(&self, local: &mut Local, _: PlaceCtx, _: IrRef) {
         if let Some(new_local) = self.remap[*local] {

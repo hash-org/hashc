@@ -295,4 +295,4 @@ impl<'ir> Iterator for ReversePostOrder<'ir> {
     }
 }
 
-impl<'ir> ExactSizeIterator for ReversePostOrder<'ir> {}
+impl ExactSizeIterator for ReversePostOrder<'_> {}

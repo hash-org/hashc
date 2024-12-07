@@ -43,7 +43,7 @@ impl<'c, T> Brick<'c, T> {
     }
 }
 
-impl<'c, T: Clone> Brick<'c, T> {
+impl<T: Clone> Brick<'_, T> {
     /// Clone the value inside the `Brick`, and return the cloned value itself.
     pub fn clone_out(&self) -> T {
         (*self).clone()

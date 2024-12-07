@@ -25,7 +25,7 @@ use crate::{
     env::SemanticEnv,
 };
 
-impl<'env, E: SemanticEnv> DiscoveryPass<'env, E> {
+impl<E: SemanticEnv> DiscoveryPass<'_, E> {
     /// Compute the type of the discriminant from a given [`ast::EnumDef`].
     ///
     /// The algorithm follows the following rules:

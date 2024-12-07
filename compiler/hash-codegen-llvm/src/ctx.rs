@@ -156,7 +156,7 @@ impl<'b, 'm> CodeGenCtx<'b, 'm> {
 }
 
 /// Implement the types for the [CodeGenCtx].
-impl<'b, 'm> BackendTypes for CodeGenCtx<'b, 'm> {
+impl<'m> BackendTypes for CodeGenCtx<'_, 'm> {
     type Value = llvm::values::AnyValueEnum<'m>;
 
     type Function = llvm::values::FunctionValue<'m>;

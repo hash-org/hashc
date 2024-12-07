@@ -144,8 +144,8 @@ struct LocalKindAnalyser<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> {
     locals: IndexVec<Local, LocalMemoryKind>,
 }
 
-impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> fmt::Display
-    for LocalKindAnalyser<'ir, 'a, 'b, Builder>
+impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> fmt::Display
+    for LocalKindAnalyser<'_, 'a, 'b, Builder>
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // compute the longest local name, and align all of the
@@ -171,7 +171,7 @@ impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> fmt::Display
     }
 }
 
-impl<'ir, 'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> LocalKindAnalyser<'ir, 'a, 'b, Builder> {
+impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> LocalKindAnalyser<'_, 'a, 'b, Builder> {
     /// Perform an "assignment" to a particular local. This will
     /// change the previous kind of memory with the following rules:
     ///

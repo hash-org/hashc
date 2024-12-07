@@ -22,7 +22,7 @@ pub struct Analyser<'env, E: SemanticEnv> {
     env: &'env E,
 }
 
-impl<'env, E: SemanticEnv> Analyser<'env, E> {
+impl<E: SemanticEnv> Analyser<'_, E> {
     /// Visits the source passed in as an argument to [Self::new_in_source]
     pub fn visit_source(&self, source: SourceId) -> SemanticResult<()> {
         // AST info for discovery and resolution passes.

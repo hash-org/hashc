@@ -45,7 +45,7 @@ pub fn convert_basic_ty_to_any(ty: BasicTypeEnum) -> AnyTypeEnum {
     }
 }
 
-impl<'b, 'm> CodeGenCtx<'b, 'm> {
+impl<'m> CodeGenCtx<'_, 'm> {
     /// Create a [VectorType] from a [`AbiRepresentation::Vector`].
     pub(crate) fn type_vector(&self, element_ty: AnyTypeEnum<'m>, len: u64) -> AnyTypeEnum<'m> {
         // @@PatchInkwell: we should allow creating a vector type from a
@@ -82,7 +82,7 @@ impl<'b, 'm> CodeGenCtx<'b, 'm> {
     }
 }
 
-impl<'b, 'm> TypeBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
+impl<'b> TypeBuilderMethods<'b> for CodeGenCtx<'b, '_> {
     fn type_i1(&self) -> Self::Type {
         self.ll_ctx.bool_type().into()
     }

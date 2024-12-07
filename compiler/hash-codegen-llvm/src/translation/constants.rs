@@ -17,7 +17,7 @@ use llvm_sys::core as llvm;
 
 use crate::ctx::CodeGenCtx;
 
-impl<'b, 'm> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
+impl<'b> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, '_> {
     fn const_undef(&self, ty: Self::Type) -> Self::Value {
         let ty: BasicTypeEnum = ty.try_into().unwrap();
         match ty {

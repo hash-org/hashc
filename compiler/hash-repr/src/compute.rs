@@ -123,7 +123,7 @@ impl HasDataLayout for LayoutComputer<'_> {
     }
 }
 
-impl<'l> LayoutComputer<'l> {
+impl LayoutComputer<'_> {
     /// Returns a reference to the [LayoutStorage].
     pub fn ctx(&self) -> &LayoutStorage {
         self.ctx

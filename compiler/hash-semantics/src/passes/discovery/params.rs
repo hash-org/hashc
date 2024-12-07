@@ -6,7 +6,7 @@ use hash_tir::tir::{Node, NodeOrigin, NodesId, Param, ParamId, ParamIndex, Param
 use super::DiscoveryPass;
 use crate::env::SemanticEnv;
 
-impl<'env, E: SemanticEnv> DiscoveryPass<'env, E> {
+impl<E: SemanticEnv> DiscoveryPass<'_, E> {
     /// Create a parameter list from the given AST generic parameter list, where
     /// the type of each parameter is a hole.
     pub(super) fn create_hole_params_from<T>(

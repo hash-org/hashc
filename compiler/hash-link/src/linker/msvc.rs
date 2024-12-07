@@ -19,7 +19,7 @@ pub struct MsvcLinker<'ctx> {
     pub settings: &'ctx CompilerSettings,
 }
 
-impl<'ctx> Linker for MsvcLinker<'ctx> {
+impl Linker for MsvcLinker<'_> {
     fn cmd(&mut self) -> &mut LinkCommand {
         &mut self.command
     }

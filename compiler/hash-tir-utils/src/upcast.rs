@@ -24,7 +24,7 @@ pub struct TyUpCast<'tc, E> {
     env: &'tc E,
 }
 
-impl<'tc, E: HasTarget> TyUpCast<'tc, E> {
+impl<E: HasTarget> TyUpCast<'_, E> {
     /// Convert a [ReprTyId] into a [TyId].
     pub fn ty_from_repr_ty(&self, ty: ReprTyId, origin: impl Into<NodeOrigin>) -> Option<TyId> {
         match ty.value() {

@@ -25,7 +25,7 @@ impl<'b> LayoutMethods<'b> for CodeGenCtx<'b, '_> {
     }
 }
 
-impl<'b, 'm> LayoutMethods<'b> for LLVMBuilder<'_, 'b, 'm> {
+impl<'b> LayoutMethods<'b> for LLVMBuilder<'_, 'b, '_> {
     fn backend_field_index(&self, info: TyInfo, index: usize) -> u64 {
         self.ctx.backend_field_index(info, index)
     }

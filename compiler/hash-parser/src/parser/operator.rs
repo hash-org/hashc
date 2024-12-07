@@ -5,7 +5,7 @@ use hash_token::{keyword::Keyword, TokenKind};
 
 use super::AstGen;
 
-impl<'s> AstGen<'s> {
+impl AstGen<'_> {
     /// This function is used to pickup 'glued' operator tokens to form more
     /// complex binary operators that might be made up of multiple tokens.
     /// The function will peek ahead (2 tokens at most since all binary

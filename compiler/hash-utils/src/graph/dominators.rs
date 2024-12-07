@@ -74,7 +74,7 @@ pub struct DominatorsIter<'dom, Node: Idx> {
     node: Option<Node>,
 }
 
-impl<'dom, Node: Idx> Iterator for DominatorsIter<'dom, Node> {
+impl<Node: Idx> Iterator for DominatorsIter<'_, Node> {
     type Item = Node;
 
     fn next(&mut self) -> Option<Self::Item> {
