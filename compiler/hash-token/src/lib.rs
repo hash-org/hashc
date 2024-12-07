@@ -319,15 +319,9 @@ pub enum TokenKind {
     /// Identifier.
     Ident(Identifier),
 
-    /// Tree - The index is set as a `u32` since it isn't going
-    /// to be the case that the index will or should ever really
-    /// reach `2^32` since the index is per module and not per project.
-    ///
-    /// @@Todo: rather than using an index into the token trees, we should
-    /// use it as a index into the token stream to denote where the
-    /// token tree ends. This means that we can have a flat token
-    /// stream which removes the need for storing token trees
-    /// separately.
+    /// Tree a token indicating the start of a token tree, i.e. some
+    /// delimited block of tokens. The `u32` is the length of the tokens
+    /// within the tree excluding the delimiters.
     Tree(Delimiter, u32),
 
     /// Keyword
