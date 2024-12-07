@@ -4,6 +4,7 @@
 
 use std::{io, path::PathBuf};
 
+use clap::error::ErrorKind;
 use hash_reporting::report::{Report, ReportKind};
 
 use crate::fs::ImportError;
@@ -12,6 +13,7 @@ use crate::fs::ImportError;
 /// program.
 #[derive(Debug)]
 pub enum PipelineError {
+    /// Some parsing error that clap emits, it could be benign.
     ParseError(clap::Error),
 
     /// Error that can occur when the pipeline tried to
@@ -40,13 +42,27 @@ pub enum PipelineError {
 impl From<PipelineError> for Report {
     fn from(value: PipelineError) -> Self {
         let mut report = Report::new();
-        let message = match value {
-            PipelineError::ParseError(err) => err.to_string(),
+
+        match value {
+            PipelineError::ParseError(error) => {
+                match error.kind() {
+                    ErrorKind::DisplayHelp
+                    | ErrorKind::DisplayVersion
+                    | ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand => {
+                        report.kind(ReportKind::Info);
+                    }
+                    _ => {
+                        report.kind(ReportKind::Error);
+                    }
+                }
+
+                report.title(error.to_string());
+            }
 
             PipelineError::ResourceCreation { path, error } => {
                 let kind = error.kind();
 
-                error.raw_os_error().map_or_else(
+                let message = error.raw_os_error().map_or_else(
                     || format!("couldn't create `{}`, {}", path.to_string_lossy(), kind),
                     |code| {
                         format!(
@@ -56,16 +72,23 @@ impl From<PipelineError> for Report {
                             code
                         )
                     },
-                )
+                );
+
+                report.kind(ReportKind::Error).title(message);
             }
-            PipelineError::MissingEntryPoint => "no entry point was specified".to_string(),
-            PipelineError::ImportPath(err) => err.to_string(),
+            PipelineError::MissingEntryPoint => {
+                report.kind(ReportKind::Error).title("no entry point was specified");
+            }
+            PipelineError::ImportPath(err) => {
+                report.kind(ReportKind::Error).title(err.to_string());
+            }
             PipelineError::InvalidValue(key, value) => {
-                format!("invalid value `{value}` for configuration key `{key}`")
+                report
+                    .kind(ReportKind::Error)
+                    .title(format!("invalid value `{value}` for configuration key `{key}`"));
             }
         };
 
-        report.kind(ReportKind::Error).title(message);
         report
     }
 }
