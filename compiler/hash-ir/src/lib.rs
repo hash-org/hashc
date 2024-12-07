@@ -5,8 +5,7 @@
     type_alias_impl_trait,
     decl_macro,
     box_patterns,
-    variant_count,
-    const_option
+    variant_count
 )]
 
 pub mod basic_blocks;
