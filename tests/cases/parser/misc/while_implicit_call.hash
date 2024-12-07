@@ -1,0 +1,9 @@
+// run=pass, stage=parse, warnings=compare
+
+#dump_ast 
+main := () => {
+    i := 0;
+    while i < (*arr).len {
+        i += 1;
+    }
+}

@@ -51,6 +51,7 @@ pub type TokenStream<'t> = &'t [Token];
 
 /// A cursor over a token stream which handles internal traversal logic
 /// and bookkeeping.
+#[derive(Debug)]
 pub struct TokenCursor<'t> {
     /// The raw stream of tokens that is being traversed.
     stream: TokenStream<'t>,

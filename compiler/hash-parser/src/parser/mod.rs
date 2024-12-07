@@ -32,7 +32,7 @@ use crate::{
     import_resolver::ImportResolver,
 };
 
-#[derive(Deref)]
+#[derive(Deref, Debug)]
 pub(crate) struct AstGenFrame<'s> {
     /// The token cursor.
     #[deref]
@@ -107,6 +107,12 @@ impl<'s> AstGenFrame<'s> {
     fn expected_pos(&self) -> ByteRange {
         let pos = self.previous_pos().end() + 1;
         ByteRange::new(pos, pos)
+    }
+
+    /// Check whether the frame has encountered an error.
+    #[inline(always)]
+    pub(crate) fn has_error(&self) -> bool {
+        self.error.get()
     }
 }
 
