@@ -1,6 +1,6 @@
 //! Utility macros for performing various operations when it comes to
 //! working with reports
-use hash_source::location::Span;
+use hash_source::{location::Span, ModuleId, ModuleKind};
 #[allow(unused_imports)]
 use hash_utils::stream_less_ewriteln;
 
@@ -28,12 +28,59 @@ pub macro panic_on_span {
     }
 }
 
+/// A guard on when to print a particular message using `note_on_span`
+/// and `panic_on_span` family functions.
+#[derive(Clone, Copy)]
+pub enum SpanGuard {
+    /// No guard, we're always printing for any given module.
+    Always,
+
+    /// Guarded by a specific module.
+    Module(ModuleId),
+
+    /// Non-prelude print, we'll only print something when
+    /// we're in a non-prelude context.
+    NonPrelude,
+
+    /// Only print on the specified entry point of the given
+    /// workspace, handy for when debugging simple things.
+    EntryPoint,
+}
+
 /// This macro will produce a [crate::report::Report] and then print it to the
 /// standard output, this does not panic, it is intended as a debugging utility
 /// to quickly print the `span` of something and the `message` associated with
 /// it.
-///
-/// Examples of use:
+#[track_caller]
+pub fn guarded_note_on_span(location: impl Into<Span>, message: impl ToString, guard: SpanGuard) {
+    let span: Span = location.into();
+
+    let should_execute = match (guard, span.id) {
+        (SpanGuard::Always, _) => true,
+        (SpanGuard::Module(id), span) if span.is_module() => id == ModuleId::from(span),
+        (SpanGuard::NonPrelude, span) => !span.is_prelude(),
+        (SpanGuard::EntryPoint, span) => matches!(span.module_kind(), Some(ModuleKind::EntryPoint)),
+        _ => false,
+    };
+
+    // Don't report if the span guard isn't met.
+    if !should_execute {
+        return;
+    }
+
+    let mut reporter = Reporter::new();
+    reporter
+        .info()
+        .title(message)
+        .add_labelled_span(span, "here")
+        .add_note(format!("invoked at {}", ::core::panic::Location::caller()));
+
+    stream_less_ewriteln!("{}", reporter);
+}
+
+/// This macro will produce a [crate::report::Report] and then print it to the
+/// standard output, this does not panic, it is intended as a debugging utility
+/// for use when debugging the compiler.
 ///
 /// ```rust
 /// // Don't print on `prelude` module.
@@ -42,16 +89,11 @@ pub macro panic_on_span {
 /// // Always print.
 /// note_on_span(item.span(), "compiling `item`");
 /// ```
-#[track_caller]
+///
+/// If you want to only print in certain conditions, i.e. only the entry point,
+/// then you can use [guarded_note_on_span] instead.
 pub fn note_on_span(location: impl Into<Span>, message: impl ToString) {
-    let mut reporter = Reporter::new();
-    reporter
-        .info()
-        .title(message)
-        .add_labelled_span(location.into(), "here")
-        .add_note(format!("invoked at {}", ::core::panic::Location::caller()));
-
-    stream_less_ewriteln!("{}", reporter);
+    guarded_note_on_span(location, message, SpanGuard::Always);
 }
 
 /// A macro which doesn't invoke the printing of a given format expression when
