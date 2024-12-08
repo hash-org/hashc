@@ -1,51 +1,77 @@
 error[0081]: variable `c` is not bound in all patterns
  --> $DIR/548.hash:6:10
 5 |       // ~ERROR: variable `d` not declared in all patterns
-6 |       (c | d) := 2;    
+6 |       (c | d) := 2;
   |            ^ pattern doesn't bind `c`
 7 |   
 
  --> $DIR/548.hash:6:6
 5 |       // ~ERROR: variable `d` not declared in all patterns
-6 |       (c | d) := 2;    
+6 |       (c | d) := 2;
   |        ^ variable not in all patterns
 7 |   
 
 error[0081]: variable `d` is not bound in all patterns
  --> $DIR/548.hash:6:6
 5 |       // ~ERROR: variable `d` not declared in all patterns
-6 |       (c | d) := 2;    
+6 |       (c | d) := 2;
   |        ^ pattern doesn't bind `d`
 7 |   
 
  --> $DIR/548.hash:6:10
 5 |       // ~ERROR: variable `d` not declared in all patterns
-6 |       (c | d) := 2;    
+6 |       (c | d) := 2;
   |            ^ variable not in all patterns
 7 |   
 
 error[0081]: variable `b` is not bound in all patterns
   --> $DIR/548.hash:11:18
 10 |       match k {
-11 |           (a, b) | (t, a) => {}
+11 |           (a, b) | (t, a) => {},
    |                    ^^^^^^ pattern doesn't bind `b`
 12 |           (2, 3) | (a, b) => {}
 
   --> $DIR/548.hash:11:13
 10 |       match k {
-11 |           (a, b) | (t, a) => {}
+11 |           (a, b) | (t, a) => {},
    |               ^ variable not in all patterns
 12 |           (2, 3) | (a, b) => {}
 
 error[0081]: variable `t` is not bound in all patterns
   --> $DIR/548.hash:11:9
 10 |       match k {
-11 |           (a, b) | (t, a) => {}
+11 |           (a, b) | (t, a) => {},
    |           ^^^^^^ pattern doesn't bind `t`
 12 |           (2, 3) | (a, b) => {}
 
   --> $DIR/548.hash:11:19
 10 |       match k {
-11 |           (a, b) | (t, a) => {}
+11 |           (a, b) | (t, a) => {},
    |                     ^ variable not in all patterns
 12 |           (2, 3) | (a, b) => {}
+
+error[0081]: variable `a` is not bound in all patterns
+  --> $DIR/548.hash:12:9
+11 |           (a, b) | (t, a) => {},
+12 |           (2, 3) | (a, b) => {}
+   |           ^^^^^^ pattern doesn't bind `a`
+13 |       }
+
+  --> $DIR/548.hash:12:19
+11 |           (a, b) | (t, a) => {},
+12 |           (2, 3) | (a, b) => {}
+   |                     ^ variable not in all patterns
+13 |       }
+
+error[0081]: variable `b` is not bound in all patterns
+  --> $DIR/548.hash:12:9
+11 |           (a, b) | (t, a) => {},
+12 |           (2, 3) | (a, b) => {}
+   |           ^^^^^^ pattern doesn't bind `b`
+13 |       }
+
+  --> $DIR/548.hash:12:22
+11 |           (a, b) | (t, a) => {},
+12 |           (2, 3) | (a, b) => {}
+   |                        ^ variable not in all patterns
+13 |       }
