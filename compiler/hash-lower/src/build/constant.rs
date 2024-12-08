@@ -9,7 +9,7 @@ use hash_tir::tir::{self, HasAstNodeId};
 
 use super::BodyBuilder;
 
-impl<'tcx> BodyBuilder<'tcx> {
+impl BodyBuilder<'_> {
     /// Lower a literal value into a [constant::Const].
     pub(crate) fn lit_as_const(&self, lit: tir::LitId) -> ir::Const {
         match *lit.value() {

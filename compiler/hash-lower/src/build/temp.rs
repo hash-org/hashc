@@ -9,7 +9,7 @@ use hash_tir::tir::TermId;
 use super::{BlockAnd, BodyBuilder};
 use crate::build::{unpack, BlockAndExtend};
 
-impl<'tcx> BodyBuilder<'tcx> {
+impl BodyBuilder<'_> {
     /// Compile an "term" into a freshly created temporary [Place].
     pub(crate) fn term_into_temp(
         &mut self,

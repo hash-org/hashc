@@ -41,7 +41,7 @@ pub struct VMBackend<'b> {
     metrics: &'b mut StageMetrics,
 }
 
-impl<'b> HasMutMetrics for VMBackend<'b> {
+impl HasMutMetrics for VMBackend<'_> {
     fn metrics(&mut self) -> &mut StageMetrics {
         self.metrics
     }

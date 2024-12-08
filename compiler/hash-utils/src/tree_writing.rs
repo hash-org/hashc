@@ -142,7 +142,7 @@ pub struct TreeWriter<'t, 'cfg> {
     config: Cow<'cfg, TreeWriterConfig>,
 }
 
-impl<'t, 'cfg> TreeWriter<'t, 'cfg> {
+impl<'t> TreeWriter<'t, '_> {
     /// Create a new [TreeWriter] with the given [TreeNode] and default
     /// configuration.
     pub fn new(tree: &'t TreeNode) -> Self {

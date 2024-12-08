@@ -12,7 +12,7 @@ use crate::diagnostics::{
     expected::ExpectedItem,
 };
 
-impl<'s> AstGen<'s> {
+impl AstGen<'_> {
     /// Parse a compound [Pat]. A compound [Pat] means that this could
     /// be a pattern that might be a combination of multiple patterns.
     /// Additionally, compound patterns are allowed to have `if-guard`

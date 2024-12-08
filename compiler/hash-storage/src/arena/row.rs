@@ -242,7 +242,7 @@ impl<'c, T> Row<'c, T> {
     }
 }
 
-impl<'c, T: Clone> Row<'c, T> {
+impl<T: Clone> Row<'_, T> {
     /// Clone the data inside `self` into a [`Vec`].
     pub fn clone_vec(&self) -> Vec<T> {
         self.iter().cloned().collect()
@@ -347,7 +347,7 @@ impl<T> BorrowMut<[T]> for Row<'_, T> {
     }
 }
 
-impl<'r, 'c, T> IntoIterator for &'r Row<'c, T> {
+impl<'r, T> IntoIterator for &'r Row<'_, T> {
     type Item = &'r T;
     type IntoIter = std::slice::Iter<'r, T>;
 
@@ -356,7 +356,7 @@ impl<'r, 'c, T> IntoIterator for &'r Row<'c, T> {
     }
 }
 
-impl<'r, 'c, T> IntoIterator for &'r mut Row<'c, T> {
+impl<'r, T> IntoIterator for &'r mut Row<'_, T> {
     type Item = &'r mut T;
     type IntoIter = std::slice::IterMut<'r, T>;
 

@@ -84,7 +84,7 @@ where
     }
 }
 
-impl<'ast, T> AstVisitorMutSelf for AstPrettyPrinter<'ast, T>
+impl<T> AstVisitorMutSelf for AstPrettyPrinter<'_, T>
 where
     T: std::io::Write,
 {

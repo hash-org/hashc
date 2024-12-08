@@ -232,7 +232,7 @@ impl AttrStore {
     /// Check whether a particular [AstNodeId] has a specific
     /// attribute.
     pub fn node_has_attr(&self, id: AstNodeId, attr: AttrId) -> bool {
-        self.0.borrow(id).map_or(false, |attrs| attrs.has_attr(attr))
+        self.0.borrow(id).is_some_and(|attrs| attrs.has_attr(attr))
     }
 
     /// Get an [Attr] by name, from a node.

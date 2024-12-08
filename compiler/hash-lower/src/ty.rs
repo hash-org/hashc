@@ -14,7 +14,7 @@ use hash_tir_utils::lower::{ShouldCache, TyLower};
 
 use crate::ctx::BuilderCtx;
 
-impl<'ir> BuilderCtx<'ir> {
+impl BuilderCtx<'_> {
     pub(crate) fn repr_ty_from_tir_ty(&self, id: TyId) -> ReprTyId {
         let lower = TyLower::new(self);
         lower.repr_ty_from_tir_ty(id)

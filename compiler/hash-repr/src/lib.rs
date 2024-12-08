@@ -1,7 +1,7 @@
 //! Defines all logic regarding computing the layout of types, and
 //! representing the said layouts in a way that is usable by the
 //! code generation backends.
-#![feature(let_chains, const_option)]
+#![feature(let_chains)]
 
 pub mod compute;
 pub mod constant;

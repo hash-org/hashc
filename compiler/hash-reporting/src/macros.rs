@@ -36,12 +36,11 @@ pub macro panic_on_span {
 /// Examples of use:
 ///
 /// ```rust
-/// 
 /// // Don't print on `prelude` module.
-/// note_on_span!(@no_prelude: true, item.span(), "compiling `item`");
+/// note_on_span(item.span(), "compiling `item`");
 ///
 /// // Always print.
-/// note_on_span!(item.span(), "compiling `item`");
+/// note_on_span(item.span(), "compiling `item`");
 /// ```
 #[track_caller]
 pub fn note_on_span(location: impl Into<Span>, message: impl ToString) {

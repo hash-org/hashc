@@ -75,7 +75,7 @@ impl From<Local> for PlaceBuilder {
     }
 }
 
-impl<'tcx> BodyBuilder<'tcx> {
+impl BodyBuilder<'_> {
     pub(crate) fn as_place(
         &mut self,
         mut block: BasicBlock,

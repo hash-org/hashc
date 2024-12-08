@@ -13,7 +13,7 @@ use crate::diagnostics::{
     expected::ExpectedItem,
 };
 
-impl<'s> AstGen<'s> {
+impl AstGen<'_> {
     /// Parse a macro prefix character, which depending on [MacroKind] is either
     /// a `#` or a `@`.
     ///

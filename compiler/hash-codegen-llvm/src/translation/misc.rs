@@ -18,7 +18,7 @@ use inkwell::{
 use super::abi::ExtendedFnAbiMethods;
 use crate::ctx::CodeGenCtx;
 
-impl<'b, 'm> CodeGenCtx<'b, 'm> {
+impl<'m> CodeGenCtx<'_, 'm> {
     /// Generate code for a reference to a function or method item. The
     /// [Instance] specifies the function reference to generate, and any
     /// attributes that need to be applied to the function. If the function
@@ -61,7 +61,7 @@ impl<'b, 'm> CodeGenCtx<'b, 'm> {
     }
 }
 
-impl<'b, 'm> MiscBuilderMethods<'b> for CodeGenCtx<'b, 'm> {
+impl<'b> MiscBuilderMethods<'b> for CodeGenCtx<'b, '_> {
     fn get_fn(&self, instance: InstanceId) -> Self::Function {
         self.get_fn_or_create_ref(instance)
     }

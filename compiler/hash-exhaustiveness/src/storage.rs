@@ -44,7 +44,7 @@ impl ExhaustivenessCtx {
     }
 }
 
-impl<'env, E: ExhaustivenessEnv> ExhaustivenessChecker<'env, E> {
+impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     pub(crate) fn get_ctor(&self, id: DeconstructedCtorId) -> &DeconstructedCtor {
         &self.ecx.dc[id]
     }

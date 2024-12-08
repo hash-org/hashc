@@ -151,7 +151,7 @@ impl<E: ExhaustivenessEnv> HasTarget for ExhaustivenessChecker<'_, E> {
     }
 }
 
-impl<'env, E: ExhaustivenessEnv> TyLowerEnv for ExhaustivenessChecker<'env, E> {}
+impl<E: ExhaustivenessEnv> TyLowerEnv for ExhaustivenessChecker<'_, E> {}
 
 impl<'env, E: ExhaustivenessEnv> ExhaustivenessChecker<'env, E> {
     /// Create a new checker.

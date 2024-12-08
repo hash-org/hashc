@@ -5,7 +5,7 @@ use hash_token::{delimiter::Delimiter, Token, TokenKind};
 
 use super::{AstPrettyPrinter, FmtResult};
 
-impl<'ast, T> AstPrettyPrinter<'ast, T>
+impl<T> AstPrettyPrinter<'_, T>
 where
     T: std::io::Write,
 {

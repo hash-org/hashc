@@ -118,7 +118,7 @@ impl Test {
     }
 }
 
-impl<'tcx> BodyBuilder<'tcx> {
+impl BodyBuilder<'_> {
     pub(super) fn test_or_pat(
         &mut self,
         candidate: &mut Candidate,

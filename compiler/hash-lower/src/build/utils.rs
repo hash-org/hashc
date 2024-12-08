@@ -22,7 +22,7 @@ use hash_tir::tir::{
 
 use super::BodyBuilder;
 
-impl<'tcx> BodyBuilder<'tcx> {
+impl BodyBuilder<'_> {
     /// Get a reference to a [IrCtx].
     pub(crate) fn ctx(&self) -> &IrCtx {
         self.ctx.lcx

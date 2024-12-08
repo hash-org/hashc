@@ -24,7 +24,7 @@ use inkwell::{
 use super::{ty::ExtendedTyBuilderMethods, LLVMBuilder};
 use crate::{ctx::CodeGenCtx, misc::AttributeKind};
 
-impl<'b, 'm> AbiBuilderMethods<'b> for LLVMBuilder<'_, 'b, 'm> {
+impl<'b> AbiBuilderMethods<'b> for LLVMBuilder<'_, 'b, '_> {
     fn get_param(&mut self, index: usize) -> Self::Value {
         let func = self.basic_block().get_parent().unwrap();
         func.get_nth_param(index as u32).unwrap().into()

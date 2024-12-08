@@ -35,7 +35,7 @@ pub struct GccLinker<'ctx> {
     pub static_hint: bool,
 }
 
-impl<'ctx> GccLinker<'ctx> {
+impl GccLinker<'_> {
     /// Passes an arbitrary argument directly to the linker.
     fn linker_arg(&mut self, arg: impl AsRef<OsStr>) -> &mut Self {
         self.linker_args(&[arg]);
@@ -101,7 +101,7 @@ impl<'ctx> GccLinker<'ctx> {
     }
 }
 
-impl<'ctx> Linker for GccLinker<'ctx> {
+impl Linker for GccLinker<'_> {
     fn cmd(&mut self) -> &mut LinkCommand {
         &mut self.command
     }

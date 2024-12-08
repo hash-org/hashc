@@ -52,7 +52,7 @@ pub enum FnCallTermKind {
     UnaryOp(UnOp, TermId),
 }
 
-impl<'tcx> BodyBuilder<'tcx> {
+impl BodyBuilder<'_> {
     /// Get the [ReprTyId] from a given [TermId]. This function will internally
     /// cache results of lowering a [TermId] into an [ReprTyId] to avoid
     /// duplicate work.

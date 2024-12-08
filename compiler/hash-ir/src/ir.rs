@@ -709,7 +709,7 @@ pub struct SwitchTargetsIter<'a> {
     inner: iter::Zip<slice::Iter<'a, u128>, slice::Iter<'a, BasicBlock>>,
 }
 
-impl<'a> Iterator for SwitchTargetsIter<'a> {
+impl Iterator for SwitchTargetsIter<'_> {
     type Item = (u128, BasicBlock);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -840,7 +840,7 @@ impl BasicBlockData {
     /// the terminator is of kind [TerminatorKind::Unreachable].
     pub fn is_empty_and_unreachable(&self) -> bool {
         self.statements.is_empty()
-            && self.terminator.as_ref().map_or(false, |t| t.kind == TerminatorKind::Unreachable)
+            && self.terminator.as_ref().is_some_and(|t| t.kind == TerminatorKind::Unreachable)
     }
 }
 

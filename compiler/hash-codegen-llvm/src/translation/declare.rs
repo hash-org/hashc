@@ -10,7 +10,7 @@ use inkwell::{
 use super::abi::ExtendedFnAbiMethods;
 use crate::ctx::CodeGenCtx;
 
-impl<'b, 'm> CodeGenCtx<'b, 'm> {
+impl<'m> CodeGenCtx<'_, 'm> {
     /// Standard function to declare a C-like function. This should only be used
     /// for declaring FFI functions or various LLVM intrinsics.
     ///

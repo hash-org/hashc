@@ -18,7 +18,7 @@ use inkwell::{
 
 use super::LLVMBuilder;
 
-impl<'b, 'm> LLVMBuilder<'_, 'b, 'm> {
+impl<'m> LLVMBuilder<'_, '_, 'm> {
     /// Call an intrinsic function with the specified arguments.
     pub(crate) fn call_intrinsic(
         &mut self,
@@ -319,7 +319,7 @@ impl<'b, 'm> LLVMBuilder<'_, 'b, 'm> {
     }
 }
 
-impl<'b, 'm> IntrinsicBuilderMethods<'b> for LLVMBuilder<'_, 'b, 'm> {
+impl<'b> IntrinsicBuilderMethods<'b> for LLVMBuilder<'_, 'b, '_> {
     fn codegen_intrinsic_call(
         &mut self,
         ty: ReprTyId,

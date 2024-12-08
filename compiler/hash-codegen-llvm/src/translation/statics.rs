@@ -9,7 +9,7 @@ use inkwell::values::{AnyValue, AnyValueEnum, BasicValueEnum, GlobalValue, Unnam
 
 use crate::ctx::CodeGenCtx;
 
-impl<'b, 'm> CodeGenCtx<'b, 'm> {
+impl<'m> CodeGenCtx<'_, 'm> {
     // Define a global static variable within the current [LLVMModule]. This
     // function is only invoked if the static variable has not already been
     // defined.
@@ -35,7 +35,7 @@ impl<'b, 'm> CodeGenCtx<'b, 'm> {
     }
 }
 
-impl<'b, 'm> StaticMethods for CodeGenCtx<'b, 'm> {
+impl StaticMethods for CodeGenCtx<'_, '_> {
     fn static_addr_of(&self, cv: Self::Value, align: Alignment) -> Self::Value {
         // Check if we've already created the global
         if let Some(global) = self.global_consts.borrow().get(&cv) {

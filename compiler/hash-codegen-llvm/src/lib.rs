@@ -78,7 +78,7 @@ pub struct LLVMBackend<'b> {
     metrics: &'b mut StageMetrics,
 }
 
-impl<'b> HasMutMetrics for LLVMBackend<'b> {
+impl HasMutMetrics for LLVMBackend<'_> {
     fn metrics(&mut self) -> &mut StageMetrics {
         self.metrics
     }

@@ -9,7 +9,7 @@ use hash_source::{identifier::Identifier, location::Span};
 
 use super::LLVMBuilder;
 
-impl<'b, 'm> DebugInfoBuilderMethods for LLVMBuilder<'_, 'b, 'm> {
+impl DebugInfoBuilderMethods for LLVMBuilder<'_, '_, '_> {
     fn create_debug_info_scope_for_fn(
         &self,
         _fn_abi: &FnAbi,

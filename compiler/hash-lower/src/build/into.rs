@@ -30,7 +30,7 @@ use hash_utils::itertools::Itertools;
 
 use super::{ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, BodyBuilder, LoopBlockInfo};
 
-impl<'tcx> BodyBuilder<'tcx> {
+impl BodyBuilder<'_> {
     /// Compile the given [Term] and place the value of the [Term]
     /// into the specified destination [Place].
     pub(crate) fn term_into_dest(

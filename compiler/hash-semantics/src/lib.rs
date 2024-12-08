@@ -168,7 +168,7 @@ impl HasTyCache for SemanticEnvImpl<'_> {
     }
 }
 
-impl<'env> SemanticEnv for SemanticEnvImpl<'env> {
+impl SemanticEnv for SemanticEnvImpl<'_> {
     fn storage(&self) -> &SemanticStorage {
         self.ctx.semantic_storage
     }

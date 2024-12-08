@@ -59,7 +59,7 @@ pub fn instruction_from_any_value(value: AnyValueEnum<'_>) -> InstructionValue<'
     value.as_instruction_value().unwrap()
 }
 
-impl<'a, 'b, 'm> LLVMBuilder<'a, 'b, 'm> {
+impl<'m> LLVMBuilder<'_, '_, 'm> {
     /// Create a PHI node in the current block.
     fn phi(
         &mut self,
@@ -128,7 +128,7 @@ impl<'a, 'b, 'm> LLVMBuilder<'a, 'b, 'm> {
     }
 }
 
-impl<'a, 'b, 'm> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, 'm> {
+impl<'a, 'b> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, '_> {
     fn ctx(&self) -> &Self::CodegenCtx {
         self.ctx
     }

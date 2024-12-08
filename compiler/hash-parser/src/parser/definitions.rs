@@ -6,7 +6,7 @@ use hash_token::{delimiter::Delimiter, keyword::Keyword, TokenKind};
 use super::AstGen;
 use crate::diagnostics::error::{ParseErrorKind, ParseResult};
 
-impl<'s> AstGen<'s> {
+impl AstGen<'_> {
     /// Construct the [Params] from the parsed [`AstNodes<Param>`]. This is
     /// just a utility function to wrap the nodes in the [Params] struct.
     pub fn make_params(&self, params: AstNodes<Param>, origin: ParamOrigin) -> AstNode<Params> {

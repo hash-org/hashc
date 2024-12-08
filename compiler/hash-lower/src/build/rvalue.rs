@@ -24,7 +24,7 @@ use super::{
 };
 use crate::build::category::RValueKind;
 
-impl<'tcx> BodyBuilder<'tcx> {
+impl BodyBuilder<'_> {
     /// Construct an [RValue] from the given [ast::Expr].
     pub(crate) fn as_rvalue(&mut self, mut block: BasicBlock, term: TermId) -> BlockAnd<RValue> {
         let span = self.span_of_term(term);

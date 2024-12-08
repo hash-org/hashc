@@ -23,7 +23,7 @@ pub struct MoldLinker<'ctx> {
     settings: &'ctx CompilerSettings,
 }
 
-impl<'ctx> MoldLinker<'ctx> {
+impl MoldLinker<'_> {
     /// Passes a collection of argument directly to the linker.
     fn linker_args(&mut self, args: &[impl AsRef<OsStr>]) -> &mut Self {
         args.iter().for_each(|arg| {
@@ -34,7 +34,7 @@ impl<'ctx> MoldLinker<'ctx> {
     }
 }
 
-impl<'ctx> Linker for MoldLinker<'ctx> {
+impl Linker for MoldLinker<'_> {
     fn cmd(&mut self) -> &mut LinkCommand {
         &mut self.command
     }
