@@ -1,6 +1,5 @@
-error: expected a name here
- --> $DIR/double_colon_in_map_literal.hash:3:15
+error: expected an expression, however received a `::`
+ --> $DIR/double_colon_in_map_literal.hash:3:13
 2 |   
 3 |   k := map!{ 1::2 };
-  |                 ^ 
-  = help: expected a `identifier`
+  |               ^^ 
