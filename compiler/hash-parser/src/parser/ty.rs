@@ -328,6 +328,14 @@ impl AstGen<'_> {
                 ),
             };
 
+            // Abort early if we encountered some kind of error along the way,
+            // although I would think when the `gen` is consumed then we can
+            // send up all of the errors to the parent generator?
+            if gen.has_error() {
+                let err = gen.diagnostics.errors.pop().unwrap();
+                return Err(err);
+            }
+
             // Here we check that the token tree has a comma at the end to later determine
             // if this is a `TupleTy`...
             let gen_has_comma = !gen.is_empty() && gen.previous_token().has_kind(TokenKind::Comma);

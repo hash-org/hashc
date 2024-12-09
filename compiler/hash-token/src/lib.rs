@@ -53,6 +53,9 @@ impl Token {
     /// order to print literals.
     ///
     /// ##Note: this does not print trees.
+    ///
+    /// @@Todo: make this in a "TokenPrinter" context so that we don't
+    /// need to explicitly make this a method on token.
     pub fn pretty_print(&self, source: SpannedSource<'_>) -> String {
         match self.kind {
             TokenKind::Int(_, _) | TokenKind::Float(_) | TokenKind::Char(_) | TokenKind::Str(_) => {

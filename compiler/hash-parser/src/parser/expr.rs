@@ -357,11 +357,18 @@ impl AstGen<'_> {
     pub(crate) fn parse_singular_expr(
         &mut self,
         mut subject: AstNode<Expr>,
-        subject_span: ByteRange,
+        mut subject_span: ByteRange,
     ) -> ParseResult<AstNode<Expr>> {
         // so here we need to peek to see if this is either a index_access, field access
         // or a function call...
         while let Some(token) = self.peek() {
+            // if there exists a space between the `subject` and the
+            // next fragment of the expression, we treat them as explicitly
+            // non-singular expressions.
+            if !token.span.is_right_before(subject_span) {
+                break;
+            }
+
             subject = match token.kind {
                 // Property access or method call
                 TokenKind::Dot => self.parse_property_access(subject, subject_span)?,
@@ -382,7 +389,11 @@ impl AstGen<'_> {
                 // Function call
                 TokenKind::Tree(Delimiter::Paren, _) => self.parse_call(subject, subject_span)?,
                 _ => break,
-            }
+            };
+
+            // We need to adjust the subject_span so we can compute whether
+            // we're still "physically" connected to the end of the expression.
+            subject_span = subject_span.join(self.previous_pos())
         }
 
         Ok(subject)
@@ -752,7 +763,10 @@ impl AstGen<'_> {
 
                 // We want to emit a redundant parentheses warning if it is not a binary-like
                 // expression since it does not affect the precedence...
-                if !matches!(expr.body(), Expr::BinaryExpr(_) | Expr::Cast(_) | Expr::FnDef(_)) {
+                if !matches!(
+                    expr.body(),
+                    Expr::BinaryExpr(_) | Expr::Cast(_) | Expr::FnDef(_) | Expr::Deref(_)
+                ) {
                     gen.add_warning(ParseWarning::new(
                         WarningKind::RedundantParenthesis(expr.body().into()),
                         gen.make_span(gen.range()),

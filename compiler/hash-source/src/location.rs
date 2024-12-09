@@ -85,6 +85,20 @@ impl ByteRange {
     pub fn into_location(self, source_id: SourceId) -> Span {
         Span::new(self, source_id)
     }
+
+    /// Check if one span intersects with another one.
+    ///
+    /// We check whether the `current` token touches the other token, if it
+    /// does, then we consider it to be intersecting.
+    /// ```
+    /// 
+    ///  (current token)
+    ///                 (other token)
+    /// ```
+    #[inline(always)]
+    pub fn is_right_before(&self, other: Self) -> bool {
+        self.start() == (other.end() + 1)
+    }
 }
 
 impl Default for ByteRange {

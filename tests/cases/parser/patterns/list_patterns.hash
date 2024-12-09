@@ -6,7 +6,7 @@
 [a, b] := foo();
 [] := foo();
 
-[x, Struct ( name )] = *mu();
+[x, Struct(name)] = *mu();
 
 [(a, 3) | (a, 2), (c, d), (r, m)] := foo();
 
