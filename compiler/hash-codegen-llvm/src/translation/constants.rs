@@ -27,6 +27,7 @@ impl<'b> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, '_> {
             BasicTypeEnum::PointerType(ty) => ty.get_undef().into(),
             BasicTypeEnum::StructType(ty) => ty.get_undef().into(),
             BasicTypeEnum::VectorType(ty) => ty.get_undef().into(),
+            BasicTypeEnum::ScalableVectorType(ty) => ty.get_undef().into(),
         }
     }
 

@@ -42,6 +42,7 @@ pub fn convert_basic_ty_to_any(ty: BasicTypeEnum) -> AnyTypeEnum {
         BasicTypeEnum::PointerType(ty) => AnyTypeEnum::PointerType(ty),
         BasicTypeEnum::StructType(ty) => AnyTypeEnum::StructType(ty),
         BasicTypeEnum::VectorType(ty) => AnyTypeEnum::VectorType(ty),
+        BasicTypeEnum::ScalableVectorType(ty) => AnyTypeEnum::ScalableVectorType(ty),
     }
 }
 
