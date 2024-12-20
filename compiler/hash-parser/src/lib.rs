@@ -111,8 +111,8 @@ impl<Ctx: ParserCtxQuery> CompilerStage<Ctx> for Parser {
                         let path = SourceMapUtils::map(id, |source| source.path().to_path_buf());
                         node_map.add_module(id, ModuleEntry::new(path, node));
                     }
-                    ParserAction::MergeSpans { spans } => scope.spawn(move |_| {
-                        SpanMap::add_local_map(spans);
+                    ParserAction::MergeSpans { source, spans } => scope.spawn(move |_| {
+                        SpanMap::add_local_map(source, spans);
                     }),
                     ParserAction::ParseImport { source, sender } => {
                         // ##Note: import de-duplication is already ensured by the
@@ -172,7 +172,7 @@ pub enum ParserAction {
     Error { diagnostics: Vec<Report>, timings: StageMetrics },
 
     /// Update the global `SPAN_MAP` with the specified local span map.
-    MergeSpans { spans: LocalSpanMap },
+    MergeSpans { source: SourceId, spans: LocalSpanMap },
 
     /// A worker has completed processing an interactive block and now provides
     /// the generated AST.
@@ -266,7 +266,7 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     // are encountered whilst parsing this module.
     let resolver = ImportResolver::new(id, source.parent(), sender);
     let mut diagnostics = ParserDiagnostics::new();
-    let mut spans = LocalSpanMap::with_capacity(id, tokens.len() * 2);
+    let mut spans = LocalSpanMap::with_capacity(tokens.len() * 2);
     let mut gen = AstGen::new(spanned, &tokens, &resolver, &mut diagnostics, &mut spans);
 
     // Perform the parsing operation now... and send the result through the
@@ -299,6 +299,6 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
 
     // Send both the generated module, and the `LocalSpanMap` for updating
     // the global `SPAN_MAP`.
-    sender.send(ParserAction::MergeSpans { spans }).unwrap();
+    sender.send(ParserAction::MergeSpans { source: id, spans }).unwrap();
     sender.send(action).unwrap();
 }

@@ -1,0 +1,8 @@
+// run=pass, stage=parse
+
+set := (data: char) -> Result<void, IoError> => {
+    match (intrinsic_char_set(data) as Result<void, (i32, str)>) {
+        Err(e) => Err(_conv_ioerr_prim(e)),
+        Ok(r) => Ok(r)
+    }
+};
