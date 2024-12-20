@@ -108,12 +108,6 @@ impl<'s> AstGenFrame<'s> {
         let pos = self.previous_pos().end() + 1;
         ByteRange::new(pos, pos)
     }
-
-    /// Check whether the frame has encountered an error.
-    #[inline(always)]
-    pub(crate) fn has_error(&self) -> bool {
-        self.error.get()
-    }
 }
 
 /// The [AstGen] struct it the primary parser for the Hash compiler. It
