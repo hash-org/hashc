@@ -80,20 +80,15 @@ static SPAN_MAP: Lazy<RwLock<Vec<Span>>> = Lazy::new(|| {
 /// added to the global [`SPAN_MAP`] later.
 ///
 /// ##Note: This is only used by the parser in order to reduce contention for [`SPAN_MAP`].
+#[derive(Default)]
 pub struct LocalSpanMap {
     map: Vec<(AstNodeId, ByteRange)>,
-    source: SourceId,
 }
 
 impl LocalSpanMap {
-    /// Create a new [LocalSpanMap].
-    pub fn new(source: SourceId) -> Self {
-        Self { map: vec![], source }
-    }
-
     /// Create a new [LocalSpanMap] with a given capacity.
-    pub fn with_capacity(source: SourceId, capacity: usize) -> Self {
-        Self { map: Vec::with_capacity(capacity), source }
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self { map: Vec::with_capacity(capacity) }
     }
 
     /// Add a new node to the map.
@@ -156,7 +151,7 @@ impl SpanMap {
     }
 
     /// Merge a [LocalSpanMap] into the [`SPAN_MAP`].
-    pub fn add_local_map(local: LocalSpanMap) {
+    pub fn add_local_map(source: SourceId, local: LocalSpanMap) {
         // If no nodes were added, don't do anything!
         if local.map.is_empty() {
             return;
@@ -173,7 +168,7 @@ impl SpanMap {
 
         // Now we write all of the items into the map.
         for (id, range) in local.map {
-            writer[id.to_usize()] = Span::new(range, local.source);
+            writer[id.to_usize()] = Span::new(range, source);
         }
     }
 }

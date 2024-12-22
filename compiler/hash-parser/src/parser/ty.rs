@@ -1,7 +1,7 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
-use hash_reporting::diagnostic::HasDiagnosticsMut;
+use hash_reporting::diagnostic::{DiagnosticsMut, HasDiagnosticsMut};
 use hash_source::identifier::IDENTS;
 use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
 use hash_utils::thin_vec::thin_vec;
@@ -331,7 +331,7 @@ impl AstGen<'_> {
             // Abort early if we encountered some kind of error along the way,
             // although I would think when the `gen` is consumed then we can
             // send up all of the errors to the parent generator?
-            if gen.has_error() {
+            if gen.diagnostics.has_errors() {
                 let err = gen.diagnostics.errors.pop().unwrap();
                 return Err(err);
             }
