@@ -31,7 +31,7 @@ jobs:
           key: llvm-18
 
       - name: Install LLVM
-        uses: KyleMayes/install-llvm-action@abb6cec0ec431e834bc5e5090ea39a2d1d63a4c6 # v2.0.3
+        uses: KyleMayes/install-llvm-action@v2.0.6
         with:
           version: "18.1.4"
           cached: ${{ steps.cache-llvm.outputs.cache-hit }}
@@ -50,7 +50,8 @@ jobs:
         # @@Dumbness: we need to install `libtinfo5` because of:
         # - https://github.com/hash-org/hashc/actions/runs/9634436024/job/26570084536
         run: |
-          sudo apt install -y libtinfo5
+          wget http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.3-2ubuntu0.1_amd64.deb
+          sudo apt install -y ./libtinfo5_6.3-2ubuntu0.1_amd64.deb
           echo $LLVM_PATH
           $LLVM_PATH/bin/llvm-config --version
       
