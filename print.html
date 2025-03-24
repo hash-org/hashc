@@ -25,9 +25,9 @@
         <link rel="stylesheet" href="fonts/fonts.css">
 
         <!-- Highlight.js Stylesheets -->
-        <link rel="stylesheet" href="highlight.css">
-        <link rel="stylesheet" href="tomorrow-night.css">
-        <link rel="stylesheet" href="ayu-highlight.css">
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
 
         <!-- Custom theme stylesheets -->
 
@@ -1637,8 +1637,8 @@ for macros that don't have any additional arguments to the macro itself.</p>
 <p>For example, the <code>#dump_ast</code> macro will accept any AST item as the subject and print the parsed AST to the console.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span><span class="boring">dump_ast main := () =&gt; {
-</span>    println("Hello, world!");
+</span>#dump_ast main := () =&gt; {
+    println("Hello, world!");
 }
 <span class="boring">}</span></code></pre></pre>
 <p>An example of an AST macro being used to set some attributes on a function:</p>
@@ -1702,27 +1702,27 @@ where a macro invocation can appear:</p>
 </span>#![module_attributes]
 
 <span class="boring">fn main() {
-</span><span class="boring">dump_ast
-</span>Foo := struct&lt;#dump_ast T&gt;(
-<span class="boring">    dump_ast x: T,
-</span><span class="boring">    dump_ast y: T,
-</span><span class="boring">    dump_ast z: T,
-</span>);
+</span>#dump_ast
+Foo := struct&lt;#dump_ast T&gt;(
+    #dump_ast x: T,
+    #dump_ast y: T,
+    #dump_ast z: T,
+);
 
 Bar := enum&lt;T&gt;(
-<span class="boring">    dump_ast A(T),
-</span><span class="boring">    dump_ast B(T),
-</span><span class="boring">    dump_ast C(T),
-</span>);
+    #dump_ast A(T),
+    #dump_ast B(T),
+    #dump_ast C(T),
+);
 
 bing := (#param x: i32) -&gt; #ty i32 =&gt; {
     foo := Foo(#arg x = 5, #arg y = 6, #arg z = 7);
 
     match x {
-<span class="boring">        dump_ast 0 =&gt; 0,
-</span><span class="boring">        dump_ast 1 =&gt; 1,
-</span><span class="boring">        dump_ast (#dump_ast _) =&gt; bing(x - 1) + bing(x - 2),
-</span>    }
+        #dump_ast 0 =&gt; 0,
+        #dump_ast 1 =&gt; 1,
+        #dump_ast (#dump_ast _) =&gt; bing(x - 1) + bing(x - 2),
+    }
 }
 <span class="boring">}</span></code></pre></pre>
 <h3 id="grammar-8"><a class="header" href="#grammar-8">Grammar</a></h3>
