@@ -5,7 +5,7 @@
 //! which is the actual implementation of the LLVM backend. It is expected that
 //! the backend performs it's work in the [LLVMBackend::run] method, and saves
 //! the results of each module in the [Workspace].
-#![feature(let_chains, hash_raw_entry)]
+#![feature(let_chains)]
 
 mod ctx;
 mod error;
