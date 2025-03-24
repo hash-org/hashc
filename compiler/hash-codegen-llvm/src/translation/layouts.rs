@@ -56,7 +56,7 @@ impl<'m> ExtendedLayoutMethods<'m> for &Layout {
         match self.abi {
             AbiRepresentation::Scalar(_) | AbiRepresentation::Vector { .. } => true,
             AbiRepresentation::Pair(..) => false,
-            AbiRepresentation::Aggregate { .. } | AbiRepresentation::Uninhabited => self.is_zst(),
+            AbiRepresentation::Aggregate | AbiRepresentation::Uninhabited => self.is_zst(),
         }
     }
 
