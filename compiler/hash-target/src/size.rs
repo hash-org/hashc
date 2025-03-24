@@ -39,7 +39,7 @@ impl Size {
         let bits = value.try_into().ok().unwrap();
 
         // Avoid potential overflow from `bits + 7`.
-        Size { value: bits / 8 + ((bits % 8) + 7) / 8 }
+        Size { value: bits / 8 + (bits % 8).div_ceil(8) }
     }
 
     /// Compute a human readable unit for the [Size].
