@@ -40,7 +40,7 @@ use hash_utils::{
 /// floating point values, as well as integers. The largest scalar value is
 /// 128bits, i.e. a `u128` or `i128`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-#[repr(packed)]
+#[repr(Rust, packed)]
 pub struct Scalar {
     /// The buffer of the scalar, up to 16bytes.
     value: u128,

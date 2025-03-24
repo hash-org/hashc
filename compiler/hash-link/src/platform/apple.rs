@@ -87,10 +87,7 @@ fn get_apple_sdk_root(sdk_name: &str) -> Result<String, LinkerError<'_>> {
                 if output.status.success() {
                     Ok(String::from_utf8(output.stdout).unwrap())
                 } else {
-                    Err(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        String::from_utf8(output.stderr).unwrap(),
-                    ))
+                    Err(std::io::Error::other(String::from_utf8(output.stderr).unwrap()))
                 }
             },
         );

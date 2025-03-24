@@ -118,7 +118,7 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
             DeconstructedCtor::Str(..)
             | DeconstructedCtor::IntRange(..)
             | DeconstructedCtor::NonExhaustive
-            | DeconstructedCtor::Missing { .. }
+            | DeconstructedCtor::Missing
             | DeconstructedCtor::Wildcard => Fields::empty(),
             DeconstructedCtor::Or => {
                 panic!("called `Fields::wildcards` on an `Or` ctor")

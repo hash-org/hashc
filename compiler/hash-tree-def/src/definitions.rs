@@ -42,7 +42,7 @@ pub(crate) enum NodeFieldData {
     Child { node_name: syn::Ident },
     ChildList { node_name: syn::Ident },
     OptionalChild { node_name: syn::Ident },
-    Other { ty: syn::Type },
+    Other { ty: Box<syn::Type> },
 }
 
 impl NodeFieldData {

@@ -882,7 +882,7 @@ where
 
         self.visit_pat(subject.ast_ref())?;
 
-        if fields.len() > 0 || spread_pos.is_some() {
+        if !fields.is_empty() || spread_pos.is_some() {
             let opts = CollectionPrintingOptions::delimited(Delimiter::Paren, ", ");
             self.print_separated_collection(fields, opts, |this, field| this.visit_pat_arg(field))?;
         }

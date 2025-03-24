@@ -425,7 +425,7 @@ impl LayoutWriterHelper<'_> {
                 f,
                 "{}{}",
                 self.config.connector(pos, max),
-                iter::repeat(self.config.horizontal).take(width).collect::<String>()
+                iter::repeat_n(self.config.horizontal, width).collect::<String>()
             )?;
         }
 
@@ -534,7 +534,7 @@ impl LayoutWriterHelper<'_> {
                 f,
                 "{}{}",
                 first.symbol,
-                iter::repeat(self.config.horizontal).take(spaces).collect::<String>()
+                iter::repeat_n(self.config.horizontal, spaces).collect::<String>()
             )?;
         }
 

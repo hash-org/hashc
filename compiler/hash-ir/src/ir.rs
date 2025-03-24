@@ -569,6 +569,7 @@ pub type SuccessorsMut<'a> =
 
 impl Terminator {
     /// Get all of the successors of a [Terminator].
+    #[define_opaque(Successors)]
     pub fn successors(&self) -> Successors<'_> {
         match self.kind {
             TerminatorKind::Goto(target)

@@ -10,7 +10,7 @@
 
 use std::{
     fmt,
-    iter::{once, repeat},
+    iter::{once, repeat_n},
 };
 
 use hash_source::{
@@ -216,7 +216,7 @@ impl ReportCodeBlock {
             let message_line: String = if index == 0 {
                 once(initial_prefix.as_str()).chain(once(" ")).chain(once(line)).collect()
             } else {
-                repeat(" ").take(offset).chain(once(line)).collect()
+                repeat_n(" ", offset).chain(once(line)).collect()
             };
 
             write_line(&message_line)?;
@@ -269,7 +269,7 @@ impl ReportCodeBlock {
             // the span label.
             if index == start_row && !line.is_empty() {
                 let dashes_length = self.get_line_display_width(line, start_column, end_column);
-                let dashes: String = repeat(LINE_DIAGNOSTIC_MARKER).take(dashes_length).collect();
+                let dashes: String = repeat_n(LINE_DIAGNOSTIC_MARKER, dashes_length).collect();
 
                 let highlight_offset = self.get_line_display_width(line, 0, start_column) + 2;
 
@@ -277,7 +277,7 @@ impl ReportCodeBlock {
                 let total_offset = highlight_offset + dashes_length + 1;
 
                 let initial_prefix =
-                    repeat(" ").take(highlight_offset).chain(once(dashes.as_str())).collect();
+                    repeat_n(" ", highlight_offset).chain(once(dashes.as_str())).collect();
 
                 self.render_span_label(
                     f,
@@ -405,7 +405,7 @@ impl ReportCodeBlock {
                 // compute the actual length of the arrow
                 let arrow_length = self.get_line_display_width(line, 0, start_column + 2);
                 let arrow: String =
-                    repeat('_').take(arrow_length).chain(once(BLOCK_DIAGNOSTIC_MARKER)).collect();
+                    repeat_n('_', arrow_length).chain(once(BLOCK_DIAGNOSTIC_MARKER)).collect();
 
                 writeln!(
                     f,
@@ -422,7 +422,7 @@ impl ReportCodeBlock {
                 // compute the actual length of the arrow
                 let arrow_length = self.get_line_display_width(line, 0, end_column + 1);
                 let arrow: String = once('|')
-                    .chain(repeat('_').take(arrow_length))
+                    .chain(repeat_n('_', arrow_length))
                     .chain(format!("{BLOCK_DIAGNOSTIC_MARKER}").chars())
                     .collect();
 
