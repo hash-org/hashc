@@ -2,7 +2,6 @@
 //! contains the process for lowering a body block and a loop block. The `match`
 //! block lowering logic is complicated enough to warrant its own module which
 //! is located in `matches.rs`.
-use std::mem;
 
 use hash_ir::{
     ir::{BasicBlock, Place},
@@ -120,7 +119,7 @@ impl<'tcx> BodyBuilder<'tcx> {
         F: FnOnce(&mut BodyBuilder<'tcx>) -> BlockAnd<()>,
     {
         let block_info = LoopBlockInfo { loop_body, next_block };
-        let old_block_info = mem::replace(&mut self.loop_block_info, Some(block_info));
+        let old_block_info = self.loop_block_info.replace(block_info);
 
         let normal_exit_block = f(self);
 
