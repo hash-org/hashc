@@ -196,7 +196,7 @@ impl From<CellStageMetrics> for StageMetrics {
 }
 
 cfg_match! {
-    cfg(windows) => {
+    windows => {
         pub fn get_resident_set_size() -> Option<usize> {
             use std::mem;
 
@@ -221,7 +221,7 @@ cfg_match! {
             Some(pmc.WorkingSetSize)
         }
     }
-    cfg(target_os = "macos")  => {
+    target_os = "macos"  => {
         pub fn get_resident_set_size() -> Option<usize> {
             use libc::{c_int, c_void, getpid, proc_pidinfo, proc_taskinfo, PROC_PIDTASKINFO};
             use std::mem;
@@ -240,7 +240,7 @@ cfg_match! {
             }
         }
     }
-    cfg(unix) => {
+    unix => {
         pub fn get_resident_set_size() -> Option<usize> {
             let field = 1;
             let contents = std::fs::read("/proc/self/statm").ok()?;
