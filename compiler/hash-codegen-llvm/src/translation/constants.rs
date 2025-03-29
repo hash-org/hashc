@@ -114,7 +114,7 @@ impl<'b> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, '_> {
         let str_len = value.len();
 
         let mut str_consts = self.str_consts.borrow_mut();
-        let (_, global_str) = str_consts.raw_entry_mut().from_key(&s).or_insert_with(|| {
+        let global_str = str_consts.entry(s).or_insert_with(|| {
             let str = self.ll_ctx.const_string(value.as_bytes(), false);
 
             // Here we essentially create a global with a new name...
@@ -131,7 +131,7 @@ impl<'b> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, '_> {
             //
             // Ref: <https://llvm.org/docs/LangRef.html#linkage-types>
             global.set_linkage(Linkage::Internal);
-            (s, global)
+            global
         });
 
         (global_str.as_any_value_enum(), self.const_usize(str_len as u64))
