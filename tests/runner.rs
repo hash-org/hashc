@@ -268,7 +268,8 @@ fn handle_pass_case(
 
     if !did_pass {
         panic!(
-            "\ntest case did not pass:\n{}",
+            "\ntest case did not pass:\nconfiguration: {:?}\n\n{}",
+            test.metadata,
             diagnostics
                 .into_iter()
                 .map(|report| format!("{}", report))
