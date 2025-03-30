@@ -55,6 +55,50 @@ println := (message: str) => {
     print("\n")
 }
 
+/// The `input` function, this allows for reading of strings from the
+/// standard input.
+input := (prompt: Option<str>) -> str => {
+    STDIN := 0 // We need top level constants!
+
+    match prompt {
+        Option::Some(value) => print(value),
+        Option::None => {}
+    }
+
+    buf := libc::malloc(1024);
+    mut offset := 0usize
+
+    // Now let's read in an input using syscall.
+    loop {
+        left := libc::read(STDIN, buf, 1024)
+
+        if left <= 0 {
+            break;
+        }
+
+        offset += cast<_, usize>(left)
+
+        // if the last read character was a `\n`, then we want to
+        // break.
+        //
+        // @@Todo: we need to be able to index into an array.
+        arr := transmute<_, [u8]>(SizedPointer(buf, offset));
+        last_char := cast<_, char>(arr[offset - 1]);
+        if last_char == '\n' {
+            break;
+        }
+    }
+
+    // Don't remove the newline in the end.
+    if offset > 1 {
+        offset -= 1
+    }
+
+    // Now transmute the buffer into a string
+    raw_str := SizedPointer(buf, offset);
+    transmute<SizedPointer, str>(raw_str)
+}
+
 refl := <T, a: T> => () -> {a ~ a} => {
     Equal::Refl(a)
 }
