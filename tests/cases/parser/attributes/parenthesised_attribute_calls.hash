@@ -1,0 +1,10 @@
+// stage=parse, run=pass, warnings=compare
+
+
+priv create_buf := <T> => (size: usize) -> [T] => {
+    // We should not get an warning about redundant parens here since
+    // this has a useful effect of clarifying the application of the
+    // function.
+    buf := libc::malloc((#size_of T) * size);
+    transmute<_, [T]>(buf)
+}
