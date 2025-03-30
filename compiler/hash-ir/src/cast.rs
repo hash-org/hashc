@@ -4,6 +4,7 @@
 //! this module provides the [CastKind] type which is used to classify
 //! casts at the top level within RValue positions.
 
+use hash_repr::ty::RefKind;
 use hash_storage::store::statics::StoreId;
 
 use crate::ty::{ReprTy, ReprTyId};
@@ -26,6 +27,14 @@ pub enum CastKind {
     /// A float to float cast conversion, either converting from a `f32` into a
     /// `f64` or vice versa.
     FloatToFloat,
+
+    /// A conversion between a reference (i.e. a pointer &T | &raw T) to
+    /// an integral type.
+    RefToInt,
+
+    /// A conversion between a platform unsigned integer to a
+    ///  reference (i.e. a pointer &T | &raw T).
+    IntToRef,
 }
 
 impl CastKind {
@@ -39,6 +48,8 @@ impl CastKind {
             (Some(CastTy::Int(_)), Some(CastTy::Float)) => Self::IntToFloat,
             (Some(CastTy::Float), Some(CastTy::Int(_))) => Self::FloatToInt,
             (Some(CastTy::Float), Some(CastTy::Float)) => Self::FloatToFloat,
+            (Some(CastTy::Ref), Some(CastTy::Int(IntCastKind::UInt))) => Self::RefToInt,
+            (Some(CastTy::Int(IntCastKind::UInt)), Some(CastTy::Ref)) => Self::IntToRef,
             _ => panic!(
                 "attempting to cast between non-primitive types: src: `{}`, dest: `{}`",
                 src, dest
@@ -65,6 +76,9 @@ pub enum IntCastKind {
 
     /// Converting into a `bool` type.
     Bool,
+
+    /// Converting a reference to `usize`.
+    Ptr,
 }
 
 impl IntCastKind {
@@ -85,6 +99,9 @@ pub enum CastTy {
 
     /// Floating-point type casts.
     Float,
+
+    /// Reference to a memory location.
+    Ref,
 }
 
 impl CastTy {
@@ -97,6 +114,7 @@ impl CastTy {
             ReprTy::Char => Some(Self::Int(IntCastKind::Char)),
             ReprTy::Bool => Some(Self::Int(IntCastKind::Bool)),
             ReprTy::Float(_) => Some(Self::Float),
+            ReprTy::Ref(_, _, RefKind::Raw | RefKind::Normal) => Some(Self::Ref),
             _ => None,
         })
     }

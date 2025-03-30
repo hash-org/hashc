@@ -345,6 +345,12 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                     (CastTy::Int(in_ty), CastTy::Int(_)) => {
                         builder.int_cast(value, out_ty, in_ty.is_signed())
                     }
+                    (CastTy::Ref, CastTy::Int(IntCastKind::UInt)) => {
+                        builder.ptr_to_int(value, out_ty)
+                    }
+                    (CastTy::Int(IntCastKind::UInt), CastTy::Ref) => {
+                        builder.int_to_ptr(value, out_ty)
+                    }
                     (CastTy::Int(in_ty), CastTy::Float) => {
                         if in_ty.is_signed() {
                             builder.si_to_fp(value, out_ty)
@@ -367,6 +373,9 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                             Ordering::Greater => builder.fp_truncate(value, out_ty),
                             Ordering::Equal => value,
                         }
+                    }
+                    _ => {
+                        unreachable!("invalid cast from `{:?}` to `{:?}`", in_cast_ty, out_cast_ty)
                     }
                 };
 
