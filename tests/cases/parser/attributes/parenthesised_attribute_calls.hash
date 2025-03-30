@@ -1,4 +1,4 @@
-// stage=parse, run=pass, warnings=compare
+// stage=parse, run=pass, warnings=disallow
 
 
 priv create_buf := <T> => (size: usize) -> [T] => {
