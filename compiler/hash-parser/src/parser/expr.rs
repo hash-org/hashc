@@ -759,14 +759,18 @@ impl AstGen<'_> {
             // set to `None` and that there are no extra tokens that are left within
             // the token tree...
             if entry.name.is_none() && !gen.has_token() {
-                let expr = entry.into_body().value;
+                let body = entry.into_body();
+                let expr = body.value;
+                let has_macro_invocations = body.macros.is_some();
 
                 // We want to emit a redundant parentheses warning if it is not a binary-like
                 // expression since it does not affect the precedence...
-                if !matches!(
-                    expr.body(),
-                    Expr::BinaryExpr(_) | Expr::Cast(_) | Expr::FnDef(_) | Expr::Deref(_)
-                ) {
+                if !has_macro_invocations
+                    && !matches!(
+                        expr.body(),
+                        Expr::BinaryExpr(_) | Expr::Cast(_) | Expr::FnDef(_) | Expr::Deref(_)
+                    )
+                {
                     gen.add_warning(ParseWarning::new(
                         WarningKind::RedundantParenthesis(expr.body().into()),
                         gen.make_span(gen.range()),
