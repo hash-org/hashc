@@ -1,6 +1,6 @@
 //! Functionality relating to finding the entry point of a program.
 use hash_attrs::{attr::attr_store, builtin::attrs};
-use hash_source::{entry_point::EntryPointKind, identifier::IDENTS, ModuleKind};
+use hash_source::{ModuleKind, entry_point::EntryPointKind, identifier::IDENTS};
 use hash_storage::store::statics::{SequenceStoreValue, StoreId};
 use hash_tir::tir::{Arg, CallTerm, FnDefId, HasAstNodeId, Node, NodeOrigin, Term, Ty};
 

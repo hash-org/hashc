@@ -11,7 +11,7 @@ use hash_tir::{
 use crate::{
     diagnostics::TcResult,
     env::TcEnv,
-    options::normalisation::{already_normalised, NormaliseResult},
+    options::normalisation::{NormaliseResult, already_normalised},
     tc::{FnInferMode, Tc},
     traits::{OperationsOn, OperationsOnNode, ScopedOperationsOnNode},
 };

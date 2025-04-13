@@ -5,7 +5,7 @@ use hash_tir::tir::{TermId, TyId, UnsafeTerm};
 use crate::{
     diagnostics::TcResult,
     env::TcEnv,
-    options::normalisation::{normalised_option, NormaliseResult},
+    options::normalisation::{NormaliseResult, normalised_option},
     tc::Tc,
     traits::{OperationsOn, OperationsOnNode},
 };

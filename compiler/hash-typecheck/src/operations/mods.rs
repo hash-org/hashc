@@ -1,7 +1,7 @@
 use std::ops::ControlFlow;
 
 use hash_reporting::diagnostic::ErrorState;
-use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
+use hash_storage::store::{TrivialSequenceStoreKey, statics::StoreId};
 use hash_tir::{
     context::HasContext,
     tir::{ModDefId, ModMemberId, ModMemberValue, NodeId, Term, Ty},
@@ -10,7 +10,7 @@ use hash_tir::{
 use crate::{
     diagnostics::TcError,
     env::TcEnv,
-    options::normalisation::{already_normalised, NormaliseResult},
+    options::normalisation::{NormaliseResult, already_normalised},
     tc::{FnInferMode, Tc},
     traits::{OperationsOn, OperationsOnNode},
     utils::dumping::potentially_dump_tir,

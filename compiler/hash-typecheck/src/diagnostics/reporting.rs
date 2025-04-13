@@ -66,8 +66,8 @@ impl TcReporter {
 
                 let error =
                     reporter.error().code(HashErrorCode::ParameterLengthMismatch).title(format!(
-                    "mismatch in parameter length: expected {param_length} but got {arg_length}"
-                ));
+                        "mismatch in parameter length: expected {param_length} but got {arg_length}"
+                    ));
 
                 if let Some(location) = params_id.span() {
                     error
@@ -208,11 +208,7 @@ impl TcReporter {
             }
             TcError::WrongCallKind { site, expected_implicit, actual_implicit } => {
                 let get_call_kind = |implicit: &bool| {
-                    if *implicit {
-                        "implicit (`<...>`)"
-                    } else {
-                        "explicit (`(...)`)"
-                    }
+                    if *implicit { "implicit (`<...>`)" } else { "explicit (`(...)`)" }
                 };
                 let error = reporter
                     .error()

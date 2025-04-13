@@ -1,12 +1,12 @@
 use std::ops::ControlFlow;
 
-use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
+use hash_storage::store::{TrivialSequenceStoreKey, statics::StoreId};
 use hash_tir::{
     context::{HasContext, ScopeKind},
     intrinsics::definitions::never_ty,
     tir::{
-        blocks::{BlockStatement, BlockTerm},
         NodeId, NodeOrigin, TermId, Ty, TyId,
+        blocks::{BlockStatement, BlockTerm},
     },
 };
 use hash_utils::log::info;
@@ -14,7 +14,7 @@ use hash_utils::log::info;
 use crate::{
     diagnostics::{TcError, TcResult},
     env::TcEnv,
-    options::normalisation::{normalised_to, NormalisationState, NormaliseResult},
+    options::normalisation::{NormalisationState, NormaliseResult, normalised_to},
     tc::{FnInferMode, Tc},
     traits::{OperationsOn, OperationsOnNode},
     utils::matching::MatchResult,

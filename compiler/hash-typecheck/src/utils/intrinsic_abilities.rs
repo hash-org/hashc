@@ -2,7 +2,7 @@
 //! intrinsic functions.
 
 use hash_reporting::diagnostic::Diagnostics;
-use hash_repr::{compute::LayoutComputer, HasLayout};
+use hash_repr::{HasLayout, compute::LayoutComputer};
 use hash_source::identifier::Identifier;
 use hash_target::{HasTarget, Target};
 use hash_tir::{

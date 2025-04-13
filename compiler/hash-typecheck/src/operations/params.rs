@@ -1,15 +1,15 @@
 use std::ops::ControlFlow;
 
-use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
+use hash_storage::store::{SequenceStoreKey, TrivialSequenceStoreKey, statics::StoreId};
 use hash_tir::{
     context::{HasContext, ScopeKind},
-    tir::{validate_params, ParamsId, Term, Ty},
+    tir::{ParamsId, Term, Ty, validate_params},
 };
 
 use crate::{
     diagnostics::{TcError, TcResult},
     env::TcEnv,
-    options::normalisation::{already_normalised, NormaliseResult},
+    options::normalisation::{NormaliseResult, already_normalised},
     tc::Tc,
     traits::{OperationsOnNode, ScopedOperationsOnNode},
 };

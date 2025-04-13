@@ -5,7 +5,7 @@ use hash_tir::tir::{NodeOrigin, TermId, Ty, TyId, UniverseTy};
 use crate::{
     diagnostics::TcResult,
     env::TcEnv,
-    options::normalisation::{already_normalised, NormaliseResult},
+    options::normalisation::{NormaliseResult, already_normalised},
     tc::Tc,
     traits::{OperationsOn, OperationsOnNode},
 };

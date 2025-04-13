@@ -62,11 +62,7 @@ pub fn normalised_if<T, I: Into<T>>(
     atom: impl FnOnce() -> I,
     state: &NormalisationState,
 ) -> NormaliseResult<ControlFlow<T>> {
-    if state.has_normalised() {
-        Ok(Some(ControlFlow::Break(atom().into())))
-    } else {
-        Ok(None)
-    }
+    if state.has_normalised() { Ok(Some(ControlFlow::Break(atom().into()))) } else { Ok(None) }
 }
 
 /// Signals that the normalisation was successful.
@@ -172,11 +168,7 @@ impl NormalisationState {
     /// Signal that the normalisation is done, and produce
     /// an appropriate result.
     pub fn done(&self) -> NormaliseResult {
-        if self.has_normalised() {
-            Ok(Some(()))
-        } else {
-            Ok(None)
-        }
+        if self.has_normalised() { Ok(Some(())) } else { Ok(None) }
     }
 }
 

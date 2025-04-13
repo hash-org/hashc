@@ -3,14 +3,14 @@ use std::ops::ControlFlow;
 use hash_storage::store::statics::StoreId;
 use hash_tir::{
     context::HasContext,
-    tir::{pats::BindingPat, PatId, Term, TermId, TyId, VarTerm},
+    tir::{PatId, Term, TermId, TyId, VarTerm, pats::BindingPat},
     visitor::Map,
 };
 
 use crate::{
     diagnostics::TcResult,
     env::TcEnv,
-    options::normalisation::{already_normalised, normalised_to, NormaliseResult},
+    options::normalisation::{NormaliseResult, already_normalised, normalised_to},
     tc::Tc,
     traits::{OperationsOn, OperationsOnNode},
 };
@@ -78,11 +78,7 @@ impl<E: TcEnv> OperationsOn<VarTerm> for Tc<'_, E> {
                 return Ok(());
             }
         }
-        if a == b {
-            Ok(())
-        } else {
-            self.mismatching_atoms(a_id, b_id)
-        }
+        if a == b { Ok(()) } else { self.mismatching_atoms(a_id, b_id) }
     }
 }
 

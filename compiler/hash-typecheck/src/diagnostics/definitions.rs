@@ -4,8 +4,8 @@ use hash_ast_utils::lit::LitParseError;
 use hash_reporting::diagnostic::IntoCompound;
 use hash_tir::{
     tir::{
-        fns::FnDefId, NodeOrigin, ParamError, ParamIndex, ParamsId, PatId, SomeParamsOrArgsId,
-        TermId, TyId,
+        NodeOrigin, ParamError, ParamIndex, ParamsId, PatId, SomeParamsOrArgsId, TermId, TyId,
+        fns::FnDefId,
     },
     visitor::Atom,
 };

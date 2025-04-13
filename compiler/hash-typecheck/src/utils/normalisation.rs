@@ -11,8 +11,8 @@ use crate::{
     diagnostics::TcResult,
     env::TcEnv,
     options::normalisation::{
-        already_normalised, normalisation_result_control_flow_into, NormalisationMode,
-        NormalisationState, NormaliseResult, NormaliseSignal,
+        NormalisationMode, NormalisationState, NormaliseResult, NormaliseSignal,
+        already_normalised, normalisation_result_control_flow_into,
     },
     tc::Tc,
     traits::OperationsOnNode,
@@ -170,11 +170,7 @@ impl<'env, T: TcEnv + 'env> Tc<'env, T> {
             result
         })?;
 
-        if st.has_normalised() {
-            Ok(Some(result))
-        } else {
-            Ok(None)
-        }
+        if st.has_normalised() { Ok(Some(result)) } else { Ok(None) }
     }
 
     /// Normalise an atom once, for use with `Visitor`'s `Map`.

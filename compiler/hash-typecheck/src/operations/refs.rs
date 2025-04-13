@@ -7,7 +7,7 @@ use crate::{
     diagnostics::TcError,
     env::TcEnv,
     options::normalisation::{
-        normalise_nested, normalised_if, normalised_to, NormalisationState, NormaliseResult,
+        NormalisationState, NormaliseResult, normalise_nested, normalised_if, normalised_to,
     },
     tc::Tc,
     traits::{OperationsOn, OperationsOnNode},
@@ -42,7 +42,7 @@ impl<E: TcEnv> OperationsOn<RefTerm> for Tc<'_, E> {
                         },
                         original_term_id.origin().inferred(),
                     ),
-                })
+                });
             }
         };
 
@@ -95,7 +95,7 @@ impl<E: TcEnv> OperationsOn<DerefTerm> for Tc<'_, E> {
                 return Err(TcError::CannotDeref {
                     subject: deref_term.subject,
                     actual_subject_ty: deref_inner_inferred,
-                })
+                });
             }
         };
 

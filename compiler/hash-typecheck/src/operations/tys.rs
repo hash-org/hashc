@@ -1,4 +1,4 @@
-use hash_storage::store::{statics::StoreId, SequenceStoreKey};
+use hash_storage::store::{SequenceStoreKey, statics::StoreId};
 use hash_tir::tir::{DataDefCtors, Ty, TyId};
 
 use crate::{diagnostics::TcResult, env::TcEnv, tc::Tc, traits::OperationsOnNode};

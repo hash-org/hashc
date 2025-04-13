@@ -5,14 +5,14 @@ use hash_tir::{
     context::HasContext,
     intrinsics::definitions::never_ty,
     tir::{
-        commands::AssignTerm, LoopControlTerm, LoopTerm, NodeId, NodeOrigin, ReturnTerm, Term,
-        TermId, Ty, TyId,
+        LoopControlTerm, LoopTerm, NodeId, NodeOrigin, ReturnTerm, Term, TermId, Ty, TyId,
+        commands::AssignTerm,
     },
 };
 
 use crate::{
     env::TcEnv,
-    options::normalisation::{normalised_to, NormaliseResult, NormaliseSignal},
+    options::normalisation::{NormaliseResult, NormaliseSignal, normalised_to},
     tc::Tc,
     traits::{OperationsOn, OperationsOnNode},
 };
