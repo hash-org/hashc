@@ -7,7 +7,7 @@ use hash_ir::{
     ir::{BasicBlock, Place},
     ty::Mutability,
 };
-use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
+use hash_storage::store::{TrivialSequenceStoreKey, statics::StoreId};
 use hash_tir::{
     context::{Context, ScopeKind},
     tir::{BlockStatement, BlockTerm, LoopTerm, MatchTerm, Term, TermId},

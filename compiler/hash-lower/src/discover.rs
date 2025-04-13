@@ -6,7 +6,7 @@ use std::ops::ControlFlow;
 
 use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_pipeline::workspace::StageInfo;
-use hash_storage::store::{statics::StoreId, Store, TrivialSequenceStoreKey};
+use hash_storage::store::{Store, TrivialSequenceStoreKey, statics::StoreId};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     stores::tir_stores,
@@ -79,11 +79,7 @@ impl FnDiscoverer<'_> {
 
         // Check that the body is marked as "foreign" since
         // we don't want to lower it.
-        if is_foreign {
-            None
-        } else {
-            Some(def_body)
-        }
+        if is_foreign { None } else { Some(def_body) }
     }
 
     /// Discover all TIR runtime functions in the sources, in order to lower

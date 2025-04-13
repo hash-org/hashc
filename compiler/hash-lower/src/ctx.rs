@@ -2,12 +2,12 @@
 //! information required to lower all the TIR into IR, among
 //! other operations.
 
-use hash_ir::{ty::ReprTyId, HasIrCtx, IrCtx};
+use hash_ir::{HasIrCtx, IrCtx, ty::ReprTyId};
 use hash_pipeline::settings::CompilerSettings;
 use hash_repr::{
+    LayoutId, LayoutStorage, TyInfo,
     compute::{LayoutComputer, LayoutError},
     write::{LayoutWriter, LayoutWriterConfig},
-    LayoutId, LayoutStorage, TyInfo,
 };
 use hash_storage::store::statics::SequenceStoreValue;
 use hash_target::{HasTarget, Target};

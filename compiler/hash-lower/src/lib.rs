@@ -24,10 +24,10 @@ use hash_pipeline::{
     settings::{CompilerSettings, CompilerStageKind, IrDumpMode},
     workspace::{SourceStageInfo, Workspace},
 };
-use hash_repr::{compute::LayoutComputer, LayoutStorage};
+use hash_repr::{LayoutStorage, compute::LayoutComputer};
 use hash_semantics::storage::SemanticStorage;
 use hash_source::SourceId;
-use hash_storage::store::{statics::StoreId, Store};
+use hash_storage::store::{Store, statics::StoreId};
 use hash_tir::{stores::tir_stores, tir::HasAstNodeId};
 use hash_utils::{log, profiling::HasMutMetrics, rayon};
 use optimise::Optimiser;

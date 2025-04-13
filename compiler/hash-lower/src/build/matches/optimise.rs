@@ -14,7 +14,7 @@ use hash_tir::tir::{PatId, Spread};
 use hash_utils::smallvec::SmallVec;
 
 use super::candidate::{Candidate, MatchPair};
-use crate::build::{place::PlaceBuilder, BodyBuilder};
+use crate::build::{BodyBuilder, place::PlaceBuilder};
 
 impl BodyBuilder<'_> {
     /// Attempt to optimise the sub-candidates of a provided [Candidate]. This

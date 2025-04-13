@@ -23,11 +23,11 @@ use hash_tir::{
 use hash_utils::{itertools::Itertools, stack::ensure_sufficient_stack};
 
 use self::{
-    candidate::{traverse_candidate, Binding, Candidate, Candidates},
+    candidate::{Binding, Candidate, Candidates, traverse_candidate},
     test::TestKind,
 };
 use super::{
-    place::PlaceBuilder, ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, BodyBuilder,
+    BlockAnd, BlockAndExtend, BodyBuilder, place::PlaceBuilder, ty::FnCallTermKind, unpack,
 };
 
 impl<'tcx> BodyBuilder<'tcx> {

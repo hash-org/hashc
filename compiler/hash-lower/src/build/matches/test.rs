@@ -12,7 +12,7 @@ use hash_ir::{
         BasicBlock, BinOp, Const, ConstKind, Operand, Place, PlaceProjection, RValue,
         SwitchTargets, TerminatorKind,
     },
-    ty::{AdtId, ReprTy, ReprTyId, ToReprTy, VariantIdx, COMMON_REPR_TYS},
+    ty::{AdtId, COMMON_REPR_TYS, ReprTy, ReprTyId, ToReprTy, VariantIdx},
 };
 use hash_reporting::macros::panic_on_span;
 use hash_storage::store::statics::StoreId;
@@ -26,7 +26,7 @@ use super::{
     candidate::{Candidate, MatchPair},
     const_range::ConstRange,
 };
-use crate::build::{place::PlaceBuilder, unpack, BodyBuilder};
+use crate::build::{BodyBuilder, place::PlaceBuilder, unpack};
 
 #[derive(PartialEq, Debug)]
 pub(super) enum TestKind {

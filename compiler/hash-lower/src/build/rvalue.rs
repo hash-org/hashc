@@ -12,7 +12,7 @@ use hash_ir::{
         AssertKind, BasicBlock, Const, ConstKind, Operand, Place, RValue, Scalar, TerminatorKind,
     },
     lang_items::LangItem,
-    ty::{Mutability, ReprTy, ReprTyId, COMMON_REPR_TYS},
+    ty::{COMMON_REPR_TYS, Mutability, ReprTy, ReprTyId},
 };
 use hash_source::constant::IntTy;
 use hash_storage::store::statics::StoreId;
@@ -20,7 +20,7 @@ use hash_target::HasTarget;
 use hash_tir::tir::{HasAstNodeId, Term, TermId, Ty};
 
 use super::{
-    category::Category, ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, BodyBuilder,
+    BlockAnd, BlockAndExtend, BodyBuilder, category::Category, ty::FnCallTermKind, unpack,
 };
 use crate::build::category::RValueKind;
 

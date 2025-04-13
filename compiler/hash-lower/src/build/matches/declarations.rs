@@ -6,14 +6,14 @@ use hash_ir::{
     ir::{BasicBlock, Local, LocalDecl, Place},
     ty::{Mutability, ReprTyId},
 };
-use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
+use hash_storage::store::{TrivialSequenceStoreKey, statics::StoreId};
 use hash_tir::tir::{
-    blocks::Decl, ArrayPat, BindingPat, CtorPat, IfPat, NodesId, OrPat, Pat, PatId, SymbolId,
-    TermId, TuplePat,
+    ArrayPat, BindingPat, CtorPat, IfPat, NodesId, OrPat, Pat, PatId, SymbolId, TermId, TuplePat,
+    blocks::Decl,
 };
 
-use super::{candidate::Candidate, BlockAnd, BodyBuilder};
-use crate::build::{place::PlaceBuilder, unpack, BlockAndExtend};
+use super::{BlockAnd, BodyBuilder, candidate::Candidate};
+use crate::build::{BlockAndExtend, place::PlaceBuilder, unpack};
 
 impl BodyBuilder<'_> {
     /// Push a [LocalDecl] in the current [BodyBuilder] with the associated
