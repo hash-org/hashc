@@ -1,11 +1,11 @@
 [package]
 name = "hash-target"
 version = "0.1.0"
-authors = ["The Hash Language authors"]
-edition = "2021"
+authors = { workspace = true }
+edition = { workspace = true }
 
 [lib]
 doctest = false
 
 [dependencies]
-num-bigint = { workspace = true}
+num-bigint = { workspace = true }

@@ -2,7 +2,7 @@
 //! a core [Discriminant] type which allows the user to represent and operate on
 //! discriminant values.
 
-use crate::{primitives::IntTy, size::Size, HasTarget};
+use crate::{HasTarget, primitives::IntTy, size::Size};
 
 /// A utility for working with constructor discriminants.
 #[derive(Debug, Clone, Copy)]

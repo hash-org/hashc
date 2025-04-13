@@ -342,11 +342,7 @@ pub enum Scalar {
 
 impl fmt::Display for Scalar {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.is_bool() {
-            write!(f, "bool")
-        } else {
-            write!(f, "{}", self.kind())
-        }
+        if self.is_bool() { write!(f, "bool") } else { write!(f, "{}", self.kind()) }
     }
 }
 

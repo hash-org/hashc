@@ -1,8 +1,8 @@
 //! Windows MSVC target base configuration.
 
 use crate::{
-    link::{LinkageArgs, LinkerFlavour, Lld},
     Target,
+    link::{LinkageArgs, LinkerFlavour, Lld},
 };
 
 pub fn options() -> Target {
