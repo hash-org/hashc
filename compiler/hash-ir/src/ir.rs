@@ -10,24 +10,24 @@ use hash_ast::ast::AstNodeId;
 pub use hash_const_eval::op::*;
 pub use hash_repr::constant::{Const, ConstKind};
 pub use hash_source::constant::{AllocId, Scalar};
-use hash_source::{identifier::Identifier, location::Span, SourceId};
+use hash_source::{SourceId, identifier::Identifier, location::Span};
 use hash_storage::{
     new_sequence_store_key_indirect,
     store::{
-        statics::{SingleStoreValue, StoreId},
         LocalSequenceStore, SequenceStoreKey,
+        statics::{SingleStoreValue, StoreId},
     },
 };
 use hash_utils::{
     graph::dominators::Dominators,
     index_vec::{self, IndexVec},
-    smallvec::{smallvec, SmallVec},
+    smallvec::{SmallVec, smallvec},
 };
 
 use crate::{
     basic_blocks::BasicBlocks,
     cast::CastKind,
-    ty::{AdtId, Mutability, PlaceTy, RefKind, ReprTy, ReprTyId, VariantIdx, COMMON_REPR_TYS},
+    ty::{AdtId, COMMON_REPR_TYS, Mutability, PlaceTy, RefKind, ReprTy, ReprTyId, VariantIdx},
 };
 
 impl From<Const> for Operand {
@@ -258,11 +258,7 @@ impl Place {
     /// Examine a [Place] as a [Local] with the condition that the
     /// [Place] has no projections.
     pub fn as_local(&self) -> Option<Local> {
-        if self.projections.is_empty() {
-            Some(self.local)
-        } else {
-            None
-        }
+        if self.projections.is_empty() { Some(self.local) } else { None }
     }
 }
 
