@@ -31,7 +31,7 @@ use hash_pipeline::{
 use hash_reporting::report::Report;
 use hash_repr::LayoutStorage;
 use hash_semantics::{
-    storage::SemanticStorage, SemanticAnalysis, SemanticAnalysisCtx, SemanticAnalysisCtxQuery,
+    SemanticAnalysis, SemanticAnalysisCtx, SemanticAnalysisCtxQuery, storage::SemanticStorage,
 };
 use hash_source::SourceId;
 use hash_untyped_semantics::{
