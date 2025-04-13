@@ -14,11 +14,11 @@ use std::{
 };
 
 use hash_source::{
-    location::{RowColRange, Span},
     Source, SourceMapUtils,
+    location::{RowColRange, Span},
 };
 use hash_utils::{
-    highlight::{highlight, Colour, Modifier},
+    highlight::{Colour, Modifier, highlight},
     range_map::Range,
 };
 

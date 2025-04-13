@@ -50,10 +50,14 @@ impl From<TargetDataLayoutParseError<'_>> for Report {
                 format!("invalid {kind} `{bit}` for `{cause}` in \"data-layout\", err: {err}")
             }
             TargetDataLayoutParseError::InconsistentTargetArchitecture { dl, target } => {
-                format!("inconsistent target specification: \"data-layout\" claims architecture is {dl}-endian, while \"target-endian\" is `{target}`")
+                format!(
+                    "inconsistent target specification: \"data-layout\" claims architecture is {dl}-endian, while \"target-endian\" is `{target}`"
+                )
             }
             TargetDataLayoutParseError::InconsistentTargetPointerWidth { size, target } => {
-                format!("inconsistent target specification: \"data-layout\" claims pointer size is `{size}` bits, while \"target-pointer-width\" is `{target}`")
+                format!(
+                    "inconsistent target specification: \"data-layout\" claims pointer size is `{size}` bits, while \"target-pointer-width\" is `{target}`"
+                )
             }
             TargetDataLayoutParseError::InvalidEnumSize { err } => err,
         };

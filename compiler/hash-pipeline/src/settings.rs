@@ -10,7 +10,7 @@ use std::{
 };
 
 use hash_ast_utils::dump::AstDumpMode;
-use hash_target::{HasTarget, Target, HOST_TARGET_TRIPLE};
+use hash_target::{HOST_TARGET_TRIPLE, HasTarget, Target};
 use hash_utils::{
     clap::{Args, Parser, ValueEnum},
     logging::CompilerMessagingFormat,
