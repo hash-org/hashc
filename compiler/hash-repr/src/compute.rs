@@ -6,8 +6,8 @@
 use std::{cmp, iter, num::NonZeroUsize};
 
 use hash_storage::store::{
-    statics::{SingleStoreValue, StoreId},
     Store,
+    statics::{SingleStoreValue, StoreId},
 };
 use hash_target::{
     abi::{AbiRepresentation, AddressSpace, Integer, Scalar, ScalarKind, ValidScalarRange},
@@ -19,10 +19,9 @@ use hash_target::{
 use hash_utils::{derive_more::Constructor, index_vec::IndexVec};
 
 use crate::{
-    repr_stores,
-    ty::{Adt, AdtRepresentation, Mutability, RefKind, ReprTy, ReprTyId, VariantIdx},
     CommonLayouts, FieldLayout, Layout, LayoutId, LayoutShape, LayoutStorage, LayoutStore,
-    PointeeInfo, PointerKind, TyInfo, Variants,
+    PointeeInfo, PointerKind, TyInfo, Variants, repr_stores,
+    ty::{Adt, AdtRepresentation, Mutability, RefKind, ReprTy, ReprTyId, VariantIdx},
 };
 
 /// This describes the collection of errors that can occur
@@ -273,11 +272,7 @@ impl LayoutComputer<'_> {
                 let (first_present, second_present) = {
                     let mut present_variants =
                         field_layout_table.iter_enumerated().filter_map(|(variant, layouts)| {
-                            if absent(layouts) {
-                                None
-                            } else {
-                                Some(variant)
-                            }
+                            if absent(layouts) { None } else { Some(variant) }
                         });
 
                     (present_variants.next(), present_variants.next())
@@ -1052,11 +1047,7 @@ impl LayoutComputer<'_> {
             }
             _ => {
                 let data_variant = info.layout.map(|layout| {
-                    if let LayoutShape::Union { .. } = layout.shape {
-                        None
-                    } else {
-                        Some(info)
-                    }
+                    if let LayoutShape::Union { .. } = layout.shape { None } else { Some(info) }
                 });
 
                 let mut result = None;

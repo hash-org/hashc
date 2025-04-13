@@ -9,15 +9,15 @@ use std::{
 use hash_ast::ast;
 use hash_reporting::macros::panic_on_span;
 use hash_source::{
+    SourceId,
     constant::{FloatTy, IntTy, SIntTy, UIntTy},
     identifier::Identifier,
-    SourceId,
 };
 use hash_storage::{
     static_sequence_store_indirect, static_single_store,
     store::{
-        statics::{SingleStoreValue, StoreId},
         SequenceStore,
+        statics::{SingleStoreValue, StoreId},
     },
 };
 use hash_target::{
@@ -29,7 +29,7 @@ use hash_target::{
 };
 use hash_utils::{
     bitflags::bitflags,
-    index_vec::{self, index_vec, IndexVec},
+    index_vec::{self, IndexVec, index_vec},
     lazy_static,
 };
 
@@ -935,7 +935,12 @@ impl Adt {
 
             // Ensure that the discr fits the fit.
             if discr < fit {
-                panic_on_span!(self.origin().unwrap().span(), format!("Specified discriminant type is too small for the discriminant range of the enum, fit={fit:?}, specified={discr:?}"))
+                panic_on_span!(
+                    self.origin().unwrap().span(),
+                    format!(
+                        "Specified discriminant type is too small for the discriminant range of the enum, fit={fit:?}, specified={discr:?}"
+                    )
+                )
             }
 
             return (discr, discr_ty.is_signed());

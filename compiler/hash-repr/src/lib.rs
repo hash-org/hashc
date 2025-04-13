@@ -30,7 +30,7 @@ use hash_target::{
 use hash_utils::{fxhash::FxHashMap, index_vec::IndexVec};
 use ty::{AdtStore, ReprTyListStore, ReprTyStore};
 
-use crate::ty::{InstanceStore, ReprTy, ReprTyId, ToReprTy, VariantIdx, COMMON_REPR_TYS};
+use crate::ty::{COMMON_REPR_TYS, InstanceStore, ReprTy, ReprTyId, ToReprTy, VariantIdx};
 
 /// The [PointerKind] specifies what kind of pointer this is, whether
 /// it is a shared reference, or a unique reference. In the @@Future, more

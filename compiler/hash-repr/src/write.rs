@@ -26,9 +26,9 @@ use hash_target::{
 use hash_utils::{index_vec::index_vec, tree_writing::CharacterSet};
 
 use crate::{
+    FieldLayout, Layout, LayoutId, LayoutShape, TyInfo, Variants,
     compute::LayoutComputer,
     ty::{ReprTy, VariantIdx},
-    FieldLayout, Layout, LayoutId, LayoutShape, TyInfo, Variants,
 };
 
 /// [LayoutWriterConfig] stores all of the configuration for the [LayoutWriter]
