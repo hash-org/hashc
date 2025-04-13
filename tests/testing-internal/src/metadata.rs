@@ -9,8 +9,8 @@ use std::{
 };
 
 use hash_pipeline::settings::CompilerStageKind;
-use itertools::{peek_nth, Itertools};
-use quote::{quote, ToTokens};
+use itertools::{Itertools, peek_nth};
+use quote::{ToTokens, quote};
 
 /// Whether the test should pass or fail, and possibly
 /// in the future if `warnings` are allowed within the
