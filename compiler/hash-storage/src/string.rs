@@ -4,7 +4,7 @@
 use core::fmt;
 use std::{borrow::Borrow, hash::Hash, ops::Deref};
 
-use crate::arena::{row::Row, Wall};
+use crate::arena::{Wall, row::Row};
 
 /// A [`String`]-like implementation for allocating strings within a [`Wall`].
 ///

@@ -6,8 +6,8 @@
 use std::hash::Hash;
 
 use dashmap::{
-    mapref::one::{Ref, RefMut},
     DashMap,
+    mapref::one::{Ref, RefMut},
 };
 use fxhash::FxBuildHasher;
 

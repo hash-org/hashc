@@ -394,7 +394,7 @@ impl<T: Eq> Eq for Row<'_, T> {}
 mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    use crate::arena::{row::Row, Castle};
+    use crate::arena::{Castle, row::Row};
 
     #[test]
     fn row_construction_test() {

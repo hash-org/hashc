@@ -3,7 +3,7 @@
 //! a list of items as a single id.
 
 use std::{
-    iter::{repeat, Map, Repeat, Zip},
+    iter::{Map, Repeat, Zip, repeat},
     ops::Range,
 };
 
@@ -80,11 +80,7 @@ where
     }
 
     fn at(self, index: usize) -> Option<Self::ElementKey> {
-        if index < self.len() {
-            Some(Self::ElementKey::from((self, index)))
-        } else {
-            None
-        }
+        if index < self.len() { Some(Self::ElementKey::from((self, index))) } else { None }
     }
 }
 
