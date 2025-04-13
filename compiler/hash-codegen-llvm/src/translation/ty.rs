@@ -12,19 +12,19 @@ use hash_codegen::{
         alignment::Alignment,
         size::Size,
     },
-    traits::{ty::TypeBuilderMethods, HasCtxMethods},
+    traits::{HasCtxMethods, ty::TypeBuilderMethods},
 };
 use hash_ir::ty::ReprTy;
 use hash_storage::store::statics::StoreId;
-use hash_utils::smallvec::{smallvec, SmallVec};
+use hash_utils::smallvec::{SmallVec, smallvec};
 use inkwell as llvm;
 use llvm::{
     context::AsContextRef,
     types::{AnyType, AnyTypeEnum, AsTypeRef, BasicType, BasicTypeEnum, MetadataType, VectorType},
 };
 use llvm_sys::{
-    core::{LLVMGetTypeKind, LLVMPointerTypeInContext, LLVMVectorType},
     LLVMTypeKind,
+    core::{LLVMGetTypeKind, LLVMPointerTypeInContext, LLVMVectorType},
 };
 
 use super::abi::ExtendedFnAbiMethods;
@@ -436,11 +436,7 @@ impl<'m> ExtendedTyBuilderMethods<'m> for TyInfo {
             |layout| matches!(layout.abi, AbiRepresentation::Scalar(scalar) if scalar.is_bool()),
         );
 
-        if is_bool {
-            ctx.type_i1()
-        } else {
-            self.llvm_ty(ctx)
-        }
+        if is_bool { ctx.type_i1() } else { self.llvm_ty(ctx) }
     }
 
     fn scalar_llvm_type_at(

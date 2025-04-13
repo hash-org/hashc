@@ -13,19 +13,19 @@ use hash_codegen::{
     },
     repr::TyInfo,
     target::{
+        HasTarget,
         abi::{AbiRepresentation, Scalar, ScalarKind, ValidScalarRange},
         alignment::Alignment,
         size::Size,
-        HasTarget,
     },
     traits::{
-        builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, ty::TypeBuilderMethods,
-        HasCtxMethods,
+        HasCtxMethods, builder::BlockBuilderMethods, constants::ConstValueBuilderMethods,
+        ty::TypeBuilderMethods,
     },
 };
 use hash_ir::ty::{ReprTy, ReprTyId};
 use hash_source::constant::{IntTy, SIntTy, UIntTy};
-use hash_storage::store::{statics::StoreId, Store};
+use hash_storage::store::{Store, statics::StoreId};
 use hash_utils::rayon::iter::Either;
 use inkwell::{
     basic_block::BasicBlock,
@@ -38,8 +38,8 @@ use inkwell::{
 use llvm_sys::core as llvm;
 
 use super::{
-    abi::ExtendedFnAbiMethods, layouts::ExtendedLayoutMethods, ty::ExtendedTyBuilderMethods,
-    LLVMBuilder, EMPTY_NAME,
+    EMPTY_NAME, LLVMBuilder, abi::ExtendedFnAbiMethods, layouts::ExtendedLayoutMethods,
+    ty::ExtendedTyBuilderMethods,
 };
 use crate::misc::{
     AtomicOrderingWrapper, FloatPredicateWrapper, IntPredicateWrapper, MetadataTypeKind,
@@ -763,11 +763,7 @@ impl<'a, 'b> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, '_> {
     }
 
     fn to_immediate_scalar(&mut self, value: Self::Value, scalar_kind: Scalar) -> Self::Value {
-        if scalar_kind.is_bool() {
-            self.truncate(value, self.ctx.type_i1())
-        } else {
-            value
-        }
+        if scalar_kind.is_bool() { self.truncate(value, self.ctx.type_i1()) } else { value }
     }
 
     fn alloca(&mut self, ty: Self::Type, alignment: Alignment) -> Self::Value {

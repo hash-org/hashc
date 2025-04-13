@@ -5,14 +5,14 @@ use std::cell::{Cell, RefCell};
 
 use hash_codegen::{
     backend::CodeGenStorage,
-    repr::{compute::LayoutComputer, LayoutStorage},
-    symbols::{push_string_encoded_count, ALPHANUMERIC_BASE},
+    repr::{LayoutStorage, compute::LayoutComputer},
+    symbols::{ALPHANUMERIC_BASE, push_string_encoded_count},
     target::{HasTarget, Target},
     traits::{BackendTypes, HasCtxMethods},
 };
 use hash_ir::{
-    ty::{InstanceId, ReprTyId, VariantIdx},
     IrCtx,
+    ty::{InstanceId, ReprTyId, VariantIdx},
 };
 use hash_pipeline::settings::CompilerSettings;
 use hash_source::constant::AllocId;

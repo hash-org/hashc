@@ -10,7 +10,7 @@ use hash_codegen::{
         data_layout::HasDataLayout,
     },
     traits::{
-        abi::AbiBuilderMethods, builder::BlockBuilderMethods, ty::TypeBuilderMethods, HasCtxMethods,
+        HasCtxMethods, abi::AbiBuilderMethods, builder::BlockBuilderMethods, ty::TypeBuilderMethods,
     },
 };
 use hash_storage::store::statics::StoreId;
@@ -21,7 +21,7 @@ use inkwell::{
     values::{AnyValue, AnyValueEnum, CallSiteValue, FunctionValue},
 };
 
-use super::{ty::ExtendedTyBuilderMethods, LLVMBuilder};
+use super::{LLVMBuilder, ty::ExtendedTyBuilderMethods};
 use crate::{ctx::CodeGenCtx, misc::AttributeKind};
 
 impl<'b> AbiBuilderMethods<'b> for LLVMBuilder<'_, 'b, '_> {

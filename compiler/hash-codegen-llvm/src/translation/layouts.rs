@@ -8,7 +8,7 @@ use hash_codegen::{
 use hash_ir::ty::ReprTyId;
 use hash_storage::store::statics::StoreId;
 
-use super::{ty::TyMemoryRemap, LLVMBuilder};
+use super::{LLVMBuilder, ty::TyMemoryRemap};
 use crate::ctx::CodeGenCtx;
 
 impl<'b> LayoutMethods<'b> for CodeGenCtx<'b, '_> {

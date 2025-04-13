@@ -5,14 +5,14 @@ use hash_codegen::{
     abi::{CallingConvention, FnAbi},
     symbols::mangle::compute_symbol_name,
     target::HasTarget,
-    traits::{misc::MiscBuilderMethods, ty::TypeBuilderMethods, HasCtxMethods},
+    traits::{HasCtxMethods, misc::MiscBuilderMethods, ty::TypeBuilderMethods},
 };
 use hash_ir::ty::{InstanceHelpers, InstanceId};
-use hash_storage::store::{statics::StoreId, Store};
+use hash_storage::store::{Store, statics::StoreId};
 use inkwell::{
+    GlobalVisibility,
     module::Linkage,
     values::{AnyValue, AnyValueEnum, FunctionValue, UnnamedAddress},
-    GlobalVisibility,
 };
 
 use super::abi::ExtendedFnAbiMethods;
