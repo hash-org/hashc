@@ -81,8 +81,8 @@ clap = { version = "4.3.8", features = ["derive"] }
 const_format = "0.2.30"                                           # for concatenating strings together at compile time.
 convert_case = "0.8"
 crossbeam-channel = "0.5.1"
-dashmap = "5.1"
 fixedbitset = "0.4.2"
+dashmap = "6.1"
 derive_more = { version = "2.0", features = ["full"] }
 fnv = "1.0.7"
 fxhash = "0.2.1"
