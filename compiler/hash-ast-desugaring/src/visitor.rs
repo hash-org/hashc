@@ -3,7 +3,7 @@ use std::convert::Infallible;
 use hash_ast::{
     ast::Block,
     ast_visitor_mut_default_impl,
-    visitor::{walk_mut, AstVisitorMut},
+    visitor::{AstVisitorMut, walk_mut},
 };
 
 #[derive(Debug)]

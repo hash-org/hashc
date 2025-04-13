@@ -3,7 +3,7 @@
 use hash_ast::ast;
 use hash_reporting::macros::panic_on_span;
 use hash_source::location::Span;
-use hash_utils::thin_vec::{thin_vec, ThinVec};
+use hash_utils::thin_vec::{ThinVec, thin_vec};
 
 use crate::visitor::AstDesugaring;
 

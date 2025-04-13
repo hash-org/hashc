@@ -1,8 +1,8 @@
 [package]
 name = "hash-ast-desugaring"
 version = "0.1.0"
-authors = ["The Hash Language authors"]
-edition = "2021"
+authors = { workspace = true }
+edition = { workspace = true }
 
 [lib]
 doctest = false
@@ -13,4 +13,4 @@ hash-pipeline = { workspace = true }
 hash-reporting = { workspace = true }
 hash-source = { workspace = true }
 hash-tree-def = { workspace = true }
-hash-utils =  { workspace = true }
+hash-utils = { workspace = true }
