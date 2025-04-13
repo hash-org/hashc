@@ -13,10 +13,10 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    highlight::{highlight, Colour, Modifier},
+    highlight::{Colour, Modifier, highlight},
     log::{
-        kv::{Error, Key, Value, Visitor},
         Level, Log, Metadata, Record,
+        kv::{Error, Key, Value, Visitor},
     },
     stream::CompilerOutputStream,
     stream_writeln,

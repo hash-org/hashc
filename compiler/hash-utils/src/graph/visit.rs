@@ -3,7 +3,7 @@
 //! of the children of a node are visited before the node itself.
 
 use fixedbitset::FixedBitSet;
-use index_vec::{index_vec, Idx};
+use index_vec::{Idx, index_vec};
 
 use super::{DirectedGraph, WithSuccessors};
 

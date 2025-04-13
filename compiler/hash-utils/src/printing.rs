@@ -54,32 +54,16 @@ macro_rules! stream_less_ewriteln {
 #[macro_export]
 macro_rules! pluralise {
     ($x:expr) => {
-        if $x != 1 {
-            "s"
-        } else {
-            ""
-        }
+        if $x != 1 { "s" } else { "" }
     };
     ("is", $x:expr) => {
-        if $x == 1 {
-            "is"
-        } else {
-            "are"
-        }
+        if $x == 1 { "is" } else { "are" }
     };
     ("was", $x:expr) => {
-        if $x == 1 {
-            "was"
-        } else {
-            "were"
-        }
+        if $x == 1 { "was" } else { "were" }
     };
     ("this", $x:expr) => {
-        if $x == 1 {
-            "this"
-        } else {
-            "these"
-        }
+        if $x == 1 { "this" } else { "these" }
     };
 }
 
