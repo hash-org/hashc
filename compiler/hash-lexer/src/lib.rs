@@ -147,7 +147,7 @@ impl<'a> Lexer<'a> {
 
         // ##Safety: We rely that the byte offset is correctly computed when stepping
         // over the characters in the iterator.
-        std::str::from_utf8_unchecked(self.contents.0.as_bytes().get_unchecked(offset..))
+        unsafe { std::str::from_utf8_unchecked(self.contents.0.as_bytes().get_unchecked(offset..)) }
     }
 
     /// Returns nth character relative to the current position.
