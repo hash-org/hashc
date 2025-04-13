@@ -8,11 +8,11 @@ mod tokens;
 use collection::CollectionPrintingOptions;
 use config::AstPrintingConfig;
 use hash_ast::{
-    ast::{self, walk_mut_self, AstVisitorMutSelf, Hunk, ParamOrigin},
+    ast::{self, AstVisitorMutSelf, Hunk, ParamOrigin, walk_mut_self},
     ast_visitor_mut_self_default_impl,
 };
 use hash_source::SourceMapUtils;
-use hash_token::{delimiter::Delimiter, FloatLitKind, IntLitKind};
+use hash_token::{FloatLitKind, IntLitKind, delimiter::Delimiter};
 use state::AstPrinterState;
 
 pub(super) type FmtResult = std::io::Result<()>;
