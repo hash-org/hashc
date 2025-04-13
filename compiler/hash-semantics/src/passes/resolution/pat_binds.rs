@@ -18,10 +18,10 @@
 //! sub-pattern [PatBinds] into a single [PatBinds] record. The combination
 //! algorithm is specified in [`PatBinds::merge`].
 
+use derive_more::{Constructor, Deref};
 use hash_ast::ast::{self, AstNodeId, AstNodeRef, AstNodes, BindingPat};
 use hash_source::{identifier::Identifier, location::Span};
 use hash_utils::{
-    derive_more::{Constructor, Deref},
     fxhash::FxBuildHasher,
     indexmap::IndexMap,
     itertools::Itertools,

@@ -13,6 +13,7 @@ paste = { workspace = true }
 textwrap = { workspace = true }
 typed-builder = { workspace = true }
 utility-types = { workspace = true }
+derive_more = { workspace = true }
 
 hash-ast = { workspace = true }
 hash-ast-utils = { workspace = true }

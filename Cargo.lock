@@ -383,15 +383,24 @@ dependencies = [
 
 [[package]]
 name = "derive_more"
-version = "0.99.19"
+version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3da29a38df43d6f156149c9b43ded5e018ddff2a855cf2cfd62e8cd7d079c69f"
+checksum = "093242cf7570c207c83073cf82f79706fe7b8317e98620a47d5be7c3d8497678"
 dependencies = [
- "convert_case",
+ "derive_more-impl",
+]
+
+[[package]]
+name = "derive_more-impl"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bda628edc44c4bb645fbe0f758797143e4e07926f7ebf4e9bdfbd3d2ce621df3"
+dependencies = [
+ "convert_case 0.7.1",
  "proc-macro2",
  "quote",
- "rustc_version",
  "syn 2.0.100",
+ "unicode-xid",
 ]
 
 [[package]]
@@ -560,6 +569,7 @@ dependencies = [
 name = "hash-ast-expand"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "hash-ast",
  "hash-ast-utils",
  "hash-attrs",
@@ -578,6 +588,7 @@ dependencies = [
 name = "hash-ast-utils"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "hash-ast",
  "hash-const-eval",
  "hash-reporting",
@@ -592,6 +603,7 @@ dependencies = [
 name = "hash-attrs"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "hash-ast",
  "hash-ast-utils",
  "hash-error-codes",
@@ -668,6 +680,7 @@ dependencies = [
 name = "hash-const-eval"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "hash-repr",
  "hash-source",
  "hash-storage",
@@ -715,6 +728,7 @@ dependencies = [
 name = "hash-exhaustiveness"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "hash-ast",
  "hash-ir",
  "hash-reporting",
@@ -747,6 +761,7 @@ dependencies = [
 name = "hash-ir-utils"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "hash-ast",
  "hash-const-eval",
  "hash-ir",
@@ -787,6 +802,7 @@ dependencies = [
 name = "hash-lower"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "fixedbitset",
  "hash-ast",
  "hash-attrs",
@@ -821,6 +837,7 @@ dependencies = [
 name = "hash-parser"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "hash-ast",
  "hash-lexer",
  "hash-pipeline",
@@ -838,6 +855,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "const_format",
+ "derive_more",
  "hash-ast",
  "hash-ast-utils",
  "hash-reporting",
@@ -863,6 +881,7 @@ dependencies = [
 name = "hash-repr"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "fixedbitset",
  "hash-ast",
  "hash-reporting",
@@ -877,6 +896,7 @@ dependencies = [
 name = "hash-semantics"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "hash-ast",
  "hash-ast-utils",
  "hash-attrs",
@@ -903,6 +923,7 @@ version = "0.1.0"
 dependencies = [
  "bimap",
  "bytecount",
+ "derive_more",
  "hash-storage",
  "hash-target",
  "hash-utils",
@@ -984,6 +1005,7 @@ dependencies = [
 name = "hash-tir"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "hash-ast",
  "hash-ast-utils",
  "hash-const-eval",
@@ -1004,6 +1026,7 @@ dependencies = [
 name = "hash-tir-utils"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "hash-ast",
  "hash-attrs",
  "hash-const-eval",
@@ -1045,6 +1068,7 @@ dependencies = [
 name = "hash-typecheck"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "hash-ast",
  "hash-ast-utils",
  "hash-attrs",
@@ -1069,6 +1093,7 @@ dependencies = [
 name = "hash-untyped-semantics"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "hash-ast",
  "hash-pipeline",
  "hash-reporting",

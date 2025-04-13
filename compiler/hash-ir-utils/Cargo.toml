@@ -8,6 +8,7 @@ edition = { workspace = true }
 doctest = false
 
 [dependencies]
+derive_more = { workspace = true }
 html-escape = { workspace = true }
 
 hash-ast = { workspace = true }

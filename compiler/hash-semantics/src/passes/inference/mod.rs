@@ -3,6 +3,7 @@
 //!
 //! Typing errors are reported during this pass.
 
+use derive_more::{Constructor, Deref};
 use hash_ast::ast;
 use hash_source::SourceId;
 use hash_tir::{context::Context, tir::Ty, visitor::Atom};
@@ -12,7 +13,6 @@ use hash_typecheck::{
     tc::FnInferMode,
     traits::OperationsOnNode,
 };
-use hash_utils::derive_more::{Constructor, Deref};
 
 use super::{analysis_pass::AnalysisPass, ast_info::AstInfo, tc_env_impl::TcEnvImpl};
 use crate::{diagnostics::definitions::SemanticResult, env::SemanticEnv, progress::AnalysisStage};

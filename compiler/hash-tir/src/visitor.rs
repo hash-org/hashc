@@ -2,12 +2,12 @@
 use core::fmt;
 use std::{cell::RefCell, collections::HashSet, ops::ControlFlow};
 
+use derive_more::{From, TryInto};
 use hash_ast::ast::AstNodeId;
 use hash_storage::store::{
     SequenceStoreKey, TrivialSequenceStoreKey,
     statics::{SequenceStoreValue, StoreId},
 };
-use hash_utils::derive_more::{From, TryInto};
 
 use crate::tir::{
     AccessTerm, AnnotTerm, Arg, ArgsId, ArrayPat, ArrayTerm, CallTerm, CtorDefId, CtorPat,

@@ -5,6 +5,7 @@
 
 use std::{cmp, iter, num::NonZeroUsize};
 
+use derive_more::Constructor;
 use hash_storage::store::{
     Store,
     statics::{SingleStoreValue, StoreId},
@@ -16,7 +17,7 @@ use hash_target::{
     primitives::{FloatTy, SIntTy, UIntTy},
     size::Size,
 };
-use hash_utils::{derive_more::Constructor, index_vec::IndexVec};
+use hash_utils::index_vec::IndexVec;
 
 use crate::{
     CommonLayouts, FieldLayout, Layout, LayoutId, LayoutShape, LayoutStorage, LayoutStore,

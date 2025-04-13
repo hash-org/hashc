@@ -8,6 +8,7 @@
 use core::fmt;
 use std::{collections::HashSet, path::PathBuf};
 
+use derive_more::Constructor;
 use hash_ast::{
     ast::OwnsAstNode,
     node_map::{InteractiveBlock, NodeMap},
@@ -17,7 +18,6 @@ use hash_source::{ModuleId, ModuleKind, SourceId, SourceMapUtils};
 use hash_target::HasTarget;
 use hash_utils::{
     bitflags::bitflags,
-    derive_more::Constructor,
     fxhash::{FxHashMap, FxHashSet},
     log,
     tree_writing::CharacterSet,

@@ -10,6 +10,7 @@ doctest = false
 [dependencies]
 # For profiling the parser
 profiling = { workspace = true }
+derive_more = { workspace = true }
 
 hash-ast = { workspace = true }
 hash-lexer = { workspace = true }

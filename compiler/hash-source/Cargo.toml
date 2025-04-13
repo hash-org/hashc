@@ -13,6 +13,7 @@ bytecount = { workspace = true }
 once_cell = { workspace = true }
 paste = { workspace = true }
 line-span = { workspace = true }
+derive_more = { workspace = true }
 
 hash-storage = { workspace = true }
 hash-target = { workspace = true }

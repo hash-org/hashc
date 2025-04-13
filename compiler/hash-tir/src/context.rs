@@ -6,13 +6,12 @@ use std::{
     ops::Range,
 };
 
+use derive_more::From;
 use hash_storage::{
     get,
     store::{SequenceStoreKey, StoreKey, TrivialSequenceStoreKey, statics::StoreId},
 };
-use hash_utils::{
-    derive_more::From, fxhash::FxBuildHasher, indexmap::IndexMap, itertools::Itertools,
-};
+use hash_utils::{fxhash::FxBuildHasher, indexmap::IndexMap, itertools::Itertools};
 
 use crate::{
     intrinsics::definitions::Intrinsic,

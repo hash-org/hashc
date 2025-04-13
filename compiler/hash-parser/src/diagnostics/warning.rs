@@ -2,10 +2,11 @@
 
 use std::fmt::Display;
 
+use derive_more::Constructor;
 use hash_ast::ast::{Expr, TyParamOrigin};
 use hash_reporting::reporter::{Reporter, Reports};
 use hash_source::location::Span;
-use hash_utils::{derive_more::Constructor, pluralise};
+use hash_utils::pluralise;
 
 /// Represents a generated warning from within [AstGen][crate::parser::AstGen]
 #[derive(Constructor, Debug)]

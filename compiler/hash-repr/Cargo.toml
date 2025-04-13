@@ -8,6 +8,7 @@ edition = { workspace = true }
 doctest = false
 
 [dependencies]
+derive_more = { workspace = true }
 fixedbitset = { workspace = true }
 paste = { workspace = true }
 

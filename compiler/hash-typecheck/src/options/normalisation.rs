@@ -2,8 +2,9 @@
 //! options that can be set for normalisation.
 use std::{cell::Cell, ops::ControlFlow};
 
+use derive_more::From;
 use hash_tir::tir::TermId;
-use hash_utils::{derive_more::From, state::LightState};
+use hash_utils::state::LightState;
 
 use crate::diagnostics::TcError;
 

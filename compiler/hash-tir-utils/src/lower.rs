@@ -3,6 +3,7 @@
 
 use std::cell::RefCell;
 
+use derive_more::{Constructor, Deref};
 use hash_attrs::builtin::attrs;
 use hash_ir::{
     HasIrCtx,
@@ -35,12 +36,7 @@ use hash_tir::{
         Ty, TyId,
     },
 };
-use hash_utils::{
-    derive_more::{Constructor, Deref},
-    fxhash::FxHashMap,
-    index_vec::index_vec,
-    itertools::Itertools,
-};
+use hash_utils::{fxhash::FxHashMap, index_vec::index_vec, itertools::Itertools};
 
 /// A [TyCacheEntry] is used to store the [ReprTyId] that is created from
 /// a [TyId] or a [DataDefId]. It is then used by program logic

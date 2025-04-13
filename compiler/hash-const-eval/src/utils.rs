@@ -1,5 +1,6 @@
 use std::ops::Deref;
 
+use derive_more::Constructor;
 use hash_repr::{
     TyInfo, Variants,
     compute::LayoutComputer,
@@ -9,7 +10,7 @@ use hash_repr::{
 use hash_source::constant::AllocRange;
 use hash_storage::store::statics::StoreId;
 use hash_target::size::Size;
-use hash_utils::{derive_more::Constructor, itertools::Itertools};
+use hash_utils::itertools::Itertools;
 
 /// Utility structure used to represent what a [Const] is destructured into
 /// by [`ConstUtils::destructure_const`]. This is useful for when the [Const]

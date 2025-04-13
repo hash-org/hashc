@@ -14,14 +14,12 @@ mod ty;
 
 use std::cell::Cell;
 
+use derive_more::Deref;
 use hash_ast::ast::*;
 use hash_reporting::diagnostic::HasDiagnosticsMut;
 use hash_source::location::{ByteRange, Span, SpannedSource};
 use hash_token::{Token, TokenKind, cursor::TokenCursor, delimiter::Delimiter};
-use hash_utils::{
-    derive_more::Deref,
-    thin_vec::{ThinVec, thin_vec},
-};
+use hash_utils::thin_vec::{ThinVec, thin_vec};
 
 use crate::{
     diagnostics::{

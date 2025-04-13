@@ -14,6 +14,7 @@ use std::{
     sync::OnceLock,
 };
 
+use derive_more::Constructor;
 use hash_storage::{
     static_single_store,
     store::{
@@ -31,7 +32,6 @@ use hash_target::{
     data_layout::{Endian, HasDataLayout},
 };
 use hash_utils::{
-    derive_more::Constructor,
     fnv::FnvBuildHasher,
     num_bigint::{BigInt, Sign},
 };

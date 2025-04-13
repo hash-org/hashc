@@ -3,8 +3,8 @@
 use core::fmt;
 use std::time::Duration;
 
+use derive_more::Constructor;
 use hash_utils::{
-    derive_more::Constructor,
     indexmap::IndexMap,
     profiling::{MetricEntry, StageMetrics},
     schemars::{self, JsonSchema},

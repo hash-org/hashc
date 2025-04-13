@@ -8,10 +8,10 @@
 //! `crate::stores::tir_node_*` macros.
 use core::fmt;
 
+use derive_more::{Deref, DerefMut};
 use hash_ast::ast::AstNodeId;
 use hash_source::{SourceId, location::Span};
 use hash_storage::store::statics::{SequenceStoreId, SingleStoreValue};
-use hash_utils::derive_more::{Deref, DerefMut};
 
 /// A trait used to access AST information about a particular
 /// type. This is useful for when we want to access the [AstNodeId]

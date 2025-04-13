@@ -1,10 +1,10 @@
 //! Various utility functions for working with intrinsics and primitives.
 
+use derive_more::From;
 use hash_const_eval::Const;
 use hash_source::constant::{FloatTy, IntTy, SIntTy, UIntTy};
 use hash_storage::store::statics::{SequenceStoreValue, StoreId};
 use hash_target::{HasTarget, data_layout::HasDataLayout, primitives::BigIntTy};
-use hash_utils::derive_more::From;
 
 use super::{
     definitions::{BoolCtor, Primitive},

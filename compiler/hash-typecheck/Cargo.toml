@@ -8,6 +8,7 @@ edition = { workspace = true }
 doctest = false
 
 [dependencies]
+derive_more = { workspace = true }
 itertools = { workspace = true }
 once_cell = { workspace = true }
 

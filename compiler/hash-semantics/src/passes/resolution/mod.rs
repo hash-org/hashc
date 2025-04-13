@@ -4,9 +4,9 @@
 //!
 //! Any scoping errors are reported here.
 
+use derive_more::Deref;
 use hash_ast::ast;
 use hash_source::SourceId;
-use hash_utils::derive_more::Deref;
 
 use self::{
     pat_binds::PatBindsChecker,

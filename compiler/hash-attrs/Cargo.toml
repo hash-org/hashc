@@ -9,6 +9,7 @@ doctest = false
 
 [dependencies]
 paste = { workspace = true }
+derive_more = { workspace = true }
 
 hash-ast = { workspace = true }
 hash-ast-utils = { workspace = true }

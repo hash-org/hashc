@@ -4,6 +4,7 @@
 //! For now, non-pure functions are always queued for lowering.
 use std::ops::ControlFlow;
 
+use derive_more::Constructor;
 use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_pipeline::workspace::StageInfo;
 use hash_storage::store::{Store, TrivialSequenceStoreKey, statics::StoreId};
@@ -13,7 +14,7 @@ use hash_tir::{
     tir::{FnDefId, HasAstNodeId, ModKind, ModMemberValue, TermId},
     visitor::{Atom, Visit, Visitor},
 };
-use hash_utils::{derive_more::Constructor, indexmap::IndexSet};
+use hash_utils::indexmap::IndexSet;
 
 /// Discoverer for functions to lower in the TIR tree.
 #[derive(Constructor)]

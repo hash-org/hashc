@@ -64,6 +64,7 @@ pub mod storage;
 pub mod usefulness;
 pub mod wildcard;
 
+use derive_more::Deref;
 use diagnostics::{ExhaustivenessDiagnostics, ExhaustivenessError, ExhaustivenessWarning};
 use hash_ast::ast::MatchOrigin;
 use hash_ir::{HasIrCtx, IrCtx};
@@ -75,7 +76,6 @@ use hash_tir::{
     tir::{PatId, TyId},
 };
 use hash_tir_utils::lower::{HasTyCache, TyCache, TyLower, TyLowerEnv};
-use hash_utils::derive_more::Deref;
 use storage::ExhaustivenessCtx;
 use usefulness::Reachability;
 

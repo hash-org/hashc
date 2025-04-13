@@ -3,6 +3,7 @@
 use core::fmt;
 use std::{borrow::Borrow, fmt::Display, iter::once};
 
+use derive_more::Deref;
 use hash_storage::{
     get,
     store::{
@@ -11,7 +12,7 @@ use hash_storage::{
     },
 };
 use hash_target::primitives::IntTy;
-use hash_utils::{bitflags::bitflags, derive_more::Deref, itertools::Itertools};
+use hash_utils::{bitflags::bitflags, itertools::Itertools};
 use textwrap::indent;
 use utility_types::omit;
 

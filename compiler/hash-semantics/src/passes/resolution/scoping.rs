@@ -1,6 +1,7 @@
 //! General helper functions for traversing scopes and adding bindings.
 use std::{collections::HashMap, fmt};
 
+use derive_more::Deref;
 use hash_ast::ast::{self, AstNodeId};
 use hash_source::identifier::Identifier;
 use hash_storage::store::{SequenceStoreKey, TrivialSequenceStoreKey, statics::StoreId};
@@ -12,7 +13,7 @@ use hash_tir::{
         ParamId, SymbolId, TupleTy,
     },
 };
-use hash_utils::{derive_more::Deref, state::HeavyState};
+use hash_utils::state::HeavyState;
 
 use super::paths::NonTerminalResolvedPathComponent;
 use crate::{

@@ -5,8 +5,8 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
+use derive_more::Constructor;
 use hash_utils::{
-    derive_more::Constructor,
     range_map::RangeMap,
     schemars::{self, JsonSchema},
     serde::{self, Serialize},

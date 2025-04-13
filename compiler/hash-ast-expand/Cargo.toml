@@ -8,6 +8,8 @@ edition = { workspace = true }
 doctest = false
 
 [dependencies]
+derive_more = { workspace = true }
+
 hash-ast = { workspace = true }
 hash-ast-utils = { workspace = true }
 hash-attrs = { workspace = true }
