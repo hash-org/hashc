@@ -9,9 +9,9 @@ use hash_reporting::diagnostic::HasDiagnosticsMut;
 use hash_utils::crossbeam_channel::Sender;
 
 use crate::diagnostics::{
+    AnalyserDiagnostics, AnalysisDiagnostic,
     error::{AnalysisError, AnalysisErrorKind},
     warning::{AnalysisWarning, AnalysisWarningKind},
-    AnalyserDiagnostics, AnalysisDiagnostic,
 };
 
 pub struct SemanticAnalyser {
