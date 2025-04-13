@@ -4,12 +4,12 @@ use std::{cell::Cell, fmt::Display, iter};
 
 use hash_reporting::{
     diagnostic::{DiagnosticStore, HasDiagnosticsMut},
-    report::{help, info, note, Report},
+    report::{Report, help, info, note},
     reporter::{Reporter, Reports},
     unicode_normalization::UnicodeNormalization,
 };
 use hash_source::{identifier::Identifier, location::Span};
-use hash_token::{delimiter::Delimiter, Base, TokenKind};
+use hash_token::{Base, TokenKind, delimiter::Delimiter};
 use hash_utils::{pluralise, thin_vec::ThinVec};
 
 use crate::Lexer;
