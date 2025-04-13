@@ -5,28 +5,28 @@ use std::cell::RefCell;
 
 use hash_attrs::builtin::attrs;
 use hash_ir::{
+    HasIrCtx,
     lang_items::LangItem,
     ty::{AdtHelpers, InstanceHelpers},
-    HasIrCtx,
 };
 use hash_reporting::macros::panic_on_span;
 use hash_repr::ty::{
-    self, Adt, AdtField, AdtFlags, AdtId, AdtVariant, AdtVariants, Instance, Mutability, ReprTy,
-    ReprTyId, ReprTyListId, COMMON_REPR_TYS,
+    self, Adt, AdtField, AdtFlags, AdtId, AdtVariant, AdtVariants, COMMON_REPR_TYS, Instance,
+    Mutability, ReprTy, ReprTyId, ReprTyListId,
 };
-use hash_source::{identifier::Identifier, IntTy, SIntTy, Size};
+use hash_source::{IntTy, SIntTy, Size, identifier::Identifier};
 use hash_storage::store::{
-    statics::{SingleStoreValue, StoreId},
     SequenceStoreKey,
+    statics::{SingleStoreValue, StoreId},
 };
 use hash_target::{
-    discriminant::{Discriminant, DiscriminantKind},
     HasTarget,
+    discriminant::{Discriminant, DiscriminantKind},
 };
 use hash_tir::{
     context::HasContext,
     intrinsics::{
-        definitions::{bool_def, Intrinsic as TirIntrinsic},
+        definitions::{Intrinsic as TirIntrinsic, bool_def},
         utils::{try_use_term_as_const, try_use_term_as_machine_integer},
     },
     tir::{
@@ -81,11 +81,7 @@ impl From<TyId> for TyCacheEntry {
 
 impl From<DataTy> for TyCacheEntry {
     fn from(data: DataTy) -> Self {
-        if data.args.len() == 0 {
-            Self::MonoData(data.data_def)
-        } else {
-            Self::Data(data)
-        }
+        if data.args.len() == 0 { Self::MonoData(data.data_def) } else { Self::Data(data) }
     }
 }
 
@@ -235,8 +231,7 @@ impl<E: TyLowerEnv> TyLower<'_, E> {
                     let ty = term.value();
                     return self.uncached_repr_ty_from_tir_ty(id, &ty);
                 } else {
-                    return COMMON_REPR_TYS.unit; // We just return the unit type
-                                                 // for now.
+                    return COMMON_REPR_TYS.unit; // We just return the unit type for now.
                 }
             }
             ty @ Ty::Hole(_) => {
