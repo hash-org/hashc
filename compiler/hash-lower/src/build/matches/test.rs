@@ -310,7 +310,7 @@ impl BodyBuilder<'_> {
             (TestKind::Switch { .. }, _) => None,
 
             // The `bool` case
-            (TestKind::SwitchInt { ty, ref options }, Pat::Ctor(CtorPat { ctor, .. })) => {
+            (TestKind::SwitchInt { ty, options }, Pat::Ctor(CtorPat { ctor, .. })) => {
                 // We can't really do anything here since we can't compare them with
                 // the switch.
                 if !ty.borrow().is_switchable() {
@@ -328,7 +328,7 @@ impl BodyBuilder<'_> {
             // When we are performing a switch over integers, then this informs integer
             // equality, but nothing else, @@Improve: we could use the Pat::Range to rule
             // some things out.
-            (TestKind::SwitchInt { ty, ref options }, Pat::Lit(lit_pat)) => {
+            (TestKind::SwitchInt { ty, options }, Pat::Lit(lit_pat)) => {
                 // We can't really do anything here since we can't compare them with
                 // the switch.
                 if !ty.borrow().is_switchable() {
@@ -342,7 +342,7 @@ impl BodyBuilder<'_> {
                 candidate.pairs.remove(pair_index);
                 Some(index)
             }
-            (TestKind::SwitchInt { ty, ref options }, Pat::Range(ref range_pat)) => {
+            (TestKind::SwitchInt { ty, options }, Pat::Range(ref range_pat)) => {
                 let not_contained =
                     self.values_not_contained_in_range(range_pat, *ty, options).unwrap_or(false);
 
@@ -425,7 +425,7 @@ impl BodyBuilder<'_> {
                     None
                 }
             }
-            (TestKind::Range { ref range }, Pat::Lit(lit_pat)) => {
+            (TestKind::Range { range }, Pat::Lit(lit_pat)) => {
                 let value = self.eval_lit_pat(lit_pat);
 
                 // If the `value` is not contained in the testing range, so the `value` can be

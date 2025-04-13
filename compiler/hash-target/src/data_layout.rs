@@ -234,16 +234,16 @@ impl TargetDataLayout {
                     data_layout.instruction_address_space = addr_space;
                 }
                 // this specifies the aggregate alignment
-                ["a", ref values @ ..] => {
+                ["a", values @ ..] => {
                     data_layout.aggregate_align = Self::parse_alignment_specification(values, "a")?;
                 }
-                ["f32", ref values @ ..] => {
+                ["f32", values @ ..] => {
                     data_layout.f32_align = Self::parse_alignment_specification(values, "f32")?;
                 }
-                ["f64", ref values @ ..] => {
+                ["f64", values @ ..] => {
                     data_layout.f64_align = Self::parse_alignment_specification(values, "f64")?;
                 }
-                [p @ ("p" | "p0"), s, ref values @ ..] => {
+                [p @ ("p" | "p0"), s, values @ ..] => {
                     data_layout.pointer_align = Self::parse_alignment_specification(values, p)?;
                     data_layout.pointer_size =
                         Size::from_bits(s.parse::<u64>().map_err(|err| {
@@ -257,7 +257,7 @@ impl TargetDataLayout {
                 }
 
                 // Integer alignments
-                [s, ref values @ ..] if s.starts_with('i') => {
+                [s, values @ ..] if s.starts_with('i') => {
                     let bits = s[1..].parse::<u64>().map_err(|err| {
                         TargetDataLayoutParseError::InvalidBits {
                             kind: "size",

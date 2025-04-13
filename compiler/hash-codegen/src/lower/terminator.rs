@@ -90,7 +90,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             ir::TerminatorKind::Goto(target) => {
                 self.codegen_goto_terminator(builder, *target, can_merge())
             }
-            ir::TerminatorKind::Call { ref op, ref args, destination, target } => {
+            ir::TerminatorKind::Call { op, args, destination, target } => {
                 self.codegen_call_terminator(builder, op, args, *destination, *target, can_merge())
             }
             ir::TerminatorKind::Return => {
@@ -101,11 +101,11 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                 builder.unreachable();
                 false
             }
-            ir::TerminatorKind::Switch { ref value, ref targets } => {
+            ir::TerminatorKind::Switch { value, targets } => {
                 self.codegen_switch_terminator(builder, value, targets);
                 false
             }
-            ir::TerminatorKind::Assert { ref condition, expected, kind, target } => self
+            ir::TerminatorKind::Assert { condition, expected, kind, target } => self
                 .codegen_assert_terminator(
                     builder,
                     condition,

@@ -68,7 +68,7 @@ impl CleanupLocalPass {
     /// particular statement.
     fn simplify_locals(&self, body: &mut Body, local_map: &mut LocalUseMap) {
         let mut changed = true;
-        let Body { ref locals, ref projections, ref mut basic_blocks, .. } = body;
+        let Body { locals, projections, basic_blocks, .. } = body;
         let info = BodyInfo { locals, projections };
 
         while changed {

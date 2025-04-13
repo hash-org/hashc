@@ -90,7 +90,7 @@ impl<'m> ExtendedLayoutMethods<'m> for &Layout {
                 };
 
                 match ctx.ty_remaps.borrow().get(&(ty, variant_index)) {
-                    Some(TyMemoryRemap { remap: Some(ref remap), .. }) => remap[index] as u64,
+                    Some(TyMemoryRemap { remap: Some(remap), .. }) => remap[index] as u64,
                     Some(TyMemoryRemap { remap: None, .. }) => {
                         self.shape.memory_index(index) as u64
                     }
