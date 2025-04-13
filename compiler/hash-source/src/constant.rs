@@ -17,8 +17,8 @@ use std::{
 use hash_storage::{
     static_single_store,
     store::{
-        statics::{SingleStoreValue, StoreId},
         Store,
+        statics::{SingleStoreValue, StoreId},
     },
     stores,
 };
@@ -137,11 +137,7 @@ impl Scalar {
     /// Create a new [Scalar] from a boolean value.
     #[inline]
     pub fn from_bool(value: bool) -> Self {
-        if value {
-            Self::TRUE
-        } else {
-            Self::FALSE
-        }
+        if value { Self::TRUE } else { Self::FALSE }
     }
 
     /// Convert the [Scalar] into a [f32].

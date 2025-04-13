@@ -16,7 +16,7 @@ use std::{
 
 pub use hash_target::{primitives::*, size::Size};
 use hash_utils::{
-    index_vec::{define_index_type, index_vec, IndexVec},
+    index_vec::{IndexVec, define_index_type, index_vec},
     parking_lot::RwLock,
     path::adjust_canonicalisation,
     schemars::{self, JsonSchema},

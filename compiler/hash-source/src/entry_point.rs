@@ -4,7 +4,7 @@
 
 use std::{cell::Cell, fmt};
 
-use crate::identifier::{Identifier, IDENTS};
+use crate::identifier::{IDENTS, Identifier};
 
 /// Specifies what kind of entry point was provided to the program.
 #[derive(Debug, Clone, Copy)]
