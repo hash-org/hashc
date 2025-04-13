@@ -104,7 +104,7 @@ fn emit_struct_def(struct_def: &StructNodeDef, tree_def: &TreeDef) -> TokenStrea
     let StructNodeDef { visibility, attrs, name, .. } = struct_def;
 
     // Remove the #[tree_node] attribute
-    let filtered_attrs = attrs.iter().filter(|attr| !attr.path.is_ident(NODE_DEF_ATTR_NAME));
+    let filtered_attrs = attrs.iter().filter(|attr| !attr.path().is_ident(NODE_DEF_ATTR_NAME));
 
     quote! {
         #(#filtered_attrs)*
@@ -136,7 +136,7 @@ fn emit_enum_def(enum_def: &EnumNodeDef, tree_def: &TreeDef) -> TokenStream {
     let EnumNodeDef { visibility, attrs, name, .. } = enum_def;
 
     // Remove the #[tree_node] attribute
-    let filtered_attrs = attrs.iter().filter(|attr| !attr.path.is_ident(NODE_DEF_ATTR_NAME));
+    let filtered_attrs = attrs.iter().filter(|attr| !attr.path().is_ident(NODE_DEF_ATTR_NAME));
 
     quote! {
         #(#filtered_attrs)*

@@ -79,7 +79,7 @@ bytecount = "0.6.3"
 cc = "1.0.69"
 clap = { version = "4.3.8", features = ["derive"] }
 const_format = "0.2.30"                                           # for concatenating strings together at compile time.
-convert_case = "0.4"
+convert_case = "0.8"
 crossbeam-channel = "0.5.1"
 dashmap = "5.1"
 derive_more = "0.99"
@@ -95,7 +95,7 @@ libc = "0.2"
 line-span = "0.1.5"
 log = { version = "0.4", features = ["kv_unstable", "kv_serde"] }
 num_cpus = "1.13.0"
-num_enum = "0.5"
+num_enum = "0.7"
 num-bigint = "0.4"
 num-derive = "0.4.0"
 num-traits = "0.2.15"
@@ -113,12 +113,12 @@ serde = { version = "1.0.202", features = ["derive"] }
 serde_json = "1.0.117"
 smallvec = "1.11.0"
 stacker = "0.1.15"
-strum_macros = "0.21"
-syn = { version = "1.0", features = ["extra-traits", "full"] }
+strum_macros = "0.27"
+syn = { version = "2.0", features = ["extra-traits", "full"] }
 textwrap = "0.16"
 thin-vec = "0.2.10"
 tracy-client = "0.13.2"
-typed-builder = "0.11"
+typed-builder = "0.21"
 unicode-normalization = "0.1.22"
 utility-types = "0.0.2"
 proc-macro-error = "1.0.0"

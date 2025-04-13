@@ -276,9 +276,21 @@ dependencies = [
 
 [[package]]
 name = "convert_case"
-version = "0.4.0"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
+checksum = "bb402b8d4c85569410425650ce3eddc7d698ed96d39a73f941b08fb63082f1e7"
+dependencies = [
+ "unicode-segmentation",
+]
+
+[[package]]
+name = "convert_case"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "baaaa0ecca5b51987b9423ccdc971514dd8b0bb7b4060b983d3664dad3f1f89f"
+dependencies = [
+ "unicode-segmentation",
+]
 
 [[package]]
 name = "criterion"
@@ -931,14 +943,14 @@ dependencies = [
 name = "hash-testing-macros"
 version = "0.1.0"
 dependencies = [
- "convert_case",
+ "convert_case 0.8.0",
  "hash-reporting",
  "hash-testing-internal",
  "hash-utils",
  "proc-macro-error",
  "quote",
  "regex",
- "syn 1.0.109",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -1022,9 +1034,11 @@ name = "hash-tree-def"
 version = "0.1.0"
 dependencies = [
  "convert_case",
+ "convert_case 0.8.0",
+ "itertools 0.14.0",
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -1136,15 +1150,6 @@ dependencies = [
 
 [[package]]
 name = "heck"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d621efb26863f0e9924c6ac577e8275e5e6b77455db64ffa6c65c904e9e132c"
-dependencies = [
- "unicode-segmentation",
-]
-
-[[package]]
-name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
@@ -1169,6 +1174,12 @@ checksum = "6d1ad449764d627e22bfd7cd5e8868264fc9236e07c752972b4080cd351cb476"
 dependencies = [
  "utf8-width",
 ]
+
+[[package]]
+name = "ident_case"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39"
 
 [[package]]
 name = "index_vec"
@@ -1421,23 +1432,23 @@ dependencies = [
 
 [[package]]
 name = "num_enum"
-version = "0.5.11"
+version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f646caf906c20226733ed5b1374287eb97e3c2a5c227ce668c1f2ce20ae57c9"
+checksum = "4e613fc340b2220f734a8595782c551f1250e969d87d3be1ae0579e8d4065179"
 dependencies = [
  "num_enum_derive",
 ]
 
 [[package]]
 name = "num_enum_derive"
-version = "0.5.11"
+version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dcbff9bc912032c62bf65ef1d5aea88983b420f4f839db1e9b0c281a25c9c799"
+checksum = "af1844ef2428cc3e1cb900be36181049ef3d3193c63e43026cfe202983b27a56"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -1985,14 +1996,15 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
 name = "strum_macros"
-version = "0.21.1"
+version = "0.27.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d06aaeeee809dbc59eb4556183dd927df67db1540de5be8d3ec0b6636358a5ec"
+checksum = "c77a8c5abcaf0f9ce05d62342b7d298c346515365c36b673df4ebe3ced01fde8"
 dependencies = [
- "heck 0.3.3",
+ "heck",
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "rustversion",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -2080,7 +2092,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b64191b275b66ffe2469e8af2c1cfe3bafa67b529ead792a6d0160888b4237"
 dependencies = [
  "proc-macro2",
- "quote",
  "unicode-ident",
 ]
 
@@ -2300,14 +2311,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "typed-builder"
-version = "0.11.0"
+name = "typed-builder-macro"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47a126a40dbff39e8320900cd61b8de053a2706e1f782cd27145792feb8fd41e"
+checksum = "60d8d828da2a3d759d3519cdf29a5bac49c77d039ad36d0782edadbf9cd5415b"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -2369,13 +2380,14 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 
 [[package]]
 name = "utility-types"
-version = "0.0.2"
+version = "0.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f20b5dda50e68466846162da7279c0ac571f60ef8c6575d8a56740b6f1a2bae7"
+checksum = "42fbf834a919f91b8f840eb9c7e519afd351f6abc5a2b0d1381f6c8108f6819f"
 dependencies = [
+ "darling",
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.100",
 ]
 
 [[package]]

@@ -156,7 +156,7 @@ impl TryFrom<&Item> for MaybeTreeNodeDef {
     fn try_from(value: &Item) -> Result<Self, Self::Error> {
         // Something is a node if it is annotated with #[node]
         let has_tree_node =
-            |attrs: &[Attribute]| attrs.iter().any(|attr| attr.path.is_ident(NODE_DEF_ATTR_NAME));
+            |attrs: &[Attribute]| attrs.iter().any(|attr| attr.path().is_ident(NODE_DEF_ATTR_NAME));
 
         match value {
             Item::Enum(enum_item) if has_tree_node(&enum_item.attrs) => Ok(MaybeTreeNodeDef(Some(
