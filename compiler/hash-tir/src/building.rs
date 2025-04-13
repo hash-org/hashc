@@ -5,7 +5,7 @@
 ///
 /// Ideally, when this module is used, an according `##GeneratedOrigin` comment
 /// should be added to the code.
-pub mod gen {
+pub mod generate {
     use hash_source::identifier::Identifier;
     use hash_storage::store::statics::SequenceStoreValue;
     use hash_target::primitives::IntTy;
@@ -31,7 +31,7 @@ pub mod gen {
     pub fn params(data: impl IntoIterator<Item = (SymbolId, TyId, Option<TermId>)>) -> ParamsId {
         Node::create_gen(Node::<Param>::seq(
             data.into_iter()
-                .map(|(name, ty, default)| Node::gen(Param { name, ty, default }))
+                .map(|(name, ty, default)| Node::generate(Param { name, ty, default }))
                 .collect_vec(),
         ))
     }
@@ -53,7 +53,7 @@ pub mod gen {
         params: ParamsId,
         variants: impl IntoIterator<Item = VariantDataWithoutArgs>,
     ) -> DataDefId {
-        let variants = Node::gen(variants.into_iter().map(Node::gen).collect_vec());
+        let variants = Node::generate(variants.into_iter().map(Node::generate).collect_vec());
         DataDef::enum_def(name, discriminant_ty, params, move |_| variants, NodeOrigin::Generated)
     }
 
@@ -68,7 +68,7 @@ pub mod gen {
             name,
             discriminant_ty,
             params,
-            move |_| Node::gen(variants.into_iter().map(Node::gen).collect_vec()),
+            move |_| Node::generate(variants.into_iter().map(Node::generate).collect_vec()),
             NodeOrigin::Generated,
         )
     }
