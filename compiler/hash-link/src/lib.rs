@@ -14,7 +14,7 @@ use std::{
 };
 
 use command::{EscapeArg, LinkCommand};
-use error::{escape_returned_error, AdditionalFailureInfo, LinkerError};
+use error::{AdditionalFailureInfo, LinkerError, escape_returned_error};
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerResult, CompilerStage, StageMetrics},
     settings::{CompilerSettings, CompilerStageKind},
@@ -22,8 +22,8 @@ use hash_pipeline::{
 };
 use hash_source::SourceId;
 use hash_target::{
-    link::{Cc, LinkerFlavour, Lld},
     HasTarget,
+    link::{Cc, LinkerFlavour, Lld},
 };
 use hash_utils::{log, profiling::HasMutMetrics};
 use linker::{build_linker_args, get_linker};

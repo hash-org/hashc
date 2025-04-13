@@ -4,8 +4,8 @@ use std::{path::Path, process::Command};
 
 use hash_pipeline::settings::CompilerSettings;
 use hash_target::{
-    link::{Cc, LinkerFlavour},
     HasTarget,
+    link::{Cc, LinkerFlavour},
 };
 
 use crate::{error::LinkerError, linker::Linker};
