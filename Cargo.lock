@@ -304,7 +304,7 @@ dependencies = [
  "clap",
  "criterion-plot",
  "is-terminal",
- "itertools",
+ "itertools 0.10.5",
  "num-traits",
  "once_cell",
  "oorandom",
@@ -325,7 +325,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6b50826342786a51a89e2da3a28f1c32b06e387201bc2d19791f622c673706b1"
 dependencies = [
  "cast",
- "itertools",
+ "itertools 0.10.5",
 ]
 
 [[package]]
@@ -977,7 +977,7 @@ dependencies = [
  "bumpalo-herd",
  "dashmap",
  "fxhash",
- "itertools",
+ "itertools 0.14.0",
  "parking_lot",
 ]
 
@@ -993,7 +993,7 @@ name = "hash-testing-internal"
 version = "0.1.0"
 dependencies = [
  "hash-pipeline",
- "itertools",
+ "itertools 0.14.0",
  "quote",
 ]
 
@@ -1093,7 +1093,6 @@ dependencies = [
 name = "hash-tree-def"
 version = "0.1.0"
 dependencies = [
- "convert_case",
  "convert_case 0.8.0",
  "itertools 0.14.0",
  "proc-macro2",
@@ -1122,7 +1121,7 @@ dependencies = [
  "hash-tir-utils",
  "hash-tree-def",
  "hash-utils",
- "itertools",
+ "itertools 0.14.0",
  "once_cell",
 ]
 
@@ -1155,7 +1154,7 @@ dependencies = [
  "fxhash",
  "index_vec",
  "indexmap",
- "itertools",
+ "itertools 0.14.0",
  "lazy_static",
  "libc",
  "log",
@@ -1305,6 +1304,15 @@ name = "itertools"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "itertools"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285"
 dependencies = [
  "either",
 ]
