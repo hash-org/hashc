@@ -8,8 +8,8 @@ edition = "2021"
 doctest = false
 
 [dependencies]
-hash-reporting = {path = "../hash-reporting" }
-hash-utils = {path = "../hash-utils" }
+hash-reporting = { workspace = true }
+hash-utils = { workspace = true }
 
 # perhaps this isn't ideal to put here?
-hash-pipeline = {path = "../hash-pipeline" }
+hash-pipeline = { workspace = true }

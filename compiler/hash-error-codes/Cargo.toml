@@ -9,4 +9,4 @@ doctest = false
 
 
 [dependencies]
-hash-utils = { path = "../hash-utils" }
+hash-utils = { workspace = true }

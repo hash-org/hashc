@@ -8,11 +8,11 @@ edition = "2021"
 doctest = false
 
 [dependencies]
-cc = "1.0.69"
-libc = "0.2"
+cc = { workspace = true }
+libc = { workspace = true }
 
-hash-pipeline = { path = "../hash-pipeline" }
-hash-reporting = { path = "../hash-reporting" }
-hash-source = { path = "../hash-source" }
-hash-utils = { path = "../hash-utils" }
-hash-target = { path = "../hash-target" }
+hash-pipeline = { workspace = true }
+hash-reporting = { workspace = true }
+hash-source = { workspace = true }
+hash-utils = { workspace = true }
+hash-target = { workspace = true }

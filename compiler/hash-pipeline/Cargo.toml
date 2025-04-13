@@ -8,17 +8,17 @@ edition = "2021"
 doctest = false
 
 [dependencies]
-const_format = "0.2.30" # for concatenating strings together at compile time.
-num_cpus = "1.13.0"
-clap = { version = "4.3.8", features = ["derive"] }
-serde_json = "1.0.117"
+const_format = { workspace = true }
+num_cpus = { workspace = true }
+clap = { workspace = true }
+serde_json = { workspace = true }
 
-hash-ast = { path = "../hash-ast" }
-hash-ast-utils = { path = "../hash-ast-utils" }
-hash-reporting = { path = "../hash-reporting" }
-hash-source = { path = "../hash-source" }
-hash-target = { path = "../hash-target" }
-hash-utils = { path = "../hash-utils" }
+hash-ast = { workspace = true }
+hash-ast-utils = { workspace = true }
+hash-reporting = { workspace = true }
+hash-source = { workspace = true }
+hash-target = { workspace = true }
+hash-utils = { workspace = true }
 
 
 [features]

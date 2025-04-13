@@ -8,30 +8,30 @@ edition = "2021"
 doctest = false
 
 [dependencies]
-num_cpus = "1.13.0"
-serde_json = "1.0.117"
+num_cpus = { workspace = true }
+serde_json = { workspace = true }
 
-hash-ast = { path = "../hash-ast" }
-hash-codegen = { path = "../hash-codegen" }
-hash-ir = { path = "../hash-ir" }
-hash-messaging = { path = "../hash-messaging" }
-hash-pipeline = { path = "../hash-pipeline" }
-hash-reporting = { path = "../hash-reporting" }
-hash-repr = {path = "../hash-repr" }
-hash-source = { path = "../hash-source" }
-hash-tir = { path = "../hash-tir" }
-hash-tree-def = { path = "../hash-tree-def" }
-hash-utils = { path = "../hash-utils" }
+hash-ast = { workspace = true }
+hash-codegen = { workspace = true }
+hash-ir = { workspace = true }
+hash-messaging = { workspace = true }
+hash-pipeline = { workspace = true }
+hash-reporting = { workspace = true }
+hash-repr = { workspace = true }
+hash-source = { workspace = true }
+hash-tir = { workspace = true }
+hash-tree-def = { workspace = true }
+hash-utils = { workspace = true }
 
 # Various stages that the pipeline interfaces with...
-hash-ast-desugaring = { path = "../hash-ast-desugaring" }
-hash-ast-expand = { path = "../hash-ast-expand" }
-hash-backend = { path = "../hash-backend" }
-hash-link = { path = "../hash-link" }
-hash-lower = { path = "../hash-lower" }
-hash-parser = { path = "../hash-parser" }
-hash-semantics = { path = "../hash-semantics" }
-hash-untyped-semantics = { path = "../hash-untyped-semantics" }
+hash-ast-desugaring = { workspace = true }
+hash-ast-expand = { workspace = true }
+hash-backend = { workspace = true }
+hash-link = { workspace = true }
+hash-lower = { workspace = true }
+hash-parser = { workspace = true }
+hash-semantics = { workspace = true }
+hash-untyped-semantics = { workspace = true }
 
 [features]
 llvm = ["hash-backend/llvm"]

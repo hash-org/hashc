@@ -8,13 +8,13 @@ proc-macro = true
 doctest = false
 
 [dependencies]
-syn = { version = "1.0", features = ["extra-traits", "full"] }
-proc-macro-error = "1.0.0"
-quote = "1.0"
-convert_case = "0.4"
-regex = "1.5"
+syn = { workspace = true }
+proc-macro-error = { workspace = true}
+quote = { workspace = true }
+convert_case = { workspace = true }
+regex = { workspace = true }
 
-hash-testing-internal = {path = "../testing-internal" }
+hash-testing-internal = { workspace = true }
 
-hash-utils = {path = "../../compiler/hash-utils" }
-hash-reporting = {path = "../../compiler/hash-reporting" }
+hash-utils = { workspace = true }
+hash-reporting = { workspace = true }

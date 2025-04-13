@@ -8,6 +8,6 @@ edition = "2021"
 doctest = false
 
 [dependencies]
-hash-reporting = { path = "../hash-reporting" }
-hash-source = { path = "../hash-source" }
-hash-utils = { path = "../hash-utils" }
+hash-reporting = { workspace = true }
+hash-source = { workspace = true }
+hash-utils = { workspace = true }

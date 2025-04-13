@@ -8,4 +8,4 @@ edition = "2021"
 doctest = false
 
 [dependencies]
-num-bigint = "0.4"
+num-bigint = { workspace = true}

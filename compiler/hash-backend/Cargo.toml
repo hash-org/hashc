@@ -8,15 +8,15 @@ edition = "2021"
 doctest = false
 
 [dependencies]
-hash-codegen = { path = "../hash-codegen" }
-hash-codegen-llvm = { path = "../hash-codegen-llvm" }
-hash-codegen-vm = { path = "../hash-codegen-vm" }
-hash-ir = { path = "../hash-ir" }
-hash-pipeline = { path = "../hash-pipeline" }
-hash-reporting = { path = "../hash-reporting" }
-hash-source = { path = "../hash-source" }
-hash-target = { path = "../hash-target" }
-hash-utils = { path = "../hash-utils" }
+hash-codegen = { workspace = true }
+hash-codegen-llvm = { workspace = true }
+hash-codegen-vm = { workspace = true }
+hash-ir = { workspace = true }
+hash-pipeline = { workspace = true }
+hash-reporting = { workspace = true }
+hash-source = { workspace = true }
+hash-target = { workspace = true }
+hash-utils = { workspace = true }
 
 [features]
 llvm = []
