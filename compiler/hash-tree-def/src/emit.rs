@@ -6,8 +6,8 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
 use crate::definitions::{
-    EnumNodeDef, EnumNodeVariant, NodeFieldData, StructNodeDef, StructNodeField, TreeDef,
-    TreeNodeDef, NODE_DEF_ATTR_NAME,
+    EnumNodeDef, EnumNodeVariant, NODE_DEF_ATTR_NAME, NodeFieldData, StructNodeDef,
+    StructNodeField, TreeDef, TreeNodeDef,
 };
 
 /// Suffix the given identifier with "Mut"/"_mut" etc as appropriate depending

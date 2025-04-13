@@ -1,6 +1,6 @@
 //! Contains a helper macro to get the difference of two identifier lists.
 
-use syn::{parse::Parse, Ident};
+use syn::{Ident, parse::Parse};
 
 /// Represents the difference of two lists of symbols.
 pub(crate) struct Difference {
