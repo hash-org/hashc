@@ -117,7 +117,7 @@ strum_macros = "0.27"
 syn = { version = "2.0", features = ["extra-traits", "full"] }
 textwrap = "0.16"
 thin-vec = "0.2.10"
-tracy-client = "0.13.2"
+tracy-client = "0.18.0"
 typed-builder = "0.21"
 unicode-normalization = "0.1.22"
 utility-types = "0.0.4"
