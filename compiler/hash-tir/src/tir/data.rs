@@ -14,7 +14,7 @@ use hash_storage::{
 use hash_target::primitives::IntTy;
 use hash_utils::{bitflags::bitflags, itertools::Itertools};
 use textwrap::indent;
-use utility_types::omit;
+use utility_types::Omit;
 
 use crate::{
     stores::tir_stores,
@@ -33,9 +33,10 @@ use crate::{
 ///
 /// Each constructor must result in the original data-type, with some given
 /// arguments.
-#[derive(Debug, Copy, Clone)]
-#[omit(CtorDefData, [data_def_id, data_def_ctor_index], [Debug, Clone, Copy])]
-
+#[derive(Debug, Copy, Clone, Omit)]
+#[omit(
+    arg(ident = CtorDefData, fields(data_def_id, data_def_ctor_index), derive(Debug, Clone, Copy))
+)]
 pub struct CtorDef {
     /// The name of the constructor, for example `symbol("Red")` in
     /// `Red: Colour` if given as a constructor to a `Colour := datatype...`.
@@ -201,8 +202,10 @@ pub enum DataDefCtors {
 /// A utility type describing all of the needed information to create
 /// an enum variant. [CtorDefData] is not used because the `args` are not
 /// optional, and here they are.
-#[derive(Debug, Copy, Clone)]
-#[omit(VariantDataWithoutArgs, [result_args], [Debug, Clone, Copy])]
+#[derive(Debug, Copy, Clone, Omit)]
+#[omit(
+    arg(ident=VariantDataWithoutArgs, fields(result_args), derive(Debug, Clone, Copy))
+)]
 pub struct VariantData {
     pub name: SymbolId,
     pub params: ParamsId,
@@ -255,8 +258,10 @@ impl DataDefCtors {
 /// This is a "nominal" inductively defined data type, which is how user-defined
 /// data types in Hash are done. It consists of a set of constructors, each of
 /// which provide a different way to construct the data type.
-#[omit(DataDefData, [id], [Debug, Clone, Copy])]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Omit)]
+#[omit(
+    arg(ident=DataDefData, fields(id), derive(Debug, Clone, Copy))
+)]
 pub struct DataDef {
     /// The name of the data-type.
     ///
