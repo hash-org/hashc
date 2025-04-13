@@ -1,14 +1,14 @@
 [package]
 name = "hash-codegen"
 version = "0.1.0"
-authors = ["The Hash Language authors"]
-edition = "2021"
+authors = { workspace = true }
+edition = { workspace = true }
 
 [lib]
 doctest = false
 
 [dependencies]
-fixedbitset = { workspace = true}
+fixedbitset = { workspace = true }
 
 hash-abi = { workspace = true }
 hash-attrs = { workspace = true }

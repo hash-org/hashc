@@ -7,18 +7,18 @@ use hash_ir::{
 };
 use hash_reporting::macros::panic_on_span;
 use hash_repr::{LayoutShape, Variants};
-use hash_storage::store::{statics::StoreId, SequenceStoreKey};
+use hash_storage::store::{SequenceStoreKey, statics::StoreId};
 use hash_target::{
     abi::{AbiRepresentation, ScalarKind},
     alignment::Alignment,
 };
 
-use super::{locals::LocalRef, FnBuilder};
+use super::{FnBuilder, locals::LocalRef};
 use crate::{
     repr::TyInfo,
     traits::{
-        builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, ty::TypeBuilderMethods,
-        CodeGenObject,
+        CodeGenObject, builder::BlockBuilderMethods, constants::ConstValueBuilderMethods,
+        ty::TypeBuilderMethods,
     },
 };
 

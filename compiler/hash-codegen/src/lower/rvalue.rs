@@ -6,15 +6,15 @@ use std::cmp::Ordering;
 use hash_ir::{
     cast::{CastTy, IntCastKind},
     ir::{self, BinOp, RValue},
-    ty::{self, RefKind, ReprTyId, VariantIdx, COMMON_REPR_TYS},
+    ty::{self, COMMON_REPR_TYS, RefKind, ReprTyId, VariantIdx},
 };
 use hash_storage::store::statics::StoreId;
 
 use super::{
+    FnBuilder,
     locals::LocalRef,
     operands::{OperandRef, OperandValue},
     place::PlaceRef,
-    FnBuilder,
 };
 use crate::{
     common::{CheckedOp, IntComparisonKind, MemFlags, TypeKind},
@@ -663,11 +663,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         if let Some(local) = place.as_local() {
             if let LocalRef::Operand(Some(op)) = self.locals[local] {
                 let size = op.info.ty.map(|ty| {
-                    if let ty::ReprTy::Array { length: size, .. } = ty {
-                        Some(*size)
-                    } else {
-                        None
-                    }
+                    if let ty::ReprTy::Array { length: size, .. } = ty { Some(*size) } else { None }
                 });
 
                 if let Some(size) = size {

@@ -6,12 +6,12 @@ use hash_ir::{intrinsics::Intrinsic, lang_items::LangItem, ty::InstanceId};
 use hash_repr::TyInfo;
 use hash_target::abi;
 
-use super::{operands::OperandRef, place::PlaceRef, FnBuilder};
+use super::{FnBuilder, operands::OperandRef, place::PlaceRef};
 use crate::{
     lower::operands::{OperandValue, OperandValueKind},
     traits::{
-        builder::BlockBuilderMethods, misc::MiscBuilderMethods, ty::TypeBuilderMethods,
-        HasCtxMethods,
+        HasCtxMethods, builder::BlockBuilderMethods, misc::MiscBuilderMethods,
+        ty::TypeBuilderMethods,
     },
 };
 

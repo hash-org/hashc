@@ -23,10 +23,10 @@
 
 use hash_attrs::builtin::attrs;
 use hash_ir::ty::{InstanceHelpers, InstanceId};
-use hash_source::{identifier::IDENTS, InteractiveId, ModuleId};
-use hash_storage::store::{statics::StoreId, StoreKey};
+use hash_source::{InteractiveId, ModuleId, identifier::IDENTS};
+use hash_storage::store::{StoreKey, statics::StoreId};
 
-use super::{push_string_encoded_count, ALPHANUMERIC_BASE};
+use super::{ALPHANUMERIC_BASE, push_string_encoded_count};
 
 /// The [Mangler] is a structure that is used to build up the "mangled"
 /// symbol for an instance or static item.

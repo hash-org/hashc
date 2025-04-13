@@ -9,7 +9,7 @@ use hash_repr::compute::LayoutError;
 use hash_storage::store::statics::StoreId;
 use hash_target::abi::{Scalar, ScalarKind};
 
-use crate::traits::{layout::LayoutMethods, HasCtxMethods};
+use crate::traits::{HasCtxMethods, layout::LayoutMethods};
 
 /// Adjust the attributes of an argument ABI based on the provided
 /// [Layout] and [Scalar] information. This is required to do since

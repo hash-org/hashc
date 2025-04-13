@@ -7,7 +7,7 @@ use hash_source::constant::FloatTy;
 use hash_storage::store::statics::StoreId;
 use hash_target::abi::{AddressSpace, Integer};
 
-use super::{layout::LayoutMethods, BackendTypes};
+use super::{BackendTypes, layout::LayoutMethods};
 use crate::common::TypeKind;
 
 pub trait TypeBuilderMethods<'b>: BackendTypes + LayoutMethods<'b> {

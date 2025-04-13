@@ -14,7 +14,7 @@ use std::fmt;
 use hash_ir::IrCtx;
 use hash_pipeline::settings::CompilerSettings;
 use hash_repr::compute::LayoutComputer;
-use hash_target::{data_layout::HasDataLayout, HasTarget};
+use hash_target::{HasTarget, data_layout::HasDataLayout};
 
 use self::{
     constants::ConstValueBuilderMethods, layout::LayoutMethods, misc::MiscBuilderMethods,

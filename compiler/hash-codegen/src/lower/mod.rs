@@ -17,7 +17,7 @@ use hash_utils::index_vec::IndexVec;
 
 use self::{abi::FnAbiError, locals::LocalRef, operands::OperandRef, place::PlaceRef};
 use crate::traits::{
-    builder::BlockBuilderMethods, layout::LayoutMethods, misc::MiscBuilderMethods, HasCtxMethods,
+    HasCtxMethods, builder::BlockBuilderMethods, layout::LayoutMethods, misc::MiscBuilderMethods,
 };
 
 pub mod abi;

@@ -14,25 +14,25 @@ use hash_ir::{
     intrinsics::Intrinsic,
     ir,
     lang_items::LangItem,
-    ty::{ReprTy, COMMON_REPR_TYS},
+    ty::{COMMON_REPR_TYS, ReprTy},
 };
 use hash_pipeline::settings::OptimisationLevel;
 use hash_source::constant::AllocId;
-use hash_storage::store::{statics::StoreId, Store};
+use hash_storage::store::{Store, statics::StoreId};
 use hash_target::abi::{AbiRepresentation, ValidScalarRange};
 
 use super::{
+    FnBuilder,
     locals::LocalRef,
     operands::{OperandRef, OperandValue},
     place::PlaceRef,
     utils::mem_copy_ty,
-    FnBuilder,
 };
 use crate::{
     common::{IntComparisonKind, MemFlags},
     traits::{
-        builder::BlockBuilderMethods, constants::ConstValueBuilderMethods,
-        misc::MiscBuilderMethods, ty::TypeBuilderMethods, HasCtxMethods,
+        HasCtxMethods, builder::BlockBuilderMethods, constants::ConstValueBuilderMethods,
+        misc::MiscBuilderMethods, ty::TypeBuilderMethods,
     },
 };
 
