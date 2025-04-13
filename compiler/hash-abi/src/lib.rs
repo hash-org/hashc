@@ -6,9 +6,9 @@
 use hash_repr::{LayoutId, TyInfo};
 use hash_storage::{new_store_key, store::statics::StoreId};
 use hash_target::{
+    Target,
     abi::{Abi, AbiRepresentation, Scalar},
     size::Size,
-    Target,
 };
 use hash_utils::bitflags;
 
