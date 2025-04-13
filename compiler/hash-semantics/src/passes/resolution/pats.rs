@@ -9,24 +9,24 @@ use std::iter::empty;
 use hash_ast::ast::{self, AstNodeId, AstNodeRef};
 use hash_const_eval::Const;
 use hash_reporting::macros::panic_on_span;
-use hash_storage::store::{statics::SequenceStoreValue, SequenceStoreKey};
+use hash_storage::store::{SequenceStoreKey, statics::SequenceStoreValue};
 use hash_target::data_layout::HasDataLayout;
 use hash_tir::{
     intrinsics::utils::bool_pat,
     tir::{
-        pats::BindingPat, ArrayPat, CtorPat, IfPat, Lit, LitPat, Node, NodeId, NodeOrigin, OrPat,
-        ParamIndex, Pat, PatArg, PatArgsId, PatId, PatListId, PatOrCapture, RangePat, Spread,
-        SymbolId, TuplePat,
+        ArrayPat, CtorPat, IfPat, Lit, LitPat, Node, NodeId, NodeOrigin, OrPat, ParamIndex, Pat,
+        PatArg, PatArgsId, PatId, PatListId, PatOrCapture, RangePat, Spread, SymbolId, TuplePat,
+        pats::BindingPat,
     },
 };
 
 use super::{
+    ResolutionPass,
     params::AstArgGroup,
     paths::{
         AstPath, AstPathComponent, NonTerminalResolvedPathComponent, ResolvedAstPathComponent,
         TerminalResolvedPathComponent,
     },
-    ResolutionPass,
 };
 use crate::{
     diagnostics::definitions::{SemanticError, SemanticResult},

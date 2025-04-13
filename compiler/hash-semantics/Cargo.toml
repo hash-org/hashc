@@ -1,14 +1,14 @@
 [package]
 name = "hash-semantics"
 version = "0.1.0"
-authors = ["The Hash Language authors"]
-edition = "2021"
+authors = { workspace = true }
+edition = { workspace = true }
 
 [lib]
 doctest = false
 
 [dependencies]
-once_cell = { workspace = true}
+once_cell = { workspace = true }
 
 hash-ast = { workspace = true }
 hash-ast-utils = { workspace = true }

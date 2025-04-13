@@ -7,10 +7,10 @@ use std::cell::Cell;
 
 use hash_ast::ast::{self, AstNodeRef};
 use hash_reporting::diagnostic::Diagnostics;
-use hash_storage::store::{statics::StoreId, SequenceStoreKey};
+use hash_storage::store::{SequenceStoreKey, statics::StoreId};
 use hash_tir::tir::{DataDefCtors, ModDefId, ModMemberValue, NodesId, Ty};
 
-use super::{scoping::ContextKind, ResolutionPass};
+use super::{ResolutionPass, scoping::ContextKind};
 use crate::{
     diagnostics::definitions::{SemanticError, SemanticResult},
     env::SemanticEnv,
@@ -227,11 +227,7 @@ impl<'env, E: SemanticEnv + 'env> ResolutionPass<'env, E> {
                 }
             }
 
-            if found_error {
-                Err(SemanticError::Signal)
-            } else {
-                Ok(())
-            }
+            if found_error { Err(SemanticError::Signal) } else { Ok(()) }
         })
     }
 }

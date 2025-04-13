@@ -3,10 +3,10 @@ use std::fmt::Display;
 
 use hash_ast::ast::{self, AstNode, AstNodeId, AstNodeRef, OwnsAstNode};
 use hash_reporting::macros::panic_on_span;
-use hash_source::{identifier::Identifier, ModuleId, SourceMapUtils};
+use hash_source::{ModuleId, SourceMapUtils, identifier::Identifier};
 use hash_storage::store::{
-    statics::{SequenceStoreValue, StoreId},
     DefaultPartialStore, PartialStore, SequenceStoreKey, StoreKey,
+    statics::{SequenceStoreValue, StoreId},
 };
 use hash_tir::{
     context::ContextMember,
@@ -19,7 +19,7 @@ use hash_tir::{
 };
 use hash_utils::{
     derive_more::From,
-    smallvec::{smallvec, SmallVec},
+    smallvec::{SmallVec, smallvec},
     state::LightState,
 };
 

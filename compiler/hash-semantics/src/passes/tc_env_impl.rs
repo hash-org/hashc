@@ -1,8 +1,8 @@
 use hash_ir::{HasIrCtx, IrCtx};
 use hash_pipeline::settings::{CompilerSettings, HasCompilerSettings};
 use hash_reporting::diagnostic::HasDiagnostics;
-use hash_repr::{compute::LayoutComputer, HasLayout};
-use hash_source::{entry_point::EntryPointState, SourceId};
+use hash_repr::{HasLayout, compute::LayoutComputer};
+use hash_source::{SourceId, entry_point::EntryPointState};
 use hash_target::{HasTarget, Target};
 use hash_tir::{
     atom_info::{AtomInfoStore, HasAtomInfo},

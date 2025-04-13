@@ -17,12 +17,12 @@ use hash_tir::{
 };
 
 use super::{
+    ResolutionPass,
     params::AstArgGroup,
     paths::{
         AstPath, AstPathComponent, NonTerminalResolvedPathComponent, ResolvedAstPathComponent,
         TerminalResolvedPathComponent,
     },
-    ResolutionPass,
 };
 use crate::{
     diagnostics::definitions::{SemanticError, SemanticResult},

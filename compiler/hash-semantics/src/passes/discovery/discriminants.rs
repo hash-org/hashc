@@ -2,7 +2,7 @@
 
 use hash_ast::ast;
 use hash_attrs::{
-    attr::{attr_store, ReprAttr},
+    attr::{ReprAttr, attr_store},
     builtin::attrs,
 };
 use hash_const_eval::Const;

@@ -3,7 +3,7 @@ use std::{collections::HashMap, fmt};
 
 use hash_ast::ast::{self, AstNodeId};
 use hash_source::identifier::Identifier;
-use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
+use hash_storage::store::{SequenceStoreKey, TrivialSequenceStoreKey, statics::StoreId};
 use hash_tir::{
     stack::StackId,
     term_as_variant,

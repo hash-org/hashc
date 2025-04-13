@@ -33,9 +33,9 @@ use hash_tir::{
 };
 
 use super::{
+    ResolutionPass,
     params::{AstArgGroup, ResolvedArgs},
     scoping::{BindingKind, ContextKind},
-    ResolutionPass,
 };
 use crate::{
     diagnostics::definitions::{SemanticError, SemanticResult},
@@ -71,11 +71,7 @@ impl AstPathComponent<'_> {
     /// Get the span of this path component.
     pub fn span(&self) -> Span {
         let span = self.name_node_id.span();
-        if let Some(last_arg) = self.args.last() {
-            span.join(last_arg.span())
-        } else {
-            span
-        }
+        if let Some(last_arg) = self.args.last() { span.join(last_arg.span()) } else { span }
     }
 }
 

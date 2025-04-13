@@ -25,7 +25,7 @@ use hash_utils::{
     fxhash::FxBuildHasher,
     indexmap::IndexMap,
     itertools::Itertools,
-    thin_vec::{thin_vec, ThinVec},
+    thin_vec::{ThinVec, thin_vec},
 };
 
 use crate::{
@@ -196,11 +196,7 @@ impl PatBinds {
             }
         }
 
-        if errors.is_empty() {
-            Ok(())
-        } else {
-            Err(SemanticError::Compound { errors })
-        }
+        if errors.is_empty() { Ok(()) } else { Err(SemanticError::Compound { errors }) }
     }
 
     /// Compare two [PatBinds] and ensure all bindings are equal.
@@ -242,11 +238,7 @@ impl PatBinds {
             }
         }
 
-        if errors.is_empty() {
-            Ok(())
-        } else {
-            Err(SemanticError::Compound { errors })
-        }
+        if errors.is_empty() { Ok(()) } else { Err(SemanticError::Compound { errors }) }
     }
 }
 
