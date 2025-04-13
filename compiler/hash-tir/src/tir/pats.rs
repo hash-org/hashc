@@ -6,7 +6,7 @@ use std::fmt::Debug;
 use hash_ast::ast::RangeEnd;
 use hash_storage::{
     get,
-    store::{statics::StoreId, TrivialSequenceStoreKey},
+    store::{TrivialSequenceStoreKey, statics::StoreId},
 };
 use hash_utils::derive_more::From;
 

@@ -3,7 +3,7 @@
 use hash_const_eval::Const;
 use hash_source::constant::{FloatTy, IntTy, SIntTy, UIntTy};
 use hash_storage::store::statics::{SequenceStoreValue, StoreId};
-use hash_target::{data_layout::HasDataLayout, primitives::BigIntTy, HasTarget};
+use hash_target::{HasTarget, data_layout::HasDataLayout, primitives::BigIntTy};
 use hash_utils::derive_more::From;
 
 use super::{
@@ -91,11 +91,7 @@ impl From<LitTy> for FloatTy {
 ///
 /// Both constructors do not take arguments.
 pub fn get_bool_ctor(value: bool) -> CtorDefId {
-    if value {
-        BoolCtor::True.def()
-    } else {
-        BoolCtor::False.def()
-    }
+    if value { BoolCtor::True.def() } else { BoolCtor::False.def() }
 }
 
 /// Check if the given term is the `true` constructor.

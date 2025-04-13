@@ -1,7 +1,7 @@
 //! Definitions related to imperative commands.
 use std::fmt;
 
-use hash_storage::store::{statics::StoreId, SequenceStoreKey};
+use hash_storage::store::{SequenceStoreKey, statics::StoreId};
 
 use super::{Term, TermId};
 

@@ -2,10 +2,10 @@
 
 use std::fmt::Display;
 
-use hash_source::{identifier::Identifier, SourceId, SourceMapUtils};
+use hash_source::{SourceId, SourceMapUtils, identifier::Identifier};
 use hash_storage::{
     get,
-    store::{statics::StoreId, TrivialSequenceStoreKey},
+    store::{TrivialSequenceStoreKey, statics::StoreId},
 };
 use textwrap::indent;
 use utility_types::omit;

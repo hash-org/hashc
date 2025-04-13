@@ -8,7 +8,7 @@ use std::{
 
 use hash_storage::{
     get,
-    store::{statics::StoreId, SequenceStoreKey, StoreKey, TrivialSequenceStoreKey},
+    store::{SequenceStoreKey, StoreKey, TrivialSequenceStoreKey, statics::StoreId},
 };
 use hash_utils::{
     derive_more::From, fxhash::FxBuildHasher, indexmap::IndexMap, itertools::Itertools,
@@ -554,13 +554,8 @@ impl fmt::Display for EqualityJudgement {
 
 impl fmt::Display for ContextMember {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let ty_or_unknown = {
-            if let Some(ty) = self.ty {
-                ty.to_string()
-            } else {
-                "unknown".to_string()
-            }
-        };
+        let ty_or_unknown =
+            { if let Some(ty) = self.ty { ty.to_string() } else { "unknown".to_string() } };
         match self.value {
             Some(value) => {
                 write!(f, "{}: {} = {}", self.name, ty_or_unknown, value,)

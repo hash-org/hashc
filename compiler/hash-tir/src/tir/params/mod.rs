@@ -4,8 +4,8 @@ use std::fmt::Debug;
 
 use hash_source::identifier::Identifier;
 use hash_storage::store::{
-    statics::{SequenceStoreValue, SingleStoreValue, StoreId},
     SequenceStoreKey, TrivialSequenceStoreKey,
+    statics::{SequenceStoreValue, SingleStoreValue, StoreId},
 };
 use hash_utils::{derive_more::From, itertools::Itertools};
 
@@ -113,11 +113,7 @@ impl ParamsId {
     pub fn at_param_index(&self, index: ParamIndex) -> Option<usize> {
         match index {
             ParamIndex::Name(name) => self.iter().enumerate().find_map(|(i, param)| {
-                if param.borrow().name.borrow().name? == name {
-                    Some(i)
-                } else {
-                    None
-                }
+                if param.borrow().name.borrow().name? == name { Some(i) } else { None }
             }),
             ParamIndex::Position(pos) => Some(pos as usize),
         }

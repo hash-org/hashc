@@ -6,8 +6,8 @@ use std::{borrow::Borrow, fmt::Display, iter::once};
 use hash_storage::{
     get,
     store::{
-        statics::{SequenceStoreValue, SingleStoreValue, StoreId},
         SequenceStoreKey, TrivialSequenceStoreKey,
+        statics::{SequenceStoreValue, SingleStoreValue, StoreId},
     },
 };
 use hash_target::primitives::IntTy;

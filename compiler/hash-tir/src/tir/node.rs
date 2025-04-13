@@ -9,7 +9,7 @@
 use core::fmt;
 
 use hash_ast::ast::AstNodeId;
-use hash_source::{location::Span, SourceId};
+use hash_source::{SourceId, location::Span};
 use hash_storage::store::statics::{SequenceStoreId, SingleStoreValue};
 use hash_utils::derive_more::{Deref, DerefMut};
 

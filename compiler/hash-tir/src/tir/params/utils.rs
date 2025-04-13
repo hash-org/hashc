@@ -7,8 +7,8 @@ use hash_reporting::{
     reporter::Reporter,
 };
 use hash_storage::store::{
-    statics::{SequenceStoreValue, StoreId},
     SequenceStoreKey, TrivialSequenceStoreKey,
+    statics::{SequenceStoreValue, StoreId},
 };
 use hash_utils::{pluralise, printing::SequenceDisplay};
 

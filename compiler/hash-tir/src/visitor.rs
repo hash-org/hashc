@@ -4,20 +4,20 @@ use std::{cell::RefCell, collections::HashSet, ops::ControlFlow};
 
 use hash_ast::ast::AstNodeId;
 use hash_storage::store::{
-    statics::{SequenceStoreValue, StoreId},
     SequenceStoreKey, TrivialSequenceStoreKey,
+    statics::{SequenceStoreValue, StoreId},
 };
 use hash_utils::derive_more::{From, TryInto};
 
 use crate::tir::{
-    blocks::{BlockStatement, BlockStatementsId, BlockTerm, Decl},
-    commands::AssignTerm,
     AccessTerm, AnnotTerm, Arg, ArgsId, ArrayPat, ArrayTerm, CallTerm, CtorDefId, CtorPat,
     CtorTerm, DataDefCtors, DataDefId, DataTy, DerefTerm, FnDef, FnDefId, FnTy, HasAstNodeId,
     IfPat, IndexTerm, LitId, LoopTerm, MatchCase, MatchTerm, ModDefId, ModMemberId, ModMemberValue,
     Node, NodeId, NodeOrigin, NodesId, OrPat, Param, ParamsId, Pat, PatArg, PatArgsId, PatId,
     PatListId, PatOrCapture, PrimitiveCtorInfo, RefTerm, RefTy, ReturnTerm, Term, TermId,
     TermListId, TuplePat, TupleTerm, TupleTy, Ty, TyId, TyOfTerm, UniverseTy, UnsafeTerm,
+    blocks::{BlockStatement, BlockStatementsId, BlockTerm, Decl},
+    commands::AssignTerm,
 };
 
 /// An atom in the TIR.

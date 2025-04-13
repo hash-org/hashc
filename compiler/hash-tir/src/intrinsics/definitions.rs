@@ -12,15 +12,15 @@ use hash_utils::stream_less_writeln;
 use paste::paste;
 
 use crate::{
-    building::gen::{
-        args, indexed_enum_def, params, primitive_with_params, ref_ty, sym, term, ty, unit_term,
-        Type,
+    building::generate::{
+        Type, args, indexed_enum_def, params, primitive_with_params, ref_ty, sym, term, ty,
+        unit_term,
     },
     intrinsics::utils::{try_use_term_as_const, try_use_term_as_integer_lit},
     make_intrinsics, make_primitives,
     tir::{
-        numeric_ctors, ArrayCtorInfo, CtorDefId, DataDefId, FnTy, Lit, ModMember, Node, NodeOrigin,
-        NumericCtorFlags, PrimitiveCtorInfo, RefKind, Term, TermId, TyId,
+        ArrayCtorInfo, CtorDefId, DataDefId, FnTy, Lit, ModMember, Node, NodeOrigin,
+        NumericCtorFlags, PrimitiveCtorInfo, RefKind, Term, TermId, TyId, numeric_ctors,
     },
 };
 
