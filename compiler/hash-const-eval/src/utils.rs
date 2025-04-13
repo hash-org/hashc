@@ -1,10 +1,10 @@
 use std::ops::Deref;
 
 use hash_repr::{
+    TyInfo, Variants,
     compute::LayoutComputer,
     constant::{Const, ConstKind},
     ty::{ReprTy, ToReprTy, VariantIdx},
-    TyInfo, Variants,
 };
 use hash_source::constant::AllocRange;
 use hash_storage::store::statics::StoreId;
