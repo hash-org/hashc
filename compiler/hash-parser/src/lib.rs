@@ -22,11 +22,11 @@ use hash_pipeline::{
 };
 use hash_reporting::{diagnostic::DiagnosticsMut, report::Report, reporter::Reports};
 use hash_source::{
-    constant::const_stores, location::SpannedSource, InteractiveId, ModuleId, SourceId,
-    SourceMapUtils,
+    InteractiveId, ModuleId, SourceId, SourceMapUtils, constant::const_stores,
+    location::SpannedSource,
 };
 use hash_utils::{
-    crossbeam_channel::{unbounded, Sender},
+    crossbeam_channel::{Sender, unbounded},
     profiling::{HasMutMetrics, StageMetrics},
     rayon,
 };
@@ -133,11 +133,7 @@ impl<Ctx: ParserCtxQuery> CompilerStage<Ctx> for Parser {
             }
         });
 
-        if collected_diagnostics.is_empty() {
-            Ok(())
-        } else {
-            Err(collected_diagnostics)
-        }
+        if collected_diagnostics.is_empty() { Ok(()) } else { Err(collected_diagnostics) }
     }
 
     /// Any other stage than `semantic_pass` is valid when `--dump-ast` is

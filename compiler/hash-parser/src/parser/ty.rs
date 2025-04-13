@@ -3,7 +3,7 @@
 use hash_ast::ast::*;
 use hash_reporting::diagnostic::{DiagnosticsMut, HasDiagnosticsMut};
 use hash_source::identifier::IDENTS;
-use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
+use hash_token::{Token, TokenKind, delimiter::Delimiter, keyword::Keyword};
 use hash_utils::thin_vec::thin_vec;
 
 use super::AstGen;

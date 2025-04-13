@@ -2,7 +2,7 @@
 //! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
 use hash_source::{identifier::Identifier, location::ByteRange};
-use hash_token::{delimiter::Delimiter, keyword::Keyword, FloatLitKind, IntLitKind, TokenKind};
+use hash_token::{FloatLitKind, IntLitKind, TokenKind, delimiter::Delimiter, keyword::Keyword};
 use hash_utils::thin_vec::thin_vec;
 
 use super::AstGen;
@@ -23,7 +23,7 @@ impl AstGen<'_> {
         self.node_with_span(
             match token.kind {
                 TokenKind::Int(_, _) | TokenKind::Byte(_) | TokenKind::Float(_) => {
-                    return self.parse_numeric_lit()
+                    return self.parse_numeric_lit();
                 }
                 TokenKind::Char(value) => Lit::Char(CharLit { data: value }),
                 TokenKind::Str(value) => Lit::Str(StrLit { data: value }),

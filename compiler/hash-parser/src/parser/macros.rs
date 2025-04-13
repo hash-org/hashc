@@ -4,8 +4,8 @@ use hash_ast::ast::{
     AstNode, AstNodes, MacroInvocation, MacroInvocationArg, MacroInvocationArgs, MacroInvocations,
     MacroKind, Name, TokenMacro, TokenMacroInvocation, TokenStream,
 };
-use hash_token::{delimiter::Delimiter, Token, TokenKind};
-use hash_utils::thin_vec::{thin_vec, ThinVec};
+use hash_token::{Token, TokenKind, delimiter::Delimiter};
+use hash_utils::thin_vec::{ThinVec, thin_vec};
 
 use super::AstGen;
 use crate::diagnostics::{

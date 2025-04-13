@@ -3,7 +3,7 @@
 use hash_ast::ast::*;
 use hash_reporting::diagnostic::HasDiagnosticsMut;
 use hash_source::location::ByteRange;
-use hash_token::{delimiter::Delimiter, keyword::Keyword, IntLitKind, Token, TokenKind};
+use hash_token::{IntLitKind, Token, TokenKind, delimiter::Delimiter, keyword::Keyword};
 use hash_utils::thin_vec::thin_vec;
 
 use super::AstGen;
@@ -248,7 +248,7 @@ impl AstGen<'_> {
                     ExpectedItem::empty(),
                     Some(kind),
                     token.span,
-                )
+                );
             }
         })
     }

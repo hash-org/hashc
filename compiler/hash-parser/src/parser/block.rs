@@ -2,7 +2,7 @@
 //! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
 use hash_reporting::diagnostic::HasDiagnosticsMut;
-use hash_token::{delimiter::Delimiter, keyword::Keyword, TokenKind};
+use hash_token::{TokenKind, delimiter::Delimiter, keyword::Keyword};
 use hash_utils::thin_vec::thin_vec;
 
 use super::{AstGen, ParseResult};

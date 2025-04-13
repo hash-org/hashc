@@ -2,8 +2,8 @@
 //! `hash-ast` which provides a general interface to write a parser.
 use std::path::PathBuf;
 
-use hash_pipeline::fs::{resolve_path, ImportError};
-use hash_source::{constant::AllocId, ModuleKind, SourceId, SourceMapUtils};
+use hash_pipeline::fs::{ImportError, resolve_path};
+use hash_source::{ModuleKind, SourceId, SourceMapUtils, constant::AllocId};
 use hash_utils::crossbeam_channel::Sender;
 
 use crate::ParserAction;

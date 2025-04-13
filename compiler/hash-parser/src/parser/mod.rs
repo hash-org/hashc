@@ -17,17 +17,17 @@ use std::cell::Cell;
 use hash_ast::ast::*;
 use hash_reporting::diagnostic::HasDiagnosticsMut;
 use hash_source::location::{ByteRange, Span, SpannedSource};
-use hash_token::{cursor::TokenCursor, delimiter::Delimiter, Token, TokenKind};
+use hash_token::{Token, TokenKind, cursor::TokenCursor, delimiter::Delimiter};
 use hash_utils::{
     derive_more::Deref,
-    thin_vec::{thin_vec, ThinVec},
+    thin_vec::{ThinVec, thin_vec},
 };
 
 use crate::{
     diagnostics::{
+        ParserDiagnostics,
         error::{ParseError, ParseErrorKind, ParseResult},
         expected::ExpectedItem,
-        ParserDiagnostics,
     },
     import_resolver::ImportResolver,
 };
