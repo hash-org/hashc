@@ -3,14 +3,14 @@
 //! nodes in later compilation stages.
 use std::{
     collections::{
-        hash_map::{Iter, IterMut},
         HashMap,
+        hash_map::{Iter, IterMut},
     },
     path::{Path, PathBuf},
 };
 
 use hash_source::{InteractiveId, ModuleId, SourceId};
-use hash_utils::index_vec::{index_vec, IndexVec};
+use hash_utils::index_vec::{IndexVec, index_vec};
 
 use crate::ast::{AstNode, BodyBlock, Module, OwnsAstNode};
 
