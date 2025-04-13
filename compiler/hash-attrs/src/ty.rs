@@ -3,8 +3,8 @@
 //! later use to programatically check attribute annotations.
 
 use hash_ast_utils::attr::AttrTarget;
-use hash_repr::ty::{ReprTyId, COMMON_REPR_TYS};
-use hash_source::{identifier::Identifier, Size};
+use hash_repr::ty::{COMMON_REPR_TYS, ReprTyId};
+use hash_source::{Size, identifier::Identifier};
 use hash_storage::store::statics::StoreId;
 use hash_tir::tir::{
     DataDefCtors, DataTy, NumericCtorBits, NumericCtorInfo, ParamIndex, ParamsId,
@@ -12,7 +12,7 @@ use hash_tir::tir::{
 };
 use hash_utils::{
     fxhash::FxHashMap,
-    index_vec::{define_index_type, IndexVec},
+    index_vec::{IndexVec, define_index_type},
 };
 
 use crate::builtin::ATTR_MAP;

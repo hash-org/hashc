@@ -15,7 +15,7 @@ use hash_utils::{
 
 use crate::{
     diagnostics::{AttrError, AttrResult},
-    ty::{repr_ty_from_primitive_ty, AttrId},
+    ty::{AttrId, repr_ty_from_primitive_ty},
 };
 
 /// Valid `#[repr(...)]` options, ideally we should be able to just generate
