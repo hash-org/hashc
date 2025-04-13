@@ -13,8 +13,8 @@ impl AstGen<'_> {
     #[inline]
     pub(crate) fn parse_block(&mut self) -> ParseResult<AstNode<Block>> {
         let (block, span) =
-            self.in_tree(Delimiter::Brace, Some(ParseErrorKind::ExpectedBlock), |gen| {
-                Ok((gen.parse_body_block_inner(), gen.range()))
+            self.in_tree(Delimiter::Brace, Some(ParseErrorKind::ExpectedBlock), |g| {
+                Ok((g.parse_body_block_inner(), g.range()))
             })?;
 
         Ok(self.node_with_span(Block::Body(block), span))
@@ -118,8 +118,8 @@ impl AstGen<'_> {
 
         let subject = self.parse_expr_with_precedence(0)?;
 
-        let cases = self.in_tree(Delimiter::Brace, None, |gen| {
-            Ok(gen.parse_nodes(|g| g.parse_match_case(), |g| g.parse_token(TokenKind::Comma)))
+        let cases = self.in_tree(Delimiter::Brace, None, |g| {
+            Ok(g.parse_nodes(|g| g.parse_match_case(), |g| g.parse_token(TokenKind::Comma)))
         })?;
 
         Ok(self.node_with_joined_span(

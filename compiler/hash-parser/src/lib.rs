@@ -267,13 +267,13 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     let resolver = ImportResolver::new(id, source.parent(), sender);
     let mut diagnostics = ParserDiagnostics::new();
     let mut spans = LocalSpanMap::with_capacity(tokens.len() * 2);
-    let mut gen = AstGen::new(spanned, &tokens, &resolver, &mut diagnostics, &mut spans);
+    let mut g = AstGen::new(spanned, &tokens, &resolver, &mut diagnostics, &mut spans);
 
     // Perform the parsing operation now... and send the result through the
     // message queue, regardless of it being an error or not.
     let action = match id.is_interactive() {
         false => {
-            let node = timings.record("gen", |_| gen.parse_module());
+            let node = timings.record("gen", |_| g.parse_module());
             SourceMapUtils::set_module_source(id, contents);
 
             ParserAction::SetModuleNode {
@@ -284,7 +284,7 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
             }
         }
         true => {
-            let node = timings.record("gen", |_| gen.parse_expr_from_interactive());
+            let node = timings.record("gen", |_| g.parse_expr_from_interactive());
 
             ParserAction::SetInteractiveNode {
                 id: id.into(),

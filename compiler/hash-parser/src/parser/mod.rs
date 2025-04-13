@@ -167,12 +167,12 @@ impl<'s> AstGen<'s> {
         start: usize,
         len: usize,
         parent_span: ByteRange,
-        mut gen: impl FnMut(&mut Self) -> T,
+        mut g: impl FnMut(&mut Self) -> T,
     ) -> T {
         let new_frame =
             AstGenFrame::from_stream(&self.frame.stream()[start..(start + len)], parent_span);
         let old_frame = std::mem::replace(&mut self.frame, new_frame);
-        let result = gen(self);
+        let result = g(self);
 
         // Ensure that the generator token stream has been exhausted
         if !self.error.get() && self.has_token() {
@@ -541,7 +541,7 @@ impl<'s> AstGen<'s> {
         &mut self,
         delimiter: Delimiter,
         error: Option<ParseErrorKind>,
-        gen: impl FnMut(&mut Self) -> ParseResult<T>,
+        g: impl FnMut(&mut Self) -> ParseResult<T>,
     ) -> ParseResult<T> {
         match self.peek() {
             Some(Token { kind: TokenKind::Tree(inner, len), span }) if *inner == delimiter => {
@@ -550,7 +550,7 @@ impl<'s> AstGen<'s> {
                 let start = self.position() + 1;
 
                 self.skip_token(); // We want to update our position, when we return to this generator.
-                self.new_frame(start, *len as usize, *span, gen)
+                self.new_frame(start, *len as usize, *span, g)
             }
             token => self.err_with_location(
                 error.unwrap_or(ParseErrorKind::UnExpected),
