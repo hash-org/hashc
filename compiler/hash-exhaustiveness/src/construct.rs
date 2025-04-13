@@ -27,15 +27,15 @@
 use std::fmt::{self, Debug};
 
 use hash_source::constant::AllocId;
-use hash_storage::store::{statics::StoreId, SequenceStoreKey};
+use hash_storage::store::{SequenceStoreKey, statics::StoreId};
 use hash_tir::tir::{CtorDefId, DataTy, NodesId, TupleTy, Ty};
-use hash_utils::smallvec::{smallvec, SmallVec};
+use hash_utils::smallvec::{SmallVec, smallvec};
 
 use super::range::{IntRange, SplitIntRange};
 use crate::{
+    ExhaustivenessChecker, ExhaustivenessEnv, ExhaustivenessFmtCtx, PatCtx,
     list::{Array, ArrayKind, SplitVarList},
     storage::DeconstructedCtorId,
-    ExhaustivenessChecker, ExhaustivenessEnv, ExhaustivenessFmtCtx, PatCtx,
 };
 
 /// The [DeconstructedCtor] represents the type of constructor that a pattern

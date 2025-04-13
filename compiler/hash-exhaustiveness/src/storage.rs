@@ -1,9 +1,9 @@
 //! Stores [DeconstructedPat]s and [DeconstructedCtor]s.'
-use hash_utils::index_vec::{define_index_type, IndexVec};
+use hash_utils::index_vec::{IndexVec, define_index_type};
 
 use crate::{
-    construct::DeconstructedCtor, deconstruct::DeconstructedPat, ExhaustivenessChecker,
-    ExhaustivenessEnv,
+    ExhaustivenessChecker, ExhaustivenessEnv, construct::DeconstructedCtor,
+    deconstruct::DeconstructedPat,
 };
 
 define_index_type! {

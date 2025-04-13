@@ -14,13 +14,13 @@ use hash_tir::{
 };
 use hash_utils::{
     itertools::Itertools,
-    thin_vec::{thin_vec, ThinVec},
+    thin_vec::{ThinVec, thin_vec},
 };
 
 use super::construct::DeconstructedCtor;
 use crate::{
-    storage::{DeconstructedCtorId, DeconstructedPatId},
     ExhaustivenessChecker, ExhaustivenessEnv, PatCtx,
+    storage::{DeconstructedCtorId, DeconstructedPatId},
 };
 
 /// Representation of the `fields` that are stored by

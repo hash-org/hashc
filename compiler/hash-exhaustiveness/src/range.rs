@@ -42,8 +42,8 @@ use hash_storage::store::statics::StoreId;
 use hash_tir::tir::{PatId, RangePat};
 
 use crate::{
-    diagnostics::ExhaustivenessWarning, storage::DeconstructedPatId, ExhaustivenessChecker,
-    ExhaustivenessEnv,
+    ExhaustivenessChecker, ExhaustivenessEnv, diagnostics::ExhaustivenessWarning,
+    storage::DeconstructedPatId,
 };
 
 /// The [IntRange] is used as a structure to represent `integral` types like

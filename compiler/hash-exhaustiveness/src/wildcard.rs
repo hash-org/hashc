@@ -4,13 +4,13 @@
 //! the whole range of all possible values by the associated type
 //! to the constructor.
 use hash_ast::ast::RangeEnd;
-use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
+use hash_storage::store::{SequenceStoreKey, TrivialSequenceStoreKey, statics::StoreId};
 use hash_target::size::Size;
 use hash_tir::{
     intrinsics::utils::try_use_ty_as_int_ty,
     tir::{DataDefCtors, DataTy, NumericCtorBits, PrimitiveCtorInfo, Ty},
 };
-use hash_utils::smallvec::{smallvec, SmallVec};
+use hash_utils::smallvec::{SmallVec, smallvec};
 
 /// A [DeconstructedCtor::Wildcard] that we split relative to the constructors
 /// in the matrix.
@@ -40,7 +40,7 @@ use super::{
     construct::DeconstructedCtor,
     list::{Array, ArrayKind},
 };
-use crate::{storage::DeconstructedCtorId, ExhaustivenessChecker, ExhaustivenessEnv, PatCtx};
+use crate::{ExhaustivenessChecker, ExhaustivenessEnv, PatCtx, storage::DeconstructedCtorId};
 
 impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     /// Create a [SplitWildcard] from the current context.
