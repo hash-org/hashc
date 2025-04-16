@@ -2,13 +2,13 @@
 
 use std::fmt::Display;
 
-use hash_source::{identifier::Identifier, SourceId, SourceMapUtils};
+use hash_source::{SourceId, SourceMapUtils, identifier::Identifier};
 use hash_storage::{
     get,
-    store::{statics::StoreId, TrivialSequenceStoreKey},
+    store::{TrivialSequenceStoreKey, statics::StoreId},
 };
 use textwrap::indent;
-use utility_types::omit;
+use utility_types::Omit;
 
 use crate::{
     intrinsics::{definitions::Intrinsic, make::IsIntrinsic},
@@ -99,8 +99,10 @@ tir_node_sequence_store_direct!(ModMember);
 /// A module definition.
 ///
 /// This contains a name, parameters, a kind, and a set of members.
-#[derive(Debug, Clone, Copy)]
-#[omit(ModDefData, [id], [Debug, Clone, Copy])]
+#[derive(Debug, Clone, Copy, Omit)]
+#[omit(
+    arg(ident=ModDefData, fields(id), derive(Debug, Clone, Copy))
+)]
 pub struct ModDef {
     /// The name of the module.
     pub name: SymbolId,

@@ -3,8 +3,8 @@
 [package]
 name = "hash-tests"
 version = "0.1.0"
-authors = ["The Hash Language authors"]
-edition = "2018"
+authors = { workspace = true }
+edition = { workspace = true }
 
 [[bin]]
 name = "hashc-tests"
@@ -12,30 +12,30 @@ path = "./lib.rs"
 doctest = false
 
 [dependencies]
-pretty_assertions = "1.2.1"
-regex = "1.5.6"
-lazy_static = "1.4.0"
+pretty_assertions = { workspace = true }
+regex = { workspace = true }
+lazy_static = { workspace = true }
 
-hash-ast = { path = "../compiler/hash-ast" }
-hash-source = { path = "../compiler/hash-source" }
-hash-driver = { path = "../compiler/hash-driver" }
-hash-utils = { path = "../compiler/hash-utils" }
-hash-pipeline = { path = "../compiler/hash-pipeline" }
-hash-reporting = { path = "../compiler/hash-reporting" }
+hash-ast = { workspace = true }
+hash-source = { workspace = true }
+hash-driver = { workspace = true }
+hash-utils = { workspace = true }
+hash-pipeline = { workspace = true }
+hash-reporting = { workspace = true }
 
 # Various stages that the pipeline interfaces with...
-hash-lexer = { path = "../compiler/hash-lexer" }
-hash-parser = { path = "../compiler/hash-parser" }
-hash-ast-desugaring = { path = "../compiler/hash-ast-desugaring" }
-hash-ast-expand = { path = "../compiler/hash-ast-expand" }
-hash-untyped-semantics = { path = "../compiler/hash-untyped-semantics" }
-hash-semantics = { path = "../compiler/hash-semantics" }
-hash-lower = { path = "../compiler/hash-lower" }
-hash-vm = { path = "../compiler/hash-vm" }
+hash-lexer = { workspace = true }
+hash-parser = { workspace = true }
+hash-ast-desugaring = { workspace = true }
+hash-ast-expand = { workspace = true }
+hash-untyped-semantics = { workspace = true }
+hash-semantics = { workspace = true }
+hash-lower = { workspace = true }
+hash-vm = { workspace = true }
 
 # Internal macros the that the tester uses
-hash-testing-macros = { path = "../tests/testing-macros" }
-hash-testing-internal = { path = "../tests/testing-internal" }
+hash-testing-macros = { workspace = true }
+hash-testing-internal = { workspace = true }
 
 [dev-dependencies]
 clap = { version = "4.3.8", features = ["derive"] }

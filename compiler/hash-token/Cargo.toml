@@ -1,17 +1,17 @@
 [package]
 name = "hash-token"
 version = "0.1.0"
-authors = ["The Hash Language authors"]
-edition = "2021"
+authors = { workspace = true }
+edition = { workspace = true }
 
 [lib]
 doctest = false
 
 [dependencies]
-num-derive = "0.4.0"
-num-traits = "0.2.16"
-strum_macros = "0.21"
-phf = { version = "0.11", features = ["macros"] }
+num-derive = { workspace = true }
+num-traits = { workspace = true }
+strum_macros = { workspace = true }
+phf = { workspace = true }
 
-hash-utils = { path = "../hash-utils" }
-hash-source = {path = "../hash-source" }
+hash-utils = { workspace = true }
+hash-source = { workspace = true }

@@ -18,8 +18,8 @@ use hash_ir::{
     ir::{BasicBlock, Place, PlaceProjection},
     ty::{AdtId, Mutability, ReprTy},
 };
-use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
-use hash_target::{size::Size, HasTarget};
+use hash_storage::store::{TrivialSequenceStoreKey, statics::StoreId};
+use hash_target::{HasTarget, size::Size};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     tir::{
@@ -29,10 +29,10 @@ use hash_tir::{
 };
 use hash_utils::{
     itertools::Itertools,
-    smallvec::{smallvec, SmallVec},
+    smallvec::{SmallVec, smallvec},
 };
 
-use crate::build::{place::PlaceBuilder, BodyBuilder};
+use crate::build::{BodyBuilder, place::PlaceBuilder};
 
 /// A [Candidate] is a representation of a single `match` arm that
 /// is used to generate code for a `match` block. [Candidate]s store

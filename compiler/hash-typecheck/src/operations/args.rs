@@ -8,16 +8,16 @@
 use std::{collections::HashSet, ops::ControlFlow};
 
 use hash_storage::store::{
-    statics::{SequenceStoreValue, StoreId},
     SequenceStoreKey, TrivialSequenceStoreKey,
+    statics::{SequenceStoreValue, StoreId},
 };
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     context::{HasContext, ScopeKind},
     tir::{
-        validate_and_reorder_args_against_params, validate_and_reorder_pat_args_against_params,
         Arg, ArgsId, Node, NodeId, NodesId, ParamsId, Pat, PatArgsId, PatOrCapture, Spread,
-        SymbolId, Term, TermId, TupleTerm, TyId,
+        SymbolId, Term, TermId, TupleTerm, TyId, validate_and_reorder_args_against_params,
+        validate_and_reorder_pat_args_against_params,
     },
     visitor::{Atom, Map, Visit},
 };
@@ -26,7 +26,7 @@ use itertools::Itertools;
 use crate::{
     diagnostics::{TcError, TcResult},
     env::TcEnv,
-    options::normalisation::{normalise_nested, NormaliseResult, NormaliseSignal},
+    options::normalisation::{NormaliseResult, NormaliseSignal, normalise_nested},
     tc::Tc,
     traits::{OperationsOnNode, ScopedOperationsOnNode},
     utils::matching::MatchResult,

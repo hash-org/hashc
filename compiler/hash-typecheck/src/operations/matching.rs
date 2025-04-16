@@ -1,6 +1,6 @@
 use std::{cell::Cell, ops::ControlFlow};
 
-use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
+use hash_storage::store::{TrivialSequenceStoreKey, statics::StoreId};
 use hash_tir::{
     context::HasContext,
     intrinsics::definitions::never_ty,
@@ -13,7 +13,7 @@ use crate::{
     diagnostics::{TcError, TcResult},
     env::TcEnv,
     options::normalisation::{
-        normalised_to, stuck_normalising, NormalisationState, NormaliseResult, NormaliseSignal,
+        NormalisationState, NormaliseResult, NormaliseSignal, normalised_to, stuck_normalising,
     },
     tc::Tc,
     traits::{OperationsOn, OperationsOnNode},

@@ -144,11 +144,7 @@ impl Size {
         let dl = ctx.data_layout();
         let bytes = self.bytes().checked_mul(count)?;
 
-        if bytes < dl.obj_size_bound() {
-            Some(Size::from_bytes(bytes))
-        } else {
-            None
-        }
+        if bytes < dl.obj_size_bound() { Some(Size::from_bytes(bytes)) } else { None }
     }
 
     /// Compute a checked addition operation with a provided
@@ -160,11 +156,7 @@ impl Size {
         let dl = ctx.data_layout();
         let bytes = self.bytes().checked_add(value.bytes())?;
 
-        if bytes < dl.obj_size_bound() {
-            Some(Size::from_bytes(bytes))
-        } else {
-            None
-        }
+        if bytes < dl.obj_size_bound() { Some(Size::from_bytes(bytes)) } else { None }
     }
 }
 

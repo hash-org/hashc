@@ -10,7 +10,7 @@ use std::{
 
 use hash_messaging::CompilerOutputMessage;
 use hash_pipeline::{
-    fs::{resolve_path, PRELUDE},
+    fs::{PRELUDE, resolve_path},
     interface::{CompilerInterface, CompilerResult, CompilerStage},
     metrics::{AggregateMetricReporter, Metrics, StageMetricEntry},
     settings::CompilerStageKind,
@@ -19,7 +19,7 @@ use hash_reporting::reporter::Reporter;
 use hash_source::{ModuleKind, SourceId};
 use hash_utils::{
     log,
-    profiling::{get_resident_set_size, timed, MetricEntry, StageMetrics},
+    profiling::{MetricEntry, StageMetrics, get_resident_set_size, timed},
     stream::CompilerOutputStream,
     stream_writeln,
 };

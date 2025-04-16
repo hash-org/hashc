@@ -3,7 +3,7 @@
 
 use hash_ast::ast::AstNodeId;
 use hash_attrs::builtin::attrs;
-use hash_ir::{intrinsics::Intrinsic, lang_items::LangItem, ty::InstanceHelpers, HasIrCtx};
+use hash_ir::{HasIrCtx, intrinsics::Intrinsic, lang_items::LangItem, ty::InstanceHelpers};
 use hash_repr::ty::{Instance, ReprTy, ReprTyId, ReprTyListId};
 use hash_storage::store::statics::{SingleStoreValue, StoreId};
 use hash_tir::{

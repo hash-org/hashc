@@ -2,13 +2,13 @@
 use std::{fmt::Display, ops::Deref};
 
 use hash_ast::ast;
-use hash_ast_utils::lit::{parse_float_const_from_lit, parse_int_const_from_lit, LitParseResult};
-use hash_const_eval::{print::ScalarPrinter, Const, ConstKind};
+use hash_ast_utils::lit::{LitParseResult, parse_float_const_from_lit, parse_int_const_from_lit};
+use hash_const_eval::{Const, ConstKind, print::ScalarPrinter};
 use hash_source::Size;
 use hash_storage::store::statics::StoreId;
 use hash_target::{
-    primitives::{FloatTy, IntTy},
     HasTarget,
+    primitives::{FloatTy, IntTy},
 };
 
 use crate::{stores::tir_stores, tir_node_single_store};

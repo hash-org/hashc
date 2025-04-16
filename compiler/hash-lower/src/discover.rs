@@ -4,16 +4,17 @@
 //! For now, non-pure functions are always queued for lowering.
 use std::ops::ControlFlow;
 
+use derive_more::Constructor;
 use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_pipeline::workspace::StageInfo;
-use hash_storage::store::{statics::StoreId, Store, TrivialSequenceStoreKey};
+use hash_storage::store::{Store, TrivialSequenceStoreKey, statics::StoreId};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     stores::tir_stores,
     tir::{FnDefId, HasAstNodeId, ModKind, ModMemberValue, TermId},
     visitor::{Atom, Visit, Visitor},
 };
-use hash_utils::{derive_more::Constructor, indexmap::IndexSet};
+use hash_utils::indexmap::IndexSet;
 
 /// Discoverer for functions to lower in the TIR tree.
 #[derive(Constructor)]
@@ -79,11 +80,7 @@ impl FnDiscoverer<'_> {
 
         // Check that the body is marked as "foreign" since
         // we don't want to lower it.
-        if is_foreign {
-            None
-        } else {
-            Some(def_body)
-        }
+        if is_foreign { None } else { Some(def_body) }
     }
 
     /// Discover all TIR runtime functions in the sources, in order to lower

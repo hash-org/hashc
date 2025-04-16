@@ -2,7 +2,7 @@
 //! logic of transforming generated Hash IR into LLVM IR so that it can be
 //! compiled by LLVM into a native executable with the specified target triple.
 
-use std::ffi::{c_char, CStr};
+use std::ffi::{CStr, c_char};
 
 use hash_codegen::{
     backend::CodeGenStorage,

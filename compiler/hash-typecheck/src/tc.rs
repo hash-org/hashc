@@ -1,5 +1,6 @@
 //! Contains the main typechecker structure, which holds the state of the
 //! typechecker and is what all other `Operations` are implemented on.
+use derive_more::Deref;
 use hash_ir::{HasIrCtx, IrCtx};
 use hash_target::HasTarget;
 use hash_tir::{
@@ -7,7 +8,7 @@ use hash_tir::{
     visitor::Visitor,
 };
 use hash_tir_utils::lower::{HasTyCache, TyCache, TyLowerEnv};
-use hash_utils::{derive_more::Deref, state::LightState};
+use hash_utils::state::LightState;
 
 use crate::{
     env::{HasTcEnv, TcEnv},

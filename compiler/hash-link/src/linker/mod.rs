@@ -12,8 +12,8 @@ use std::{
 
 use hash_pipeline::{settings::CompilerSettings, workspace::Workspace};
 use hash_target::{
-    link::{Cc, LinkerFlavour, Lld, RelocationModel},
     HasTarget, TargetArch,
+    link::{Cc, LinkerFlavour, Lld, RelocationModel},
 };
 
 use self::{gcc::GccLinker, msvc::MsvcLinker};

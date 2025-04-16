@@ -3,8 +3,8 @@
 use hash_ast::ast::{self, AstNodeId, AstNodeRef};
 use hash_source::location::Span;
 use hash_storage::store::{
-    statics::{SequenceStoreValue, StoreId},
     SequenceStoreKey,
+    statics::{SequenceStoreValue, StoreId},
 };
 use hash_tir::tir::{
     ArgsId, CallTerm, Node, NodeOrigin, Param, ParamId, ParamsId, PatArgsId, SomeParamsOrArgsId,

@@ -6,7 +6,7 @@
 //!
 //! @@Todo: write a constant value propagation pass.
 
-use hash_ir::{ir::Body, IrCtx};
+use hash_ir::{IrCtx, ir::Body};
 use hash_pipeline::settings::{CompilerSettings, OptimisationLevel};
 use hash_utils::profiling::{CellStageMetrics, HasMetrics};
 

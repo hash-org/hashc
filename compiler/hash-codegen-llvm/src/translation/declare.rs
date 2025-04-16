@@ -2,9 +2,9 @@
 
 use hash_codegen::abi::{CallingConvention, FnAbi};
 use inkwell::{
+    GlobalVisibility,
     types::{AnyTypeEnum, BasicTypeEnum},
     values::{FunctionValue, GlobalValue, UnnamedAddress},
-    GlobalVisibility,
 };
 
 use super::abi::ExtendedFnAbiMethods;

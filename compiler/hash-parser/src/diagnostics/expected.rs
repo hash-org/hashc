@@ -5,7 +5,7 @@
 
 use std::fmt;
 
-use hash_token::{delimiter::Delimiter, TokenKind};
+use hash_token::{TokenKind, delimiter::Delimiter};
 use hash_utils::{bitflags::bitflags, printing::SequenceDisplay};
 
 bitflags! {

@@ -19,8 +19,8 @@ use std::{
 use abi::{Abi, Integer};
 use data_layout::{Endian, HasDataLayout, TargetDataLayout, TargetDataLayoutParseError};
 use link::{
-    link_env, Cc, CodeModel, FramePointer, LinkEnv, LinkageArgs, LinkerFlavour, Lld,
-    RelocationModel,
+    Cc, CodeModel, FramePointer, LinkEnv, LinkageArgs, LinkerFlavour, Lld, RelocationModel,
+    link_env,
 };
 use size::Size;
 use targets::load_target;
@@ -293,8 +293,11 @@ impl Target {
             Some(bits) => bits,
             None => {
                 return Err(TargetDataLayoutParseError::InvalidEnumSize {
-                    err: format!("unsupported integer width `{}`, it must be defined as either `i8`, `i16`, `i32`, `i64`, or `i128`", self.c_int_width),
-                })
+                    err: format!(
+                        "unsupported integer width `{}`, it must be defined as either `i8`, `i16`, `i32`, `i64`, or `i128`",
+                        self.c_int_width
+                    ),
+                });
             }
         };
 

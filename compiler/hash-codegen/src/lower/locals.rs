@@ -15,8 +15,8 @@ use hash_repr::TyInfo;
 use hash_storage::store::SequenceStoreKey;
 use hash_utils::{graph::dominators::Dominators, index_vec::IndexVec};
 
-use super::{operands::OperandRef, place::PlaceRef, FnBuilder};
-use crate::traits::{builder::BlockBuilderMethods, layout::LayoutMethods, CodeGenObject};
+use super::{FnBuilder, operands::OperandRef, place::PlaceRef};
+use crate::traits::{CodeGenObject, builder::BlockBuilderMethods, layout::LayoutMethods};
 
 /// Defines what kind of reference a local has. A [LocalRef::Place]
 /// is a reference to a stack allocation, and a [LocalRef::Operand]

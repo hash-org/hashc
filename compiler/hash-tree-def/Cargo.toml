@@ -1,15 +1,16 @@
 [package]
 name = "hash-tree-def"
 version = "0.1.0"
-authors = ["The Hash Language authors"]
-edition = "2021"
+authors = { workspace = true }
+edition = { workspace = true }
 
 [lib]
 proc-macro = true
 doctest = false
 
 [dependencies]
-convert_case = "0.4"
-proc-macro2 = "1.0.63"
-quote = "1.0"
-syn = { version = "1.0", features = ["extra-traits", "full"] }
+convert_case = { workspace = true }
+itertools = { workspace = true }
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+syn = { workspace = true }

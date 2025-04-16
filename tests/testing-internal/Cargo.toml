@@ -1,13 +1,14 @@
 [package]
 name = "hash-testing-internal"
 version = "0.1.0"
-edition = "2021"
+authors = { workspace = true }
+edition = { workspace = true }
 
 [lib]
 doctest = false
 
 [dependencies]
-itertools = "0.10"
-quote = "1.0"
+itertools = { workspace = true }
+quote = { workspace = true }
 
-hash-pipeline = { path = "../../compiler/hash-pipeline" }
+hash-pipeline = { workspace = true }

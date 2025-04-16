@@ -8,17 +8,17 @@ use std::{
 };
 
 use hash_source::{
+    SourceId,
     constant::AllocId,
     identifier::Identifier,
     location::{ByteRange, Span},
-    SourceId,
 };
-use hash_token::{delimiter::Delimiter, Base, FloatLitKind, IntLitKind, Token};
+use hash_token::{Base, FloatLitKind, IntLitKind, Token, delimiter::Delimiter};
 use hash_tree_def::define_tree;
 use hash_utils::{
     counter,
     parking_lot::{RwLock, RwLockWriteGuard},
-    thin_vec::{thin_vec, ThinVec},
+    thin_vec::{ThinVec, thin_vec},
 };
 use once_cell::sync::Lazy;
 use replace_with::replace_with_or_abort;

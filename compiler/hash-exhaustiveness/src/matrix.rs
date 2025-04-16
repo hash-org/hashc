@@ -8,8 +8,8 @@ use std::fmt;
 
 use super::stack::PatStack;
 use crate::{
-    storage::{DeconstructedCtorId, DeconstructedPatId},
     ExhaustivenessChecker, ExhaustivenessEnv, ExhaustivenessFmtCtx, PatCtx,
+    storage::{DeconstructedCtorId, DeconstructedPatId},
 };
 
 /// A 2D matrix which is used to represent the

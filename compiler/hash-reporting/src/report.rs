@@ -3,11 +3,11 @@ use std::{cell::OnceCell, fmt};
 
 use hash_error_codes::error_codes::HashErrorCode;
 use hash_source::{
-    location::{RowColRange, Span},
     SourceMapUtils,
+    location::{RowColRange, Span},
 };
 use hash_utils::{
-    highlight::{highlight, Colour, Modifier},
+    highlight::{Colour, Modifier, highlight},
     schemars::{self, JsonSchema},
     serde::{self, Serialize},
 };

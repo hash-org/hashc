@@ -3,6 +3,7 @@
 //!
 //! Typing errors are reported during this pass.
 
+use derive_more::{Constructor, Deref};
 use hash_ast::ast;
 use hash_pipeline::settings::CompilerStageKind;
 use hash_source::{ModuleKind, SourceId};
@@ -13,10 +14,7 @@ use hash_tir::{
     tir::{Arg, CallTerm, Node, NodeId, Term, TermId},
 };
 use hash_typecheck::{env::TcEnv, options::normalisation::NormalisationMode};
-use hash_utils::{
-    derive_more::{Constructor, Deref},
-    stream_less_writeln,
-};
+use hash_utils::stream_less_writeln;
 
 use super::{analysis_pass::AnalysisPass, ast_info::AstInfo};
 use crate::{

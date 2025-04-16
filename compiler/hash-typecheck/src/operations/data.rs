@@ -1,7 +1,7 @@
 use std::{collections::HashSet, ops::ControlFlow};
 
 use hash_reporting::diagnostic::ErrorState;
-use hash_storage::store::{statics::StoreId, SequenceStoreKey, TrivialSequenceStoreKey};
+use hash_storage::store::{SequenceStoreKey, TrivialSequenceStoreKey, statics::StoreId};
 use hash_tir::{
     intrinsics::definitions::usize_ty,
     tir::{
@@ -14,7 +14,7 @@ use hash_tir::{
 use crate::{
     diagnostics::{TcError, TcResult},
     env::TcEnv,
-    options::normalisation::{already_normalised, normalise_nested, NormaliseResult},
+    options::normalisation::{NormaliseResult, already_normalised, normalise_nested},
     tc::Tc,
     traits::{OperationsOn, OperationsOnNode, ScopedOperationsOnNode},
 };

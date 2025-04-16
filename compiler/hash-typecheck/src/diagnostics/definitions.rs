@@ -1,15 +1,15 @@
 //! Definitions for errors and warnings that can occur during typechecking.
 
+use derive_more::From;
 use hash_ast_utils::lit::LitParseError;
 use hash_reporting::diagnostic::IntoCompound;
 use hash_tir::{
     tir::{
-        fns::FnDefId, NodeOrigin, ParamError, ParamIndex, ParamsId, PatId, SomeParamsOrArgsId,
-        TermId, TyId,
+        NodeOrigin, ParamError, ParamIndex, ParamsId, PatId, SomeParamsOrArgsId, TermId, TyId,
+        fns::FnDefId,
     },
     visitor::Atom,
 };
-use hash_utils::derive_more::From;
 
 /// Some sort of wrong term usage.
 #[derive(Clone, Debug)]

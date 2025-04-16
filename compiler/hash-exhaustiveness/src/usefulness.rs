@@ -15,8 +15,8 @@ use super::{
     stack::PatStack,
 };
 use crate::{
-    storage::{DeconstructedCtorId, DeconstructedPatId},
     ExhaustivenessChecker, ExhaustivenessEnv, PatCtx,
+    storage::{DeconstructedCtorId, DeconstructedPatId},
 };
 
 /// Collection of patterns that were `witnessed` when traversing

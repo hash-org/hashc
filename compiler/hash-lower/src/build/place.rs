@@ -7,7 +7,7 @@ use hash_ir::{
 use hash_storage::store::statics::StoreId;
 use hash_tir::tir::{AccessTerm, DerefTerm, IndexTerm, ParamIndex, Term, TermId, Ty};
 
-use super::{unpack, BlockAnd, BlockAndExtend, BodyBuilder};
+use super::{BlockAnd, BlockAndExtend, BodyBuilder, unpack};
 
 /// A builder interface for building a [Place] with a base [Local]
 /// and a collection of projections that are applied as the

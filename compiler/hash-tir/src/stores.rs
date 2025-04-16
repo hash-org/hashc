@@ -9,12 +9,12 @@ use crate::{
     atom_info::AtomInfoStore,
     stack::StackStore,
     tir::{
-        blocks::{BlockStatementsSeqStore, BlockStatementsStore},
         ArgsSeqStore, ArgsStore, CtorDefsSeqStore, CtorDefsStore, DataDefStore, FnDefStore,
         LitStore, MatchCasesSeqStore, MatchCasesStore, ModDefStore, ModMembersSeqStore,
         ModMembersStore, ParamsSeqStore, ParamsStore, PatArgsSeqStore, PatArgsStore,
         PatListSeqStore, PatListStore, PatStore, SymbolStore, TermListSeqStore, TermListStore,
         TermStore,
+        blocks::{BlockStatementsSeqStore, BlockStatementsStore},
     },
 };
 

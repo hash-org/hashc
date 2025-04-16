@@ -9,7 +9,7 @@ use hash_utils::itertools::Itertools;
 
 use super::definitions::{all_intrinsics_as_mod_members, all_primitives_as_mod_members};
 use crate::{
-    building::gen,
+    building::generate,
     context::HasContext,
     tir::{
         CtorDefId, DataDefId, FnTy, ModDef, ModDefId, ModKind, ModMember, ModMemberValue, Node,
@@ -68,15 +68,15 @@ pub trait IsPrimitiveCtor {
 /// Make a module containing all the primitives and intrinsics.
 pub fn make_root_mod() -> ModDefId {
     // ##GeneratedOrigin: Primitives do not have a source location.
-    let intrinsics_sym = gen::sym("Intrinsics");
+    let intrinsics_sym = generate::sym("Intrinsics");
     Node::create_gen(ModDef {
-        name: gen::sym("Root"),
+        name: generate::sym("Root"),
         kind: ModKind::Transparent,
         members: Node::create_gen(Node::<ModMember>::seq(
             all_primitives_as_mod_members()
                 .iter()
                 .copied()
-                .chain(once(Node::gen(ModMember {
+                .chain(once(Node::generate(ModMember {
                     name: intrinsics_sym,
                     value: ModMemberValue::Mod(Node::create_gen(ModDef {
                         name: intrinsics_sym,
@@ -142,7 +142,7 @@ macro_rules! make_intrinsics {
                 paste! {
                     vec![
                         $(
-                            Node::gen(ModMember {
+                            Node::generate(ModMember {
                                 name: sym(stringify!($name)),
                                 value: ModMemberValue::Intrinsic(Intrinsic::[<$name:camel>]),
                             }),
@@ -309,7 +309,7 @@ macro_rules! make_primitives {
                 paste! {
                     vec![
                         $(
-                            Node::gen(ModMember {
+                            Node::generate(ModMember {
                                 name: sym(stringify!($name)),
                                 value: ModMemberValue::Data([<$name:camel Primitive>].def()),
                             }),

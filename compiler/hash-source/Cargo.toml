@@ -1,19 +1,20 @@
 [package]
 name = "hash-source"
 version = "0.1.0"
-authors = ["The Hash Language authors"]
-edition = "2021"
+authors = { workspace = true }
+edition = { workspace = true }
 
 [lib]
 doctest = false
 
 [dependencies]
-bimap = "0.6.2"
-bytecount = "0.6.3"
-once_cell = "1.17"
-paste = "1.0.14"
-line-span = "0.1.5"
+bimap = { workspace = true }
+bytecount = { workspace = true }
+once_cell = { workspace = true }
+paste = { workspace = true }
+line-span = { workspace = true }
+derive_more = { workspace = true }
 
-hash-storage = { path = "../hash-storage" }
-hash-target = { path = "../hash-target" }
-hash-utils = { path = "../hash-utils" }
+hash-storage = { workspace = true }
+hash-target = { workspace = true }
+hash-utils = { workspace = true }

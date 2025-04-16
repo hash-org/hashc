@@ -1,4 +1,5 @@
 //! Hash Compiler parser error utilities.
+use derive_more::Constructor;
 use hash_ast::{ast::TyParamOrigin, origin::PatOrigin};
 use hash_pipeline::fs::ImportError;
 use hash_reporting::{
@@ -7,7 +8,6 @@ use hash_reporting::{
 };
 use hash_source::{identifier::Identifier, location::Span};
 use hash_token::TokenKind;
-use hash_utils::derive_more::Constructor;
 
 use super::expected::ExpectedItem;
 

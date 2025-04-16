@@ -14,25 +14,25 @@ use hash_ir::{
     intrinsics::Intrinsic,
     ir,
     lang_items::LangItem,
-    ty::{ReprTy, COMMON_REPR_TYS},
+    ty::{COMMON_REPR_TYS, ReprTy},
 };
 use hash_pipeline::settings::OptimisationLevel;
 use hash_source::constant::AllocId;
-use hash_storage::store::{statics::StoreId, Store};
+use hash_storage::store::{Store, statics::StoreId};
 use hash_target::abi::{AbiRepresentation, ValidScalarRange};
 
 use super::{
+    FnBuilder,
     locals::LocalRef,
     operands::{OperandRef, OperandValue},
     place::PlaceRef,
     utils::mem_copy_ty,
-    FnBuilder,
 };
 use crate::{
     common::{IntComparisonKind, MemFlags},
     traits::{
-        builder::BlockBuilderMethods, constants::ConstValueBuilderMethods,
-        misc::MiscBuilderMethods, ty::TypeBuilderMethods, HasCtxMethods,
+        HasCtxMethods, builder::BlockBuilderMethods, constants::ConstValueBuilderMethods,
+        misc::MiscBuilderMethods, ty::TypeBuilderMethods,
     },
 };
 
@@ -90,7 +90,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             ir::TerminatorKind::Goto(target) => {
                 self.codegen_goto_terminator(builder, *target, can_merge())
             }
-            ir::TerminatorKind::Call { ref op, ref args, destination, target } => {
+            ir::TerminatorKind::Call { op, args, destination, target } => {
                 self.codegen_call_terminator(builder, op, args, *destination, *target, can_merge())
             }
             ir::TerminatorKind::Return => {
@@ -101,11 +101,11 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
                 builder.unreachable();
                 false
             }
-            ir::TerminatorKind::Switch { ref value, ref targets } => {
+            ir::TerminatorKind::Switch { value, targets } => {
                 self.codegen_switch_terminator(builder, value, targets);
                 false
             }
-            ir::TerminatorKind::Assert { ref condition, expected, kind, target } => self
+            ir::TerminatorKind::Assert { condition, expected, kind, target } => self
                 .codegen_assert_terminator(
                     builder,
                     condition,

@@ -350,7 +350,7 @@ mod tests {
         ir::{BodyInfo, Local, LocalDecls, Place, PlaceProjection, Projections},
         ty::VariantIdx,
     };
-    use hash_repr::{compute::LayoutComputer, LayoutStorage};
+    use hash_repr::{LayoutStorage, compute::LayoutComputer};
     use hash_target::data_layout::TargetDataLayout;
 
     use crate::IrWriter;

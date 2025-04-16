@@ -4,7 +4,7 @@ use hash_tir::tir::{AnnotTerm, TermId, TyId};
 
 use crate::{
     env::TcEnv,
-    options::normalisation::{normalised_option, NormaliseResult},
+    options::normalisation::{NormaliseResult, normalised_option},
     tc::Tc,
     traits::{OperationsOn, OperationsOnNode},
 };

@@ -5,18 +5,18 @@ use std::collections::HashMap;
 
 use proc_macro2::TokenStream;
 use syn::{
-    parse::Parse, spanned::Spanned, Attribute, Field, FieldsNamed, Ident, Item, ItemEnum,
-    ItemMacro, ItemStruct, Path, Type, Variant,
+    Attribute, Field, FieldsNamed, Ident, Item, ItemEnum, ItemMacro, ItemStruct, Path, Type,
+    Variant, parse::Parse, spanned::Spanned,
 };
 
 use super::definitions::{
-    EnumNodeDef, EnumNodeVariant, NodeFieldData, StructNodeDef, StructNodeField, TreeDef,
-    TreeNodeDef, NODES_TYPE_NAME_OPTS_FIELD, NODE_DEF_ATTR_NAME, NODE_TYPE_NAME,
-    NODE_TYPE_NAME_OPTS_FIELD, OPTS_MACRO_NAME,
+    EnumNodeDef, EnumNodeVariant, NODE_DEF_ATTR_NAME, NODE_TYPE_NAME, NODE_TYPE_NAME_OPTS_FIELD,
+    NODES_TYPE_NAME_OPTS_FIELD, NodeFieldData, OPTS_MACRO_NAME, StructNodeDef, StructNodeField,
+    TreeDef, TreeNodeDef,
 };
 use crate::definitions::{
-    TreeDefOpts, GET_REF_FROM_NODE_FUNCTION_BASE_NAME_OPTS_FIELD, NODES_TYPE_NAME,
-    OPTIONAL_NODE_TYPE_NAME, REF_CHANGE_BODY_FUNCTION_BASE_NAME_OPTS_FIELD, ROOT_MODULE_OPTS_FIELD,
+    GET_REF_FROM_NODE_FUNCTION_BASE_NAME_OPTS_FIELD, NODES_TYPE_NAME, OPTIONAL_NODE_TYPE_NAME,
+    REF_CHANGE_BODY_FUNCTION_BASE_NAME_OPTS_FIELD, ROOT_MODULE_OPTS_FIELD, TreeDefOpts,
     VISITOR_NODE_REF_BASE_TYPE_NAME_OPTS_FIELD, VISITOR_TRAIT_BASE_NAME_OPTS_FIELD,
 };
 
@@ -49,7 +49,7 @@ impl TryFrom<&Variant> for EnumNodeVariant {
                     return Err(syn::Error::new(
                         value.span(),
                         "Named fields are not supported in enum node definitions",
-                    ))
+                    ));
                 }
                 syn::Fields::Unnamed(fields) => Some(
                     fields
@@ -156,7 +156,7 @@ impl TryFrom<&Item> for MaybeTreeNodeDef {
     fn try_from(value: &Item) -> Result<Self, Self::Error> {
         // Something is a node if it is annotated with #[node]
         let has_tree_node =
-            |attrs: &[Attribute]| attrs.iter().any(|attr| attr.path.is_ident(NODE_DEF_ATTR_NAME));
+            |attrs: &[Attribute]| attrs.iter().any(|attr| attr.path().is_ident(NODE_DEF_ATTR_NAME));
 
         match value {
             Item::Enum(enum_item) if has_tree_node(&enum_item.attrs) => Ok(MaybeTreeNodeDef(Some(

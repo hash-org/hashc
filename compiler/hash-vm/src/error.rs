@@ -28,13 +28,13 @@ pub type RuntimeResult<T> = Result<T, RuntimeError>;
 impl From<RuntimeError> for Report {
     fn from(err: RuntimeError) -> Self {
         match err {
-            RuntimeError::StackViolationAccess { kind, size, total } => {
-                Report {
-                    kind: ReportKind::Error,
-                    title: format!("Stack access violation occurred: tried to `{kind}` {size}bytes from stack, but stack size is {total}" ),
-                    error_code: None,
-                    contents: vec![],
-                }
+            RuntimeError::StackViolationAccess { kind, size, total } => Report {
+                kind: ReportKind::Error,
+                title: format!(
+                    "Stack access violation occurred: tried to `{kind}` {size}bytes from stack, but stack size is {total}"
+                ),
+                error_code: None,
+                contents: vec![],
             },
         }
     }

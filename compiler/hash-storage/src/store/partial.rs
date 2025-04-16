@@ -3,18 +3,18 @@
 //! something is being processed, or to only store information for items that
 //! require such storage.
 
-use std::hash::Hash;
+use std::hash::{BuildHasherDefault, Hash};
 
 use dashmap::{
-    mapref::one::{Ref, RefMut},
     DashMap,
+    mapref::one::{Ref, RefMut},
 };
-use fxhash::FxBuildHasher;
+use fxhash::{FxBuildHasher, FxHasher};
 
 /// The internal data structure for a [`PartialStore`].
-pub type PartialStoreInternalData<Key, Value> = DashMap<Key, Value, FxBuildHasher>;
-pub type PartialStoreBorrowHandle<'a, Key, Value> = Ref<'a, Key, Value, FxBuildHasher>;
-pub type PartialStoreBorrowMutHandle<'a, Key, Value> = RefMut<'a, Key, Value, FxBuildHasher>;
+pub type PartialStoreInternalData<Key, Value> = DashMap<Key, Value, BuildHasherDefault<FxHasher>>;
+pub type PartialStoreBorrowHandle<'a, Key, Value> = Ref<'a, Key, Value>;
+pub type PartialStoreBorrowMutHandle<'a, Key, Value> = RefMut<'a, Key, Value>;
 
 /// A partial store, which provides a way to store values indexed by existing
 /// keys. Unlike [`Store`], not every instance of `Key` necessarily has a value

@@ -16,8 +16,8 @@ use hash_tir::{
 };
 
 use super::{
-    defs::{DefId, ItemId},
     DiscoveryPass,
+    defs::{DefId, ItemId},
 };
 use crate::{
     diagnostics::definitions::SemanticError, env::SemanticEnv, passes::analysis_pass::AnalysisPass,
@@ -72,7 +72,7 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
                         None => {
                             return Err(SemanticError::ModulePatternsNotSupported {
                                 location: node.span(),
-                            })
+                            });
                         }
                     }
                 }
@@ -109,9 +109,9 @@ impl<E: SemanticEnv> ast::AstVisitor for DiscoveryPass<'_, E> {
             },
             Some(ItemId::Ty(_)) => {
                 panic_on_span!(
-                        node.span(),
-                        "found declaration in function type scope, which should instead be in a stack scope"
-                    )
+                    node.span(),
+                    "found declaration in function type scope, which should instead be in a stack scope"
+                )
             }
             None => {
                 panic_on_span!(node.span(), "found declaration before any scopes")

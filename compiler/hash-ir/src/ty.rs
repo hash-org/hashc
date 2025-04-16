@@ -6,7 +6,7 @@
 
 use hash_ast::ast;
 use hash_attrs::{
-    attr::{attr_store, Attr, ReprAttr},
+    attr::{Attr, ReprAttr, attr_store},
     builtin::attrs,
     ty::AttrId,
 };

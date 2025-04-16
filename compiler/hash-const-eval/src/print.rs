@@ -1,18 +1,18 @@
 use core::fmt;
 use std::iter;
 
+use derive_more::Constructor;
 use hash_repr::{
     compute::LayoutComputer,
     constant::{Const, ConstKind},
-    ty::{AdtFlags, ReprTy, VariantIdx, COMMON_REPR_TYS},
+    ty::{AdtFlags, COMMON_REPR_TYS, ReprTy, VariantIdx},
 };
 use hash_source::{
-    constant::{Scalar, ScalarInt},
     FloatTy, IntTy, Size,
+    constant::{Scalar, ScalarInt},
 };
 use hash_storage::store::statics::StoreId;
 use hash_target::data_layout::HasDataLayout;
-use hash_utils::derive_more::Constructor;
 
 use crate::utils::ConstUtils;
 

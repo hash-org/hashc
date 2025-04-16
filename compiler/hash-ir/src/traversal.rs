@@ -3,7 +3,7 @@
 
 use fixedbitset::FixedBitSet;
 
-use crate::ir::{BasicBlock, BasicBlockData, Body, Successors, START_BLOCK};
+use crate::ir::{BasicBlock, BasicBlockData, Body, START_BLOCK, Successors};
 
 /// A [PreOrder] struct contains the relevant information
 /// about a pre-order traversal of a [Body]. This implements

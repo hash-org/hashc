@@ -3,8 +3,8 @@
 
 use hash_ir::ir;
 use hash_repr::{
-    constant::{Const, ConstKind},
     TyInfo,
+    constant::{Const, ConstKind},
 };
 use hash_source::constant::{AllocId, AllocRange};
 use hash_storage::store::statics::StoreId;
@@ -14,12 +14,13 @@ use hash_target::{
     size::Size,
 };
 
-use super::{locals::LocalRef, place::PlaceRef, utils, FnBuilder};
+use super::{FnBuilder, locals::LocalRef, place::PlaceRef, utils};
 use crate::{
     common::MemFlags,
     traits::{
-        builder::BlockBuilderMethods, constants::ConstValueBuilderMethods, layout::LayoutMethods,
-        misc::MiscBuilderMethods, statics::StaticMethods, ty::TypeBuilderMethods, CodeGenObject,
+        CodeGenObject, builder::BlockBuilderMethods, constants::ConstValueBuilderMethods,
+        layout::LayoutMethods, misc::MiscBuilderMethods, statics::StaticMethods,
+        ty::TypeBuilderMethods,
     },
 };
 
@@ -271,7 +272,7 @@ impl<'a, 'b, V: CodeGenObject> OperandRef<V> {
                 OperandValue::Pair(ptr, size)
             }
             ConstKind::Alloc { offset, alloc } => {
-                return Self::from_alloc(builder, info, alloc, offset)
+                return Self::from_alloc(builder, info, alloc, offset);
             }
         };
 

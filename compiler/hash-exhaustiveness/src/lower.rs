@@ -5,16 +5,16 @@ use std::mem::size_of;
 use hash_ast::ast::RangeEnd;
 use hash_repr::{
     constant::Const,
-    ty::{ReprTy, ReprTyId, COMMON_REPR_TYS},
+    ty::{COMMON_REPR_TYS, ReprTy, ReprTyId},
 };
 use hash_storage::store::{
-    statics::{SequenceStoreValue, StoreId},
     SequenceStoreKey, TrivialSequenceStoreKey,
+    statics::{SequenceStoreValue, StoreId},
 };
 use hash_tir::{
     intrinsics::utils::{
-        numeric_max_val_of_lit, numeric_min_val_of_lit, try_use_ty_as_array_ty,
-        try_use_ty_as_lit_ty, LitTy,
+        LitTy, numeric_max_val_of_lit, numeric_min_val_of_lit, try_use_ty_as_array_ty,
+        try_use_ty_as_lit_ty,
     },
     term_as_variant,
     tir::*,
@@ -29,7 +29,7 @@ use super::{
     range::IntRange,
 };
 use crate::{
-    storage::DeconstructedPatId, usefulness::MatchArm, ExhaustivenessChecker, ExhaustivenessEnv,
+    ExhaustivenessChecker, ExhaustivenessEnv, storage::DeconstructedPatId, usefulness::MatchArm,
 };
 
 /// Expand an `or` pattern into a passed [Vec], whilst also
@@ -225,58 +225,75 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
         )
     }
 
-    // Convert a [DeconstructedPat] into a [Pat].
+    /// Convert a [DeconstructedPat] into a [Pat].
     pub(crate) fn construct_pat(&self, pat: DeconstructedPatId) -> PatId {
         let DeconstructedPat { ty, fields, ctor, .. } = self.get_pat(pat);
 
         let ctor = self.get_ctor(*ctor);
         let pat = match ctor {
-                    DeconstructedCtor::Single | DeconstructedCtor::Variant(_) => {
-                        match *ty.value() {
-                            Ty::DataTy(DataTy { data_def, args }) => {
-                                let ctor_def_id = data_def.borrow().ctors.assert_defined();
+            DeconstructedCtor::Single | DeconstructedCtor::Variant(_) => {
+                match *ty.value() {
+                    Ty::DataTy(DataTy { data_def, args }) => {
+                        let ctor_def_id = data_def.borrow().ctors.assert_defined();
 
-                                // We need to reconstruct the ctor-def-id...
-                                let variant_idx = match ctor {
-                                    DeconstructedCtor::Single => 0,
-                                    DeconstructedCtor::Variant(idx) => *idx,
-                                    _ => unreachable!()
-                                };
-                                let ctor = CtorDefId::new(ctor_def_id.elements(), variant_idx);
-                                let (pats, spread) = self.construct_pat_args(fields, ctor.borrow().params);
+                        // We need to reconstruct the ctor-def-id...
+                        let variant_idx = match ctor {
+                            DeconstructedCtor::Single => 0,
+                            DeconstructedCtor::Variant(idx) => *idx,
+                            _ => unreachable!(),
+                        };
+                        let ctor = CtorDefId::new(ctor_def_id.elements(), variant_idx);
+                        let (pats, spread) = self.construct_pat_args(fields, ctor.borrow().params);
 
-                                Pat::Ctor(CtorPat { ctor, ctor_pat_args: pats, ctor_pat_args_spread: spread, data_args: args })
-                            }
-                            Ty::TupleTy(TupleTy { data }) => {
-                                let (pats, spread) = self.construct_pat_args(fields, data);
-                                Pat::Tuple(TuplePat { data: pats, data_spread: spread })
-                            }
-                            _ => unreachable!()
-                        }
+                        Pat::Ctor(CtorPat {
+                            ctor,
+                            ctor_pat_args: pats,
+                            ctor_pat_args_spread: spread,
+                            data_args: args,
+                        })
                     }
-                    DeconstructedCtor::IntRange(range) => self.construct_pat_from_range(*ty, *range),
-                    DeconstructedCtor::Str(str) => Pat::Lit(LitPat(Node::create_gen(Lit::Const(Const::alloc(*str, COMMON_REPR_TYS.str))))),
-                    DeconstructedCtor::Array(Array { kind }) => {
-                        let children = fields.iter_patterns().map(|p| PatOrCapture::Pat(self.construct_pat(p))).collect_vec();
-                        let pats = Node::create_at(PatOrCapture::seq(children), NodeOrigin::Generated);
+                    Ty::TupleTy(TupleTy { data }) => {
+                        let (pats, spread) = self.construct_pat_args(fields, data);
+                        Pat::Tuple(TuplePat { data: pats, data_spread: spread })
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            DeconstructedCtor::IntRange(range) => self.construct_pat_from_range(*ty, *range),
+            DeconstructedCtor::Str(str) => Pat::Lit(LitPat(Node::create_gen(Lit::Const(
+                Const::alloc(*str, COMMON_REPR_TYS.str),
+            )))),
+            DeconstructedCtor::Array(Array { kind }) => {
+                let children = fields
+                    .iter_patterns()
+                    .map(|p| PatOrCapture::Pat(self.construct_pat(p)))
+                    .collect_vec();
+                let pats = Node::create_at(PatOrCapture::seq(children), NodeOrigin::Generated);
 
-                        match kind {
-                            ArrayKind::Fixed(_) => {
-                                Pat::Array(ArrayPat { pats, spread: None })
-                            }
-                            ArrayKind::Var(prefix, _) => {
-                                Pat::Array(ArrayPat { pats, spread: Some(Spread { name: SymbolId::fresh_underscore(NodeOrigin::Generated), index: *prefix }) })
-                            }
-                        }
-                    }
-                    DeconstructedCtor::Wildcard | DeconstructedCtor::NonExhaustive => Pat::Binding(BindingPat { name: SymbolId::fresh_underscore(NodeOrigin::Generated), is_mutable: false }),
-                    DeconstructedCtor::Or => {
-                        panic!("cannot convert an `or` deconstructed pat back into pat")
-                    }
-                    DeconstructedCtor::Missing => panic!(
-                        "trying to convert a `Missing` constructor into a `Pat`; this is probably a bug, `Missing` should have been processed in `apply_ctors`"
-                    ),
-                };
+                match kind {
+                    ArrayKind::Fixed(_) => Pat::Array(ArrayPat { pats, spread: None }),
+                    ArrayKind::Var(prefix, _) => Pat::Array(ArrayPat {
+                        pats,
+                        spread: Some(Spread {
+                            name: SymbolId::fresh_underscore(NodeOrigin::Generated),
+                            index: *prefix,
+                        }),
+                    }),
+                }
+            }
+            DeconstructedCtor::Wildcard | DeconstructedCtor::NonExhaustive => {
+                Pat::Binding(BindingPat {
+                    name: SymbolId::fresh_underscore(NodeOrigin::Generated),
+                    is_mutable: false,
+                })
+            }
+            DeconstructedCtor::Or => {
+                panic!("cannot convert an `or` deconstructed pat back into pat")
+            }
+            DeconstructedCtor::Missing => panic!(
+                "trying to convert a `Missing` constructor into a `Pat`; this is probably a bug, `Missing` should have been processed in `apply_ctors`"
+            ),
+        };
 
         // Now put the pat on the store and return it
         Node::create_at(pat, NodeOrigin::Generated)

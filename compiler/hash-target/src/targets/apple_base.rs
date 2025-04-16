@@ -3,8 +3,8 @@
 use std::borrow::Cow;
 
 use crate::{
-    link::{Cc, FramePointer, LinkageArgs, LinkerFlavour, Lld},
     Platform, Target, TargetArch,
+    link::{Cc, FramePointer, LinkageArgs, LinkerFlavour, Lld},
 };
 
 /// All of the architectures that Apple supports, and or has

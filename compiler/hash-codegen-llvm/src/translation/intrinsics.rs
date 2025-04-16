@@ -4,12 +4,12 @@ use hash_codegen::{
     abi::FnAbi,
     lower::{operands::OperandRef, place::PlaceRef},
     traits::{
-        builder::BlockBuilderMethods, constants::ConstValueBuilderMethods,
-        intrinsics::IntrinsicBuilderMethods, ty::TypeBuilderMethods, BackendTypes,
+        BackendTypes, builder::BlockBuilderMethods, constants::ConstValueBuilderMethods,
+        intrinsics::IntrinsicBuilderMethods, ty::TypeBuilderMethods,
     },
 };
 use hash_ir::ty::ReprTyId;
-use hash_source::identifier::{Identifier, IDENTS};
+use hash_source::identifier::{IDENTS, Identifier};
 use hash_storage::store::statics::StoreId;
 use inkwell::{
     types::AnyType,

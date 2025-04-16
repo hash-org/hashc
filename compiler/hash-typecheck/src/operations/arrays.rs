@@ -1,8 +1,8 @@
 use std::ops::ControlFlow;
 
 use hash_storage::store::{
-    statics::{SequenceStoreValue, StoreId},
     SequenceStoreKey, TrivialSequenceStoreKey,
+    statics::{SequenceStoreValue, StoreId},
 };
 use hash_tir::{
     intrinsics::{
@@ -22,7 +22,7 @@ use crate::{
     diagnostics::{TcError, TcResult, WrongTermKind},
     env::{HasTcEnv, TcEnv},
     options::normalisation::{
-        normalise_nested, normalised_if, stuck_normalising, NormalisationState, NormaliseResult,
+        NormalisationState, NormaliseResult, normalise_nested, normalised_if, stuck_normalising,
     },
     tc::Tc,
     traits::{OperationsOn, OperationsOnNode, ScopedOperationsOnNode},
@@ -73,11 +73,7 @@ impl<E: TcEnv> Tc<'_, E> {
         let subject = try_use_term_as_machine_integer(self, subject)?;
         let index = try_use_term_as_machine_integer(self, index)?;
 
-        if index >= subject {
-            None
-        } else {
-            Some(repeat)
-        }
+        if index >= subject { None } else { Some(repeat) }
     }
 
     /// From the given arguments matching with the given parameters, extract the

@@ -6,11 +6,11 @@
 //! algorithm.
 use std::fmt::{self, Debug};
 
-use hash_utils::smallvec::{smallvec, SmallVec};
+use hash_utils::smallvec::{SmallVec, smallvec};
 
 use crate::{
-    storage::{DeconstructedCtorId, DeconstructedPatId},
     ExhaustivenessChecker, ExhaustivenessEnv, ExhaustivenessFmtCtx, PatCtx,
+    storage::{DeconstructedCtorId, DeconstructedPatId},
 };
 
 /// A row of a [super::matrix::Matrix]. Rows of len 1 are very common, which is

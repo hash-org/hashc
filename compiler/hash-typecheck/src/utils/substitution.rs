@@ -1,7 +1,7 @@
 //! Operations to substitute variables in types and terms.
 use std::{collections::HashSet, ops::ControlFlow};
 
-use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
+use hash_storage::store::{TrivialSequenceStoreKey, statics::StoreId};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     context::HasContext,

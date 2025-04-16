@@ -11,8 +11,8 @@
 
 use std::cmp::Ordering;
 
-use index_vec::{define_index_type, index_vec, Idx, IndexVec};
-use smallvec::{smallvec, SmallVec};
+use index_vec::{Idx, IndexVec, define_index_type, index_vec};
+use smallvec::{SmallVec, smallvec};
 
 use super::ControlFlowGraph;
 

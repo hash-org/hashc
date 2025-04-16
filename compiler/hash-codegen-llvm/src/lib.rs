@@ -26,14 +26,14 @@ use hash_codegen::{
         misc::MiscBuilderMethods, ty::TypeBuilderMethods,
     },
 };
-use hash_ir::{ir::BodySource, ty::InstanceHelpers, IrStorage};
+use hash_ir::{IrStorage, ir::BodySource, ty::InstanceHelpers};
 use hash_pipeline::{
     interface::{CompilerResult, StageMetrics},
     settings::CompilerSettings,
     workspace::Workspace,
 };
 use hash_source::{ModuleId, SourceMapUtils};
-use hash_storage::store::{statics::StoreId, Store};
+use hash_storage::store::{Store, statics::StoreId};
 use hash_utils::{log, profiling::HasMutMetrics};
 use inkwell as llvm;
 use llvm::{

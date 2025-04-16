@@ -6,13 +6,13 @@
 use hash_ast::ast::AstNodeId;
 use hash_const_eval::Const;
 use hash_ir::{
+    IrCtx,
     ir::{
         AggregateKind, AssertKind, BasicBlock, Local, LocalDecl, Operand, Place, RValue,
         TerminatorKind,
     },
     lang_items::LangItem,
-    ty::{Mutability, ReprTyId, COMMON_REPR_TYS},
-    IrCtx,
+    ty::{COMMON_REPR_TYS, Mutability, ReprTyId},
 };
 use hash_storage::store::statics::{SequenceStoreValue, StoreId};
 use hash_tir::tir::{

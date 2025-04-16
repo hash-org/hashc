@@ -2,9 +2,10 @@
 
 use std::fmt;
 
+use derive_more::Constructor;
 use hash_ir::ir::{BasicBlock, Body, BodySource};
 use hash_repr::compute::LayoutComputer;
-use hash_utils::{derive_more::Constructor, itertools::Itertools};
+use hash_utils::itertools::Itertools;
 
 use crate::WriteIr;
 

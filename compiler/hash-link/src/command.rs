@@ -11,7 +11,7 @@ use std::{
     process::{Command, Output},
 };
 
-use hash_target::{link::LldFlavour, Platform};
+use hash_target::{Platform, link::LldFlavour};
 
 /// Defines what kind of program is being used to invoke the linker. For
 /// [`LinkProgram::Normal`] this is just a path to the program that should

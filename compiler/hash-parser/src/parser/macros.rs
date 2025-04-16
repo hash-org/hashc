@@ -4,8 +4,8 @@ use hash_ast::ast::{
     AstNode, AstNodes, MacroInvocation, MacroInvocationArg, MacroInvocationArgs, MacroInvocations,
     MacroKind, Name, TokenMacro, TokenMacroInvocation, TokenStream,
 };
-use hash_token::{delimiter::Delimiter, Token, TokenKind};
-use hash_utils::thin_vec::{thin_vec, ThinVec};
+use hash_token::{Token, TokenKind, delimiter::Delimiter};
+use hash_utils::thin_vec::{ThinVec, thin_vec};
 
 use super::AstGen;
 use crate::diagnostics::{
@@ -58,9 +58,8 @@ impl AstGen<'_> {
 
         let args = match self.peek() {
             Some(token) if token.is_paren_tree() => {
-                let args = self.in_tree(Delimiter::Paren, None, |gen| {
-                    Ok(gen
-                        .parse_nodes(|g| g.parse_macro_arg(), |g| g.parse_token(TokenKind::Comma)))
+                let args = self.in_tree(Delimiter::Paren, None, |g| {
+                    Ok(g.parse_nodes(|g| g.parse_macro_arg(), |g| g.parse_token(TokenKind::Comma)))
                 })?;
                 let id = args.id();
 
@@ -118,8 +117,8 @@ impl AstGen<'_> {
                     );
                 }
                 Some(Token { kind: TokenKind::Tree(Delimiter::Bracket, _), .. }) => {
-                    let new_invocations = self.in_tree(Delimiter::Bracket, None, |gen| {
-                        Ok(gen.parse_nodes(
+                    let new_invocations = self.in_tree(Delimiter::Bracket, None, |g| {
+                        Ok(g.parse_nodes(
                             |g| g.parse_macro_invocation_with_args(),
                             |g| g.parse_token(TokenKind::Comma),
                         ))
@@ -183,8 +182,8 @@ impl AstGen<'_> {
     pub(crate) fn parse_module_marco_invocations(
         &mut self,
     ) -> ParseResult<ThinVec<AstNode<MacroInvocation>>> {
-        self.in_tree(Delimiter::Bracket, None, |gen| {
-            let invocations = gen.parse_node_collection(
+        self.in_tree(Delimiter::Bracket, None, |g| {
+            let invocations = g.parse_node_collection(
                 |g| g.parse_macro_invocation_with_args(),
                 |g| g.parse_token(TokenKind::Comma),
             );
@@ -210,9 +209,9 @@ impl AstGen<'_> {
                 self.node_with_span(TokenMacro { name, args: None, delimited: false }, span)
             }
             Some(Token { kind: TokenKind::Tree(Delimiter::Bracket, _), .. }) => {
-                self.in_tree(Delimiter::Bracket, None, |gen| {
+                self.in_tree(Delimiter::Bracket, None, |g| {
                     // @@Ugly: we're converting the `macro_invocation` into a `token_macro` here...
-                    let invocation = gen.parse_macro_invocation_with_args()?;
+                    let invocation = g.parse_macro_invocation_with_args()?;
                     let id = invocation.id();
                     let MacroInvocation { name, args } = invocation.into_body();
 

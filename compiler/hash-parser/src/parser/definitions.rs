@@ -1,7 +1,7 @@
 //! Hash Compiler AST generation sources. This file contains the sources to the
 //! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
-use hash_token::{delimiter::Delimiter, keyword::Keyword, TokenKind};
+use hash_token::{TokenKind, delimiter::Delimiter, keyword::Keyword};
 
 use super::AstGen;
 use crate::diagnostics::error::{ParseErrorKind, ParseResult};
@@ -35,9 +35,8 @@ impl AstGen<'_> {
         let ty_params = self.parse_optional_ty_params(def_kind)?;
 
         let entries =
-            self.in_tree(Delimiter::Paren, Some(ParseErrorKind::TyDef(def_kind)), |gen| {
-                Ok(gen
-                    .parse_nodes(|g| g.parse_enum_def_entry(), |g| g.parse_token(TokenKind::Comma)))
+            self.in_tree(Delimiter::Paren, Some(ParseErrorKind::TyDef(def_kind)), |g| {
+                Ok(g.parse_nodes(|g| g.parse_enum_def_entry(), |g| g.parse_token(TokenKind::Comma)))
             })?;
 
         Ok(EnumDef { ty_params, entries })
@@ -74,8 +73,8 @@ impl AstGen<'_> {
             _ => None,
         };
 
-        let params = self.in_tree(Delimiter::Paren, err_ctx, |gen| {
-            Ok(gen.parse_nodes(|g| g.parse_param(origin), |g| g.parse_token(TokenKind::Comma)))
+        let params = self.in_tree(Delimiter::Paren, err_ctx, |g| {
+            Ok(g.parse_nodes(|g| g.parse_param(origin), |g| g.parse_token(TokenKind::Comma)))
         })?;
         Ok(self.make_params(params, origin))
     }

@@ -3,7 +3,7 @@
 
 use std::fmt;
 
-use hash_repr::ty::{ReprTyId, COMMON_REPR_TYS};
+use hash_repr::ty::{COMMON_REPR_TYS, ReprTyId};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]

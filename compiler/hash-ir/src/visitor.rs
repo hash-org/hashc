@@ -780,7 +780,7 @@ pub mod walk_modifying {
     /// Walk over all the [BasicBlock]s in the [Body] of the given
     /// to the visitor.
     pub fn walk_body<'ir, V: ModifyingIrVisitor<'ir>>(visitor: &V, body: &'ir mut Body) {
-        let Body { ref mut basic_blocks, ref mut locals, ref mut projections, .. } = body;
+        let Body { basic_blocks, locals, projections, .. } = body;
         let mut info = BodyInfoMut { locals, projections };
 
         for (block, data) in basic_blocks.blocks_mut().iter_mut_enumerated() {

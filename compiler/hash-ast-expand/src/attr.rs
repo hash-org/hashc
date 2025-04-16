@@ -6,20 +6,20 @@ use hash_ast_utils::{
     dump::AstDump,
 };
 use hash_attrs::{
-    attr::{attr_store, Attr, AttrArgIdx, AttrValue, Attrs},
-    builtin::{attrs, ATTR_MAP},
+    attr::{Attr, AttrArgIdx, AttrValue, Attrs, attr_store},
+    builtin::{ATTR_MAP, attrs},
 };
 use hash_repr::ty::COMMON_REPR_TYS;
 use hash_storage::store::{
-    statics::{SequenceStoreValue, StoreId},
     TrivialSequenceStoreKey,
+    statics::{SequenceStoreValue, StoreId},
 };
 use hash_target::HasTarget;
 use hash_tir::{
     intrinsics::definitions::Primitive,
     tir::{
-        validate_and_reorder_args_against_params, Arg, Lit, Node, NodeOrigin, ParamIndex, Term, Ty,
-        TyId,
+        Arg, Lit, Node, NodeOrigin, ParamIndex, Term, Ty, TyId,
+        validate_and_reorder_args_against_params,
     },
 };
 use hash_utils::log;
@@ -234,11 +234,7 @@ impl AstExpander<'_> {
             }
 
             // Finally, return the attribute if everything is ok!
-            if is_valid {
-                Some(attr)
-            } else {
-                None
-            }
+            if is_valid { Some(attr) } else { None }
         } else {
             self.add_error(ExpansionError::new(
                 ExpansionErrorKind::UnknownAttribute { name: macro_name },

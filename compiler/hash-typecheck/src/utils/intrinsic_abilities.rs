@@ -1,8 +1,9 @@
 //! Wrapper around the typechecker to provide an interface to
 //! intrinsic functions.
 
+use derive_more::{Constructor, Deref};
 use hash_reporting::diagnostic::Diagnostics;
-use hash_repr::{compute::LayoutComputer, HasLayout};
+use hash_repr::{HasLayout, compute::LayoutComputer};
 use hash_source::identifier::Identifier;
 use hash_target::{HasTarget, Target};
 use hash_tir::{
@@ -10,7 +11,6 @@ use hash_tir::{
     intrinsics::make::IntrinsicAbilities,
     tir::TermId,
 };
-use hash_utils::derive_more::{Constructor, Deref};
 
 use crate::{env::TcEnv, tc::Tc};
 

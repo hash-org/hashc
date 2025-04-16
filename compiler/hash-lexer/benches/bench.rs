@@ -1,7 +1,7 @@
 //! Some Hash lexer benchmarks.
-use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
+use criterion::{Criterion, Throughput, black_box, criterion_group, criterion_main};
 use hash_lexer::Lexer;
-use hash_source::{location::SpannedSource, SourceId};
+use hash_source::{SourceId, location::SpannedSource};
 
 static IDENTIFIERS: &str = "It was the year when they finally immanentized the Eschaton \
                             It was the year when they finally immanentized the Eschaton \

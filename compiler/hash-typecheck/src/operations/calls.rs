@@ -14,8 +14,8 @@ use crate::{
     diagnostics::{TcError, TcResult, WrongTermKind},
     env::TcEnv,
     options::normalisation::{
-        normalised_if, normalised_option, normalised_to, NormalisationMode, NormalisationState,
-        NormaliseResult, NormaliseSignal,
+        NormalisationMode, NormalisationState, NormaliseResult, NormaliseSignal, normalised_if,
+        normalised_option, normalised_to,
     },
     tc::Tc,
     traits::{OperationsOn, OperationsOnNode, ScopedOperationsOnNode},

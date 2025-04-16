@@ -5,7 +5,7 @@ use hash_storage::store::statics::StoreId;
 use hash_target::primitives::{BigIntTy, FloatTy, IntTy, SIntTy, UIntTy};
 use hash_tir::{
     intrinsics::{
-        definitions::{f32_def, f64_def, i32_def, Primitive},
+        definitions::{Primitive, f32_def, f64_def, i32_def},
         make::IsPrimitive,
         utils::{try_use_ty_as_float_ty, try_use_ty_as_int_ty},
     },
@@ -16,7 +16,7 @@ use hash_tir_utils::upcast::TyUpCast;
 use crate::{
     diagnostics::TcResult,
     env::TcEnv,
-    options::normalisation::{already_normalised, NormaliseResult},
+    options::normalisation::{NormaliseResult, already_normalised},
     tc::Tc,
     traits::OperationsOnNode,
     utils::matching::MatchResult,
@@ -58,11 +58,7 @@ impl<E: TcEnv> Tc<'_, E> {
 
     /// Match a literal with another.
     pub fn match_literal_to_literal<U: PartialEq>(&self, value: U, pat: U) -> MatchResult {
-        if value == pat {
-            MatchResult::Successful
-        } else {
-            MatchResult::Failed
-        }
+        if value == pat { MatchResult::Successful } else { MatchResult::Failed }
     }
 }
 

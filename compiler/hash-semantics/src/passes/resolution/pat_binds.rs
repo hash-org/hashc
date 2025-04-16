@@ -18,14 +18,14 @@
 //! sub-pattern [PatBinds] into a single [PatBinds] record. The combination
 //! algorithm is specified in [`PatBinds::merge`].
 
+use derive_more::{Constructor, Deref};
 use hash_ast::ast::{self, AstNodeId, AstNodeRef, AstNodes, BindingPat};
 use hash_source::{identifier::Identifier, location::Span};
 use hash_utils::{
-    derive_more::{Constructor, Deref},
     fxhash::FxBuildHasher,
     indexmap::IndexMap,
     itertools::Itertools,
-    thin_vec::{thin_vec, ThinVec},
+    thin_vec::{ThinVec, thin_vec},
 };
 
 use crate::{
@@ -196,11 +196,7 @@ impl PatBinds {
             }
         }
 
-        if errors.is_empty() {
-            Ok(())
-        } else {
-            Err(SemanticError::Compound { errors })
-        }
+        if errors.is_empty() { Ok(()) } else { Err(SemanticError::Compound { errors }) }
     }
 
     /// Compare two [PatBinds] and ensure all bindings are equal.
@@ -242,11 +238,7 @@ impl PatBinds {
             }
         }
 
-        if errors.is_empty() {
-            Ok(())
-        } else {
-            Err(SemanticError::Compound { errors })
-        }
+        if errors.is_empty() { Ok(()) } else { Err(SemanticError::Compound { errors }) }
     }
 }
 

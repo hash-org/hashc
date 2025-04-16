@@ -4,7 +4,7 @@ use std::sync::LazyLock;
 
 use hash_ast_utils::attr::AttrTarget;
 use hash_source::identifier::Identifier;
-use hash_tir::building::gen;
+use hash_tir::building::generate;
 use paste::paste;
 
 use crate::ty::{AttrId, AttrTy, AttrTyMap};
@@ -31,11 +31,11 @@ macro_rules! define_attr {
         let name: Identifier = stringify!($name).into();
 
         let params = if ${count($arg)} == 0 {
-            gen::params([])
+            generate::params([])
         } else {
-            gen::params([
+            generate::params([
                 $(
-                    (gen::sym(stringify!(arg)), make_ty!($ty), None)
+                    (generate::sym(stringify!(arg)), make_ty!($ty), None)
                 ),*
             ])
         };

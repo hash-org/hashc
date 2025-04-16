@@ -4,7 +4,7 @@
 // traits similar to `Operations` which allow a node `X` to be matched against a
 // pattern `P`.
 use hash_ast::ast::RangeEnd;
-use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
+use hash_storage::store::{TrivialSequenceStoreKey, statics::StoreId};
 use hash_tir::{
     intrinsics::utils::is_true_bool_ctor,
     tir::{

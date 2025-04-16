@@ -8,7 +8,7 @@ use hash_tir::tir::{PatId, RangePat, TyId};
 
 use crate::{
     env::TcEnv,
-    options::normalisation::{normalise_nested, NormaliseResult},
+    options::normalisation::{NormaliseResult, normalise_nested},
     tc::Tc,
     traits::{OperationsOn, OperationsOnNode},
     utils::matching::MatchResult,

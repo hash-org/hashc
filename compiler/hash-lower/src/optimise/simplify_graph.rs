@@ -12,13 +12,14 @@
 //!   have been updated, the current block is removed from the body.
 
 use hash_ir::{
-    ir::{BasicBlock, BasicBlockData, Body, Terminator, TerminatorKind, START_BLOCK},
-    traversal, IrCtx,
+    IrCtx,
+    ir::{BasicBlock, BasicBlockData, Body, START_BLOCK, Terminator, TerminatorKind},
+    traversal,
 };
 use hash_pipeline::settings::{CompilerSettings, OptimisationLevel};
 use hash_utils::{
-    index_vec::{index_vec, IndexVec},
-    smallvec::{smallvec, SmallVec},
+    index_vec::{IndexVec, index_vec},
+    smallvec::{SmallVec, smallvec},
 };
 
 use super::IrOptimisationPass;

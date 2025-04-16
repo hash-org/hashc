@@ -1,7 +1,7 @@
 //! Logic and implementation for printing raw tokens that appear in the AST.
 
 use hash_source::location::SpannedSource;
-use hash_token::{delimiter::Delimiter, Token, TokenKind};
+use hash_token::{Token, TokenKind, delimiter::Delimiter};
 
 use super::{AstPrettyPrinter, FmtResult};
 

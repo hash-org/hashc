@@ -1,21 +1,26 @@
 [package]
 name = "hash-codegen-llvm"
 version = "0.1.0"
-authors = ["The Hash Language authors"]
-edition = "2021"
+authors = { workspace = true }
+edition = { workspace = true }
 
 [lib]
 doctest = false
 
 [dependencies]
+# We make an exclusion to the `{ workspace = true }` rule as we want to fully encapsulate
+# the LLVM dependency in this crate. This is to enforce no other crate to depend on
+# LLVM directly, as we want to keep the dependency tree clean and avoid version conflicts.
 llvm-sys = "181.1.0"
-inkwell = { git = "https://github.com/hash-org/inkwell.git", branch="master", features = ["llvm18-0"] }
+inkwell = { git = "https://github.com/hash-org/inkwell.git", branch = "master", features = [
+    "llvm18-0",
+] }
 
-hash-attrs = { path = "../hash-attrs" }
-hash-codegen = {path = "../hash-codegen" }
-hash-ir = {path = "../hash-ir" }
-hash-pipeline = { path = "../hash-pipeline" }
-hash-reporting = { path = "../hash-reporting" }
-hash-source = {path = "../hash-source" }
-hash-storage = { path = "../hash-storage" }
-hash-utils = {path = "../hash-utils" }
+hash-attrs = { workspace = true }
+hash-codegen = { workspace = true }
+hash-ir = { workspace = true }
+hash-pipeline = { workspace = true }
+hash-reporting = { workspace = true }
+hash-source = { workspace = true }
+hash-storage = { workspace = true }
+hash-utils = { workspace = true }

@@ -3,7 +3,7 @@
 use hash_ast::ast::*;
 use hash_reporting::diagnostic::HasDiagnosticsMut;
 use hash_source::location::ByteRange;
-use hash_token::{delimiter::Delimiter, keyword::Keyword, IntLitKind, Token, TokenKind};
+use hash_token::{IntLitKind, Token, TokenKind, delimiter::Delimiter, keyword::Keyword};
 use hash_utils::thin_vec::thin_vec;
 
 use super::AstGen;
@@ -248,7 +248,7 @@ impl AstGen<'_> {
                     ExpectedItem::empty(),
                     Some(kind),
                     token.span,
-                )
+                );
             }
         })
     }
@@ -414,11 +414,11 @@ impl AstGen<'_> {
         self.skip_fast(TokenKind::Keyword(Keyword::Import)); // `import`
 
         let start = self.current_pos();
-        let (path, span) = self.in_tree(Delimiter::Paren, None, |gen| {
-            match gen.current_token_and_advance().copied() {
+        let (path, span) = self.in_tree(Delimiter::Paren, None, |g| {
+            match g.current_token_and_advance().copied() {
                 Some(Token { kind: TokenKind::Str(path), span }) => Ok((path, span)),
                 tok => {
-                    gen.err(ParseErrorKind::ImportPath, ExpectedItem::empty(), tok.map(|t| t.kind))?
+                    g.err(ParseErrorKind::ImportPath, ExpectedItem::empty(), tok.map(|t| t.kind))?
                 }
             }
         })?;
@@ -475,8 +475,8 @@ impl AstGen<'_> {
         subject: AstNode<Expr>,
         subject_span: ByteRange,
     ) -> ParseResult<AstNode<Expr>> {
-        let args = self.in_tree(Delimiter::Paren, None, |gen| {
-            Ok(gen.parse_nodes(|g| g.parse_arg(), |g| g.parse_token(TokenKind::Comma)))
+        let args = self.in_tree(Delimiter::Paren, None, |g| {
+            Ok(g.parse_nodes(|g| g.parse_arg(), |g| g.parse_token(TokenKind::Comma)))
         })?;
 
         Ok(self.node_with_joined_span(Expr::Call(CallExpr { subject, args }), subject_span))
@@ -728,20 +728,20 @@ impl AstGen<'_> {
     /// - Singleton tuple : (A,)
     /// - Many membered tuple: (A, B, C) or (A, B, C,)
     pub(crate) fn parse_expr_or_tuple(&mut self) -> ParseResult<AstNode<Expr>> {
-        self.in_tree(Delimiter::Paren, None, |gen| {
-            let start = gen.current_pos();
+        self.in_tree(Delimiter::Paren, None, |g| {
+            let start = g.current_pos();
 
             // Handle the case if it is an empty stream, this means that if it failed to
             // parse a function in the form of `() => ...` for whatever reason, then it
             // is trying to parse either a tuple or an expression.
             // Handle the empty tuple case
-            if gen.len() < 2 {
-                let elements = gen.nodes_with_span(thin_vec![], start);
-                let tuple = gen.node_with_joined_span(Expr::Tuple(TupleExpr { elements }), start);
+            if g.len() < 2 {
+                let elements = g.nodes_with_span(thin_vec![], start);
+                let tuple = g.node_with_joined_span(Expr::Tuple(TupleExpr { elements }), start);
 
-                match gen.peek_kind() {
+                match g.peek_kind() {
                     Some(TokenKind::Comma) => {
-                        gen.skip_fast(TokenKind::Comma); // ','
+                        g.skip_fast(TokenKind::Comma); // ','
 
                         return Ok(tuple);
                     }
@@ -752,13 +752,13 @@ impl AstGen<'_> {
                 };
             }
 
-            let entry = gen.parse_tuple_arg()?;
+            let entry = g.parse_tuple_arg()?;
 
             // In the special case where this is just an expression that is wrapped within
             // parentheses, we can check that the 'name' and 'ty' parameters are
             // set to `None` and that there are no extra tokens that are left within
             // the token tree...
-            if entry.name.is_none() && !gen.has_token() {
+            if entry.name.is_none() && !g.has_token() {
                 let body = entry.into_body();
                 let expr = body.value;
                 let has_macro_invocations = body.macros.is_some();
@@ -771,9 +771,9 @@ impl AstGen<'_> {
                         Expr::BinaryExpr(_) | Expr::Cast(_) | Expr::FnDef(_) | Expr::Deref(_)
                     )
                 {
-                    gen.add_warning(ParseWarning::new(
+                    g.add_warning(ParseWarning::new(
                         WarningKind::RedundantParenthesis(expr.body().into()),
-                        gen.make_span(gen.range()),
+                        g.make_span(g.range()),
                     ));
                 }
 
@@ -783,18 +783,18 @@ impl AstGen<'_> {
             let mut elements = thin_vec![entry];
 
             loop {
-                match gen.peek() {
+                match g.peek() {
                     Some(token) if token.has_kind(TokenKind::Comma) => {
-                        gen.skip_fast(TokenKind::Comma); // ','
+                        g.skip_fast(TokenKind::Comma); // ','
 
                         // Handles the case where this is a trailing comma and no tokens after...
-                        if !gen.has_token() {
+                        if !g.has_token() {
                             break;
                         }
 
-                        elements.push(gen.parse_tuple_arg()?)
+                        elements.push(g.parse_tuple_arg()?)
                     }
-                    Some(token) => gen.err_with_location(
+                    Some(token) => g.err_with_location(
                         ParseErrorKind::ExpectedExpr,
                         ExpectedItem::Comma,
                         Some(token.kind),
@@ -804,9 +804,9 @@ impl AstGen<'_> {
                 }
             }
 
-            let span = gen.range();
-            let elements = gen.nodes_with_span(elements, span);
-            Ok(gen.node_with_span(Expr::Tuple(TupleExpr { elements }), span))
+            let span = g.range();
+            let elements = g.nodes_with_span(elements, span);
+            Ok(g.node_with_span(Expr::Tuple(TupleExpr { elements }), span))
         })
     }
 
@@ -837,19 +837,19 @@ impl AstGen<'_> {
     /// Function to parse a sequence of top-level [Expr]s from the current
     /// context.
     pub(crate) fn parse_exprs_from_brace_tree(&mut self) -> ParseResult<AstNodes<Expr>> {
-        self.in_tree(Delimiter::Brace, Some(ParseErrorKind::ExpectedBlock), |gen| {
+        self.in_tree(Delimiter::Brace, Some(ParseErrorKind::ExpectedBlock), |g| {
             let mut exprs = thin_vec![];
 
             // Continue eating the generator until no more tokens are present
             //
             // @@ErrorRecovery: don't bail immediately...
-            while gen.has_token() {
-                if let Some((_, expr)) = gen.parse_top_level_expr()? {
+            while g.has_token() {
+                if let Some((_, expr)) = g.parse_top_level_expr()? {
                     exprs.push(expr);
                 }
             }
 
-            Ok(gen.nodes_with_span(exprs, gen.range()))
+            Ok(g.nodes_with_span(exprs, g.range()))
         })
     }
 }

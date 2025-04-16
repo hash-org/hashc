@@ -3,7 +3,7 @@ use std::{
     env,
     fmt::Display,
     fs, io,
-    path::{Path, PathBuf, MAIN_SEPARATOR},
+    path::{MAIN_SEPARATOR, Path, PathBuf},
 };
 
 use hash_reporting::report::{Report, ReportKind};

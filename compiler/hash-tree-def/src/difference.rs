@@ -1,6 +1,7 @@
 //! Contains a helper macro to get the difference of two identifier lists.
 
-use syn::{parse::Parse, Ident};
+use itertools::Itertools;
+use syn::{Ident, parse::Parse, punctuated::Punctuated};
 
 /// Represents the difference of two lists of symbols.
 pub(crate) struct Difference {
@@ -16,27 +17,31 @@ pub(crate) struct Difference {
 /// $callback_macro_flag:ident`
 impl Parse for Difference {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let result = input.parse_terminated::<_, syn::Token![;]>(|parser| {
-            let mut symbols = vec![];
-            loop {
-                match parser.parse::<Ident>() {
-                    Ok(symbol) => symbols.push(symbol),
-                    Err(_) => return Ok(symbols),
-                }
-                let _ = parser.parse::<syn::Token![,]>();
-            }
-        })?;
+        // let result = Punctuated::parse_terminated(input)
 
-        if result.len() != 3 {
+        let result =
+            Punctuated::<Vec<Ident>, syn::Token![;]>::parse_terminated_with(input, |parser| {
+                let mut symbols = vec![];
+                loop {
+                    match parser.parse::<Ident>() {
+                        Ok(symbol) => symbols.push(symbol),
+                        Err(_) => return Ok(symbols),
+                    }
+                    let _ = parser.parse::<syn::Token![,]>();
+                }
+            })?;
+        let items = result.iter().collect_vec();
+
+        if items.len() != 3 {
             return Err(syn::Error::new(
                 input.span(),
                 "Expected three lists of symbols separated by a semicolon.",
             ));
         }
 
-        let symbols = result[0].clone();
-        let symbols_to_remove = result[1].clone();
-        let callback_macro = result[2].clone();
+        let symbols = items[0].clone();
+        let symbols_to_remove = items[1].clone();
+        let callback_macro = items[2].clone();
         if callback_macro.len() != 2 {
             return Err(syn::Error::new(
                 input.span(),

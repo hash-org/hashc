@@ -3,7 +3,7 @@
 use hash_ast::{ast::*, origin::PatOrigin};
 use hash_reporting::diagnostic::HasDiagnosticsMut;
 use hash_source::identifier::IDENTS;
-use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
+use hash_token::{Token, TokenKind, delimiter::Delimiter, keyword::Keyword};
 use hash_utils::thin_vec::thin_vec;
 
 use super::AstGen;
@@ -89,8 +89,8 @@ impl AstGen<'_> {
                     let mut spread = None;
 
                     // `in_tree` eat the paren token.
-                    let fields = self.in_tree(Delimiter::Paren, None, |gen| {
-                        Ok(gen.parse_nodes_with_skips(
+                    let fields = self.in_tree(Delimiter::Paren, None, |g| {
+                        Ok(g.parse_nodes_with_skips(
                             |g, pos| {
                                 // If the next token is an ellipsis, then we try to parse a spread
                                 // pattern.
@@ -203,19 +203,16 @@ impl AstGen<'_> {
 
             // Tuple patterns
             Token { kind: TokenKind::Tree(Delimiter::Paren, _), .. } => {
-                return self
-                    .in_tree(Delimiter::Paren, None, |gen| Ok((gen.parse_tuple_pat()?, true)))
+                return self.in_tree(Delimiter::Paren, None, |g| Ok((g.parse_tuple_pat()?, true)));
             }
             // Module patterns
             Token { kind: TokenKind::Tree(Delimiter::Brace, _), .. } => {
-                self.in_tree(Delimiter::Brace, None, |gen| {
-                    Ok(Pat::Module(gen.parse_module_pat()?))
-                })?
+                self.in_tree(Delimiter::Brace, None, |g| Ok(Pat::Module(g.parse_module_pat()?)))?
             }
             // Array pattern
             Token { kind: TokenKind::Tree(Delimiter::Bracket, _), .. } => {
                 return self
-                    .in_tree(Delimiter::Bracket, None, |gen| Ok((gen.parse_array_pat()?, true)))
+                    .in_tree(Delimiter::Bracket, None, |g| Ok((g.parse_array_pat()?, true)));
             }
             token => self.err_with_location(
                 ParseErrorKind::ExpectedPat,

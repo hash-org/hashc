@@ -7,15 +7,15 @@ use hash_reporting::{
     diagnostic::HasDiagnosticsMut, unicode_normalization::char::is_combining_mark,
 };
 use hash_source::{
-    constant::LocalStringTable,
-    identifier::{Identifier, IDENTS},
-    location::{ByteRange, Span, SpannedSource},
     SourceId,
+    constant::LocalStringTable,
+    identifier::{IDENTS, Identifier},
+    location::{ByteRange, Span, SpannedSource},
 };
 use hash_target::primitives::{FloatTy, IntTy};
 use hash_token::{
-    delimiter::Delimiter, keyword::ident_is_keyword, Base, FloatLitKind, IntLitKind, Token,
-    TokenKind,
+    Base, FloatLitKind, IntLitKind, Token, TokenKind, delimiter::Delimiter,
+    keyword::ident_is_keyword,
 };
 use hash_utils::{itertools::Itertools, thin_vec::thin_vec};
 
@@ -147,7 +147,7 @@ impl<'a> Lexer<'a> {
 
         // ##Safety: We rely that the byte offset is correctly computed when stepping
         // over the characters in the iterator.
-        std::str::from_utf8_unchecked(self.contents.0.as_bytes().get_unchecked(offset..))
+        unsafe { std::str::from_utf8_unchecked(self.contents.0.as_bytes().get_unchecked(offset..)) }
     }
 
     /// Returns nth character relative to the current position.
@@ -755,11 +755,7 @@ impl<'a> Lexer<'a> {
         // need to check that the value is within the range of a byte.
         let lit = self.char(/* byte_lit: */ true);
 
-        if let TokenKind::Char(ch) = lit {
-            TokenKind::Byte(ch as u8)
-        } else {
-            lit
-        }
+        if let TokenKind::Char(ch) = lit { TokenKind::Byte(ch as u8) } else { lit }
     }
 
     /// Consume a char literal provided that the current previous token is a

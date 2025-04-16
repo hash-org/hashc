@@ -1,6 +1,6 @@
 //! Utility macros for performing various operations when it comes to
 //! working with reports
-use hash_source::{location::Span, ModuleId, ModuleKind};
+use hash_source::{ModuleId, ModuleKind, location::Span};
 #[allow(unused_imports)]
 use hash_utils::stream_less_ewriteln;
 

@@ -4,7 +4,7 @@ use std::{convert::Infallible, iter};
 
 use hash_ast::{
     ast,
-    visitor::{walk, AstVisitor},
+    visitor::{AstVisitor, walk},
 };
 use hash_utils::{itertools::Itertools, tree_writing::TreeNode};
 
@@ -350,11 +350,7 @@ impl AstVisitor for AstTreePrinter {
         let return_child = TreeNode::branch("return", vec![return_ty]);
 
         let children = {
-            if params.children.is_empty() {
-                vec![return_child]
-            } else {
-                vec![params, return_child]
-            }
+            if params.children.is_empty() { vec![return_child] } else { vec![params, return_child] }
         };
 
         Ok(TreeNode::branch("function", children))
@@ -630,13 +626,8 @@ impl AstVisitor for AstTreePrinter {
         let walk::ModDef { entries, ty_params } = walk::walk_mod_def(self, node)?;
 
         let block = TreeNode::branch("block", entries);
-        let children = {
-            if let Some(ty_params) = ty_params {
-                vec![ty_params, block]
-            } else {
-                vec![block]
-            }
-        };
+        let children =
+            { if let Some(ty_params) = ty_params { vec![ty_params, block] } else { vec![block] } };
 
         Ok(TreeNode::branch("mod", children))
     }

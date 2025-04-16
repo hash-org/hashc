@@ -1,16 +1,16 @@
 [package]
 name = "hash-reporting"
 version = "0.1.0"
-authors = ["The Hash Language authors"]
-edition = "2021"
+authors = { workspace = true }
+edition = { workspace = true }
 
 [lib]
 doctest = false
 
 [dependencies]
-hash-error-codes = { path = "../hash-error-codes" }
-hash-source = { path = "../hash-source" }
-hash-utils = { path = "../hash-utils" }
-hash-target = { path = "../hash-target" }
+unicode-normalization = { workspace = true }
 
-unicode-normalization = "0.1.22"
+hash-error-codes = { workspace = true }
+hash-source = { workspace = true }
+hash-utils = { workspace = true }
+hash-target = { workspace = true }

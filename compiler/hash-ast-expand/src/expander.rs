@@ -21,7 +21,7 @@ use std::convert::Infallible;
 
 use hash_ast::{
     ast, ast_visitor_mut_self_default_impl,
-    visitor::{walk_mut_self, AstVisitorMutSelf},
+    visitor::{AstVisitorMutSelf, walk_mut_self},
 };
 use hash_ast_utils::attr::AttrNode;
 use hash_attrs::checks::AttrChecker;
@@ -32,7 +32,7 @@ use hash_target::data_layout::TargetDataLayout;
 use hash_utils::crossbeam_channel::Sender;
 
 use crate::diagnostics::{
-    error::ExpansionError, warning::ExpansionWarning, ExpansionDiagnostic, ExpansionDiagnostics,
+    ExpansionDiagnostic, ExpansionDiagnostics, error::ExpansionError, warning::ExpansionWarning,
 };
 
 pub struct AstExpander<'ctx> {

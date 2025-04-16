@@ -9,11 +9,11 @@
 
 use std::fmt;
 
+use derive_more::Constructor;
 use hash_const_eval::print::ConstWriter;
 use hash_ir::ir::{BasicBlock, BasicBlockData, Body, BodySource, TerminatorKind};
 use hash_repr::{compute::LayoutComputer, constant::Const};
 use hash_target::data_layout::HasDataLayout;
-use hash_utils::derive_more::Constructor;
 use html_escape::encode_text;
 
 use crate::WriteIr;

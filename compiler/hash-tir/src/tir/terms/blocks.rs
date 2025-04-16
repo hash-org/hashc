@@ -3,7 +3,7 @@ use core::fmt;
 
 use hash_storage::{
     get,
-    store::{statics::StoreId, TrivialSequenceStoreKey},
+    store::{TrivialSequenceStoreKey, statics::StoreId},
 };
 use textwrap::indent;
 

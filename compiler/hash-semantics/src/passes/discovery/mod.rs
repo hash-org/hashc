@@ -1,13 +1,14 @@
 //! The first pass of the typechecker, which discovers all definitions in
 //! the AST and adds them to the stores.
 
+use derive_more::Deref;
 use hash_ast::{
     ast::{self, AstNodeId},
     visitor::AstVisitor,
 };
 use hash_source::SourceId;
 use hash_tir::tir::{NodeOrigin, SymbolId};
-use hash_utils::{derive_more::Deref, state::LightState};
+use hash_utils::state::LightState;
 
 use self::defs::DefDiscoveryState;
 use super::{analysis_pass::AnalysisPass, ast_info::AstInfo};

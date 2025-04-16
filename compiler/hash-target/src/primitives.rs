@@ -315,11 +315,7 @@ impl Default for IntTy {
 impl IntTy {
     /// Convert a [Integer] with signed-ness into a [IntTy]
     pub fn from_integer(integer: Integer, signed: bool) -> Self {
-        if signed {
-            IntTy::Int(SIntTy::from(integer))
-        } else {
-            IntTy::UInt(UIntTy::from(integer))
-        }
+        if signed { IntTy::Int(SIntTy::from(integer)) } else { IntTy::UInt(UIntTy::from(integer)) }
     }
 
     /// Convert the type into a name.

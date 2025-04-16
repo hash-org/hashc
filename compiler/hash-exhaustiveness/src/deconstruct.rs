@@ -18,10 +18,10 @@ use hash_utils::{itertools::Itertools, smallvec::SmallVec};
 
 use super::{construct::DeconstructedCtor, fields::Fields};
 use crate::{
+    ExhaustivenessChecker, ExhaustivenessEnv, ExhaustivenessFmtCtx, PatCtx,
     list::ArrayKind,
     range::IntRangeWithBias,
     storage::{DeconstructedCtorId, DeconstructedPatId},
-    ExhaustivenessChecker, ExhaustivenessEnv, ExhaustivenessFmtCtx, PatCtx,
 };
 
 /// A [DeconstructedPat] is a representation of a [DeconstructedCtor] that is

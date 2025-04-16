@@ -22,11 +22,11 @@ use hash_pipeline::{
 };
 use hash_reporting::{diagnostic::DiagnosticsMut, report::Report, reporter::Reports};
 use hash_source::{
-    constant::const_stores, location::SpannedSource, InteractiveId, ModuleId, SourceId,
-    SourceMapUtils,
+    InteractiveId, ModuleId, SourceId, SourceMapUtils, constant::const_stores,
+    location::SpannedSource,
 };
 use hash_utils::{
-    crossbeam_channel::{unbounded, Sender},
+    crossbeam_channel::{Sender, unbounded},
     profiling::{HasMutMetrics, StageMetrics},
     rayon,
 };
@@ -133,11 +133,7 @@ impl<Ctx: ParserCtxQuery> CompilerStage<Ctx> for Parser {
             }
         });
 
-        if collected_diagnostics.is_empty() {
-            Ok(())
-        } else {
-            Err(collected_diagnostics)
-        }
+        if collected_diagnostics.is_empty() { Ok(()) } else { Err(collected_diagnostics) }
     }
 
     /// Any other stage than `semantic_pass` is valid when `--dump-ast` is
@@ -267,13 +263,13 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
     let resolver = ImportResolver::new(id, source.parent(), sender);
     let mut diagnostics = ParserDiagnostics::new();
     let mut spans = LocalSpanMap::with_capacity(tokens.len() * 2);
-    let mut gen = AstGen::new(spanned, &tokens, &resolver, &mut diagnostics, &mut spans);
+    let mut g = AstGen::new(spanned, &tokens, &resolver, &mut diagnostics, &mut spans);
 
     // Perform the parsing operation now... and send the result through the
     // message queue, regardless of it being an error or not.
     let action = match id.is_interactive() {
         false => {
-            let node = timings.record("gen", |_| gen.parse_module());
+            let node = timings.record("gen", |_| g.parse_module());
             SourceMapUtils::set_module_source(id, contents);
 
             ParserAction::SetModuleNode {
@@ -284,7 +280,7 @@ fn parse_source(source: ParseSource, sender: Sender<ParserAction>) {
             }
         }
         true => {
-            let node = timings.record("gen", |_| gen.parse_expr_from_interactive());
+            let node = timings.record("gen", |_| g.parse_expr_from_interactive());
 
             ParserAction::SetInteractiveNode {
                 id: id.into(),

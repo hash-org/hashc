@@ -9,10 +9,10 @@ use std::{cell::OnceCell, fmt};
 use hash_utils::{
     graph::{
         self,
-        dominators::{dominators, Dominators},
+        dominators::{Dominators, dominators},
     },
     index_vec::IndexVec,
-    smallvec::{smallvec, SmallVec},
+    smallvec::{SmallVec, smallvec},
 };
 
 use crate::ir::{BasicBlock, BasicBlockData, Successors};

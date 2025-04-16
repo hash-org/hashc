@@ -8,7 +8,7 @@ use hash_ir::ty::{FnTy, InstanceId};
 use hash_storage::store::{DefaultStore, Store, StoreInternalData};
 use hash_utils::fxhash::FxHashMap;
 
-use super::{layout::LayoutMethods, BackendTypes, HasCtxMethods};
+use super::{BackendTypes, HasCtxMethods, layout::LayoutMethods};
 use crate::lower::{
     abi::{compute_fn_abi, compute_fn_abi_from_instance},
     place::PlaceRef,

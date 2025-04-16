@@ -343,10 +343,10 @@ mod test_super {
             current_scope_index
         });
 
-        assert!(std::panic::catch_unwind(|| {
-            context.search_member_in(scope_index, "bar").is_none()
-        })
-        .is_err());
+        assert!(
+            std::panic::catch_unwind(|| { context.search_member_in(scope_index, "bar").is_none() })
+                .is_err()
+        );
     }
 
     #[test]

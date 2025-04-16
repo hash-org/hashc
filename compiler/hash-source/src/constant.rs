@@ -14,11 +14,12 @@ use std::{
     sync::OnceLock,
 };
 
+use derive_more::Constructor;
 use hash_storage::{
     static_single_store,
     store::{
-        statics::{SingleStoreValue, StoreId},
         Store,
+        statics::{SingleStoreValue, StoreId},
     },
     stores,
 };
@@ -31,7 +32,6 @@ use hash_target::{
     data_layout::{Endian, HasDataLayout},
 };
 use hash_utils::{
-    derive_more::Constructor,
     fnv::FnvBuildHasher,
     num_bigint::{BigInt, Sign},
 };
@@ -137,11 +137,7 @@ impl Scalar {
     /// Create a new [Scalar] from a boolean value.
     #[inline]
     pub fn from_bool(value: bool) -> Self {
-        if value {
-            Self::TRUE
-        } else {
-            Self::FALSE
-        }
+        if value { Self::TRUE } else { Self::FALSE }
     }
 
     /// Convert the [Scalar] into a [f32].

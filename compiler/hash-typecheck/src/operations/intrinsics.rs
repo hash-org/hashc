@@ -7,7 +7,7 @@ use hash_tir::{
 
 use crate::{
     env::TcEnv,
-    options::normalisation::{already_normalised, NormaliseResult},
+    options::normalisation::{NormaliseResult, already_normalised},
     tc::Tc,
     traits::OperationsOn,
 };

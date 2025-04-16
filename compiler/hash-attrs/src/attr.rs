@@ -2,6 +2,7 @@
 
 use std::{fmt, sync::OnceLock};
 
+use derive_more::From;
 use hash_ast::{ast, ast::AstNodeId};
 use hash_ast_utils::lit::{LitHelpers, LitParseResult};
 use hash_repr::constant::Const;
@@ -9,13 +10,11 @@ use hash_source::{identifier::Identifier, location::Span};
 use hash_storage::store::{DefaultPartialStore, PartialStore};
 use hash_target::{primitives::IntTy, size::Size};
 use hash_tir::tir::{ParamIndex, TyId};
-use hash_utils::{
-    derive_more::From, fxhash::FxHashMap, lazy_static::lazy_static, num_bigint::BigInt,
-};
+use hash_utils::{fxhash::FxHashMap, lazy_static::lazy_static, num_bigint::BigInt};
 
 use crate::{
     diagnostics::{AttrError, AttrResult},
-    ty::{repr_ty_from_primitive_ty, AttrId},
+    ty::{AttrId, repr_ty_from_primitive_ty},
 };
 
 /// Valid `#[repr(...)]` options, ideally we should be able to just generate

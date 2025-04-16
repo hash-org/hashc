@@ -8,10 +8,10 @@
 //! `crate::stores::tir_node_*` macros.
 use core::fmt;
 
+use derive_more::{Deref, DerefMut};
 use hash_ast::ast::AstNodeId;
-use hash_source::{location::Span, SourceId};
+use hash_source::{SourceId, location::Span};
 use hash_storage::store::statics::{SequenceStoreId, SingleStoreValue};
-use hash_utils::derive_more::{Deref, DerefMut};
 
 /// A trait used to access AST information about a particular
 /// type. This is useful for when we want to access the [AstNodeId]
@@ -95,7 +95,7 @@ where
     /// Create a new node with the given data and a generated origin, and insert
     /// it into the store.
     pub fn create_gen(data: Data) -> <Self as SingleStoreValue>::Id {
-        Self::create(Self::gen(data))
+        Self::create(Self::generate(data))
     }
 }
 
@@ -106,7 +106,7 @@ impl<Data> Node<Data> {
     }
 
     /// Create a new node with the given data and a generated origin.
-    pub fn gen(data: Data) -> Self {
+    pub fn generate(data: Data) -> Self {
         Self { data, origin: NodeOrigin::Generated }
     }
 

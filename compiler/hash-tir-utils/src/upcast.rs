@@ -8,6 +8,7 @@
 //! no requirement to convert more complex types at the mommment, but this is
 //! certainly subject to change in the future.
 
+use derive_more::{Constructor, Deref};
 use hash_repr::ty::{ReprTy, ReprTyId};
 use hash_source::{FloatTy, SIntTy, UIntTy};
 use hash_storage::store::statics::StoreId;
@@ -16,7 +17,6 @@ use hash_tir::{
     intrinsics::definitions::*,
     tir::{DataDefId, NodeOrigin, Ty, TyId},
 };
-use hash_utils::derive_more::{Constructor, Deref};
 
 #[derive(Constructor, Deref)]
 pub struct TyUpCast<'tc, E> {

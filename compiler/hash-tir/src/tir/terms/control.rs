@@ -4,7 +4,7 @@ use core::fmt;
 use std::fmt::Debug;
 
 use hash_ast::ast::MatchOrigin;
-use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
+use hash_storage::store::{TrivialSequenceStoreKey, statics::StoreId};
 use textwrap::indent;
 
 use crate::{

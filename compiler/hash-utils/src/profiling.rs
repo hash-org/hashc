@@ -9,7 +9,7 @@ use std::{
 
 use derive_more::Constructor;
 use indexmap::IndexMap;
-use log::{log_enabled, Level};
+use log::{Level, log_enabled};
 use schemars::JsonSchema;
 use serde::Serialize;
 

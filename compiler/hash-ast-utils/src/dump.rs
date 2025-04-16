@@ -2,9 +2,9 @@
 
 use std::fmt;
 
+use derive_more::Constructor;
 use hash_utils::{
     clap,
-    derive_more::Constructor,
     schemars::{self, JsonSchema},
     serde::{self, Deserialize, Serialize},
     temp_writer::TempWriter,

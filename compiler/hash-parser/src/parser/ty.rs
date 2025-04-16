@@ -3,7 +3,7 @@
 use hash_ast::ast::*;
 use hash_reporting::diagnostic::{DiagnosticsMut, HasDiagnosticsMut};
 use hash_source::identifier::IDENTS;
-use hash_token::{delimiter::Delimiter, keyword::Keyword, Token, TokenKind};
+use hash_token::{Token, TokenKind, delimiter::Delimiter, keyword::Keyword};
 use hash_utils::thin_vec::thin_vec;
 
 use super::AstGen;
@@ -101,25 +101,23 @@ impl AstGen<'_> {
             }
 
             // Expression in the type.
-            TokenKind::Tree(Delimiter::Brace, _) => {
-                self.in_tree(Delimiter::Brace, None, |gen| {
-                    let expr = gen.parse_expr_with_precedence(0)?;
-                    Ok(Ty::Expr(ExprTy { expr }))
-                })?
-            }
+            TokenKind::Tree(Delimiter::Brace, _) => self.in_tree(Delimiter::Brace, None, |g| {
+                let expr = g.parse_expr_with_precedence(0)?;
+                Ok(Ty::Expr(ExprTy { expr }))
+            })?,
 
             // Array type
             TokenKind::Tree(Delimiter::Bracket, _) => {
-                let (inner, len) = self.in_tree(Delimiter::Bracket, None, |gen| {
+                let (inner, len) = self.in_tree(Delimiter::Bracket, None, |g| {
                     // @@ErrorRecovery: Investigate introducing `Err` variant into types...
-                    let inner_type = gen.parse_ty()?;
+                    let inner_type = g.parse_ty()?;
 
                     // Optionally, the user may specify a size for the array type by
                     // using a `;` followed by an expression that evaluates to a]
                     // constant integer.
-                    let len = if gen.peek_kind() == Some(TokenKind::Semi) {
-                        gen.skip_fast(TokenKind::Semi);
-                        Some(gen.parse_expr()?)
+                    let len = if g.peek_kind() == Some(TokenKind::Semi) {
+                        g.skip_fast(TokenKind::Semi);
+                        Some(g.parse_expr()?)
                     } else {
                         None
                     };
@@ -314,15 +312,15 @@ impl AstGen<'_> {
     /// [Ty] that is preceded by an `thin-arrow` (->) after the
     /// parentheses. e.g. `(i32) -> str`
     fn parse_fn_or_tuple_ty(&mut self) -> ParseResult<Ty> {
-        let (mut params, has_comma) = self.in_tree(Delimiter::Paren, None, |gen| {
-            let params = match gen.peek_kind() {
+        let (mut params, has_comma) = self.in_tree(Delimiter::Paren, None, |g| {
+            let params = match g.peek_kind() {
                 // Handle special case where there is only one comma and no following items...
                 // Special edge case for '(,)' or an empty tuple type...
-                Some(TokenKind::Comma) if gen.len() == 1 => {
-                    gen.skip_fast(TokenKind::Comma);
-                    gen.nodes_with_span(thin_vec![], gen.range())
+                Some(TokenKind::Comma) if g.len() == 1 => {
+                    g.skip_fast(TokenKind::Comma);
+                    g.nodes_with_span(thin_vec![], g.range())
                 }
-                _ => gen.parse_nodes(
+                _ => g.parse_nodes(
                     |g| g.parse_ty_tuple_or_fn_param(),
                     |g| g.parse_token(TokenKind::Comma),
                 ),
@@ -331,14 +329,14 @@ impl AstGen<'_> {
             // Abort early if we encountered some kind of error along the way,
             // although I would think when the `gen` is consumed then we can
             // send up all of the errors to the parent generator?
-            if gen.diagnostics.has_errors() {
-                let err = gen.diagnostics.errors.pop().unwrap();
+            if g.diagnostics.has_errors() {
+                let err = g.diagnostics.errors.pop().unwrap();
                 return Err(err);
             }
 
             // Here we check that the token tree has a comma at the end to later determine
             // if this is a `TupleTy`...
-            let gen_has_comma = !gen.is_empty() && gen.previous_token().has_kind(TokenKind::Comma);
+            let gen_has_comma = !g.is_empty() && g.previous_token().has_kind(TokenKind::Comma);
             Ok((params, gen_has_comma))
         })?;
 

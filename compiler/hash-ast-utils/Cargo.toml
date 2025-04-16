@@ -1,18 +1,20 @@
 [package]
 name = "hash-ast-utils"
 version = "0.1.0"
-authors = ["The Hash Language authors"]
-edition = "2021"
+authors = { workspace = true }
+edition = { workspace = true }
 
 [lib]
 doctest = false
 
 [dependencies]
-hash-ast = { path = "../hash-ast" }
-hash-source = { path = "../hash-source" }
-hash-token = { path = "../hash-token" }
-hash-utils = { path = "../hash-utils" }
-hash-reporting = { path = "../hash-reporting" }
-hash-const-eval = { path = "../hash-const-eval" }
-hash-repr = {path = "../hash-repr" }
-hash-storage = { path = "../hash-storage" }
+derive_more = { workspace = true }
+
+hash-ast = { workspace = true }
+hash-source = { workspace = true }
+hash-token = { workspace = true }
+hash-utils = { workspace = true }
+hash-reporting = { workspace = true }
+hash-const-eval = { workspace = true }
+hash-repr = { workspace = true }
+hash-storage = { workspace = true }

@@ -2,10 +2,10 @@
 
 use std::fmt::Display;
 
-use hash_source::identifier::{Identifier, IDENTS};
+use hash_source::identifier::{IDENTS, Identifier};
 use hash_storage::{
     get,
-    store::{statics::StoreId, StoreKey},
+    store::{StoreKey, statics::StoreId},
 };
 
 use crate::{

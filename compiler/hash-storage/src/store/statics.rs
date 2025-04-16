@@ -105,9 +105,7 @@ pub type DefaultIndirectSequenceStore<K, V> = DefaultSequenceStore<K, V>;
 /// Access the field `$member` of the value pointed to by `$id`.
 #[macro_export]
 macro_rules! get {
-    ($id:expr, $member:ident) => {{
-        $crate::store::statics::StoreId::map($id, |x| x.$member)
-    }};
+    ($id:expr, $member:ident) => {{ $crate::store::statics::StoreId::map($id, |x| x.$member) }};
 }
 
 /// Implement the trait `PartialStoreId` for the given types.

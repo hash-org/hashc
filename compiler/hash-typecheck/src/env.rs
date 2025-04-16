@@ -3,7 +3,7 @@ use hash_ir::HasIrCtx;
 use hash_pipeline::settings::HasCompilerSettings;
 use hash_reporting::diagnostic::{Diagnostics, HasDiagnostics};
 use hash_repr::HasLayout;
-use hash_source::{entry_point::EntryPointState, SourceId};
+use hash_source::{SourceId, entry_point::EntryPointState};
 use hash_target::HasTarget;
 use hash_tir::{atom_info::HasAtomInfo, context::Context, tir::FnDefId};
 use hash_tir_utils::lower::{HasTyCache, TyLowerEnv};

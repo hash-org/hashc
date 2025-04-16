@@ -9,6 +9,10 @@ members = [
 # Without this, cargo complains about differing resolvers... (see cargo/#9956)
 resolver = "2"
 
+[workspace.package]
+authors = ["The Hash Language authors"]
+edition = "2024"
+
 [profile.release]
 opt-level = 3
 lto = "fat"
@@ -20,3 +24,103 @@ strip = false
 
 # set debug to true when profiling
 debug = false
+
+
+[workspace.dependencies]
+hash-abi = { path = "compiler/hash-abi" }
+hash-ast-desugaring = { path = "compiler/hash-ast-desugaring" }
+hash-ast-expand = { path = "compiler/hash-ast-expand" }
+hash-ast-utils = { path = "compiler/hash-ast-utils" }
+hash-ast = { path = "compiler/hash-ast" }
+hash-attrs = { path = "compiler/hash-attrs" }
+hash-backend = { path = "compiler/hash-backend" }
+hash-codegen-llvm = { path = "compiler/hash-codegen-llvm" }
+hash-codegen-vm = { path = "compiler/hash-codegen-vm" }
+hash-codegen = { path = "compiler/hash-codegen" }
+hash-const-eval = { path = "compiler/hash-const-eval" }
+hash-driver = { path = "compiler/hash-driver" }
+hash-error-codes = { path = "compiler/hash-error-codes" }
+hash-exhaustiveness = { path = "compiler/hash-exhaustiveness" }
+hash-ir-utils = { path = "compiler/hash-ir-utils" }
+hash-ir = { path = "compiler/hash-ir" }
+hash-lexer = { path = "compiler/hash-lexer" }
+hash-link = { path = "compiler/hash-link" }
+hash-lower = { path = "compiler/hash-lower" }
+hash-messaging = { path = "compiler/hash-messaging" }
+hash-parser = { path = "compiler/hash-parser" }
+hash-pipeline = { path = "compiler/hash-pipeline" }
+hash-reporting = { path = "compiler/hash-reporting" }
+hash-repr = { path = "compiler/hash-repr" }
+hash-semantics = { path = "compiler/hash-semantics" }
+hash-source = { path = "compiler/hash-source" }
+hash-storage = { path = "compiler/hash-storage" }
+hash-target = { path = "compiler/hash-target" }
+hash-tir-utils = { path = "compiler/hash-tir-utils" }
+hash-tir = { path = "compiler/hash-tir" }
+hash-token = { path = "compiler/hash-token" }
+hash-tree-def = { path = "compiler/hash-tree-def" }
+hash-typecheck = { path = "compiler/hash-typecheck" }
+hash-untyped-semantics = { path = "compiler/hash-untyped-semantics" }
+hash-utils = { path = "compiler/hash-utils" }
+hash-vm = { path = "compiler/hash-vm" }
+
+# Testing dependencies
+hash-testing-internal = { path = "tests/testing-internal" }
+hash-testing-macros = { path = "tests/testing-macros" }
+
+# External dependencies
+arrayvec = "0.7.2"
+backtrace = "0.3"
+bimap = "0.6.2"
+bitflags = "2.4.0"
+bumpalo = "3.7"
+bumpalo-herd = "0.1"
+bytecount = "0.6.3"
+cc = "1.0.69"
+clap = { version = "4.3.8", features = ["derive"] }
+const_format = "0.2.30"                                           # for concatenating strings together at compile time.
+convert_case = "0.8"
+crossbeam-channel = "0.5.1"
+dashmap = "6.1"
+derive_more = { version = "2.0", features = ["full"] }
+fixedbitset = "0.5.7"
+fnv = "1.0.7"
+fxhash = "0.2.1"
+html-escape = "0.2.12"
+index_vec = "0.1.3"
+indexmap = { version = "2.9.0", features = ["serde"] }
+itertools = "0.14.0"
+lazy_static = "1.4.0"
+libc = "0.2"
+line-span = "0.1.5"
+log = { version = "0.4", features = ["kv_unstable", "kv_serde"] }
+num_cpus = "1.13.0"
+num_enum = "0.7"
+num-bigint = "0.4"
+num-derive = "0.4.0"
+num-traits = "0.2.15"
+once_cell = "1.17"
+parking_lot = "0.12"
+paste = "1.0.14"
+phf = { version = "0.11", features = ["macros"] }
+proc-macro2 = "1.0.63"
+profiling = "1.0.6"
+quote = "1.0"
+rayon = "1.5.0"
+replace_with = "0.1.7"
+schemars = { version = "0.8.16", features = ["indexmap2"] }
+serde = { version = "1.0.202", features = ["derive"] }
+serde_json = "1.0.117"
+smallvec = "1.11.0"
+stacker = "0.1.15"
+strum_macros = "0.27"
+syn = { version = "2.0", features = ["extra-traits", "full"] }
+textwrap = "0.16"
+thin-vec = "0.2.10"
+tracy-client = "0.18.0"
+typed-builder = "0.21"
+unicode-normalization = "0.1.22"
+utility-types = "0.0.4"
+proc-macro-error = "1.0.0"
+regex = "1.5"
+pretty_assertions = "1.2.1"

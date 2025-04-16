@@ -8,7 +8,7 @@ use crate::{
     diagnostics::{TcError, TcResult, WrongTermKind},
     env::TcEnv,
     options::normalisation::{
-        normalised_if, stuck_normalising, NormalisationState, NormaliseResult,
+        NormalisationState, NormaliseResult, normalised_if, stuck_normalising,
     },
     tc::Tc,
     traits::{OperationsOn, OperationsOnNode},
@@ -60,7 +60,7 @@ impl<E: TcEnv> OperationsOn<AccessTerm> for Tc<'_, E> {
                     kind: WrongTermKind::NotARecord,
                     inferred_term_ty: subject_ty,
                     term: item_node,
-                })
+                });
             }
         };
 

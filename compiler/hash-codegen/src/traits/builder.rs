@@ -13,8 +13,8 @@ use hash_target::{
 };
 
 use super::{
-    abi::AbiBuilderMethods, debug::DebugInfoBuilderMethods, intrinsics::IntrinsicBuilderMethods,
-    layout::LayoutMethods, ty::TypeBuilderMethods, Codegen,
+    Codegen, abi::AbiBuilderMethods, debug::DebugInfoBuilderMethods,
+    intrinsics::IntrinsicBuilderMethods, layout::LayoutMethods, ty::TypeBuilderMethods,
 };
 use crate::{
     common::{
@@ -267,7 +267,7 @@ pub trait BlockBuilderMethods<'a, 'b>:
     /// Ref: <https://llvm.org/docs/LangRef.html#fptoui-to-instruction>
     /// Ref: <https://llvm.org/docs/LangRef.html#fptosi-to-instruction>
     fn fp_to_int_sat(&mut self, val: Self::Value, dest_ty: Self::Type, signed: bool)
-        -> Self::Value;
+    -> Self::Value;
 
     /// The `fptoui` converts a floating-point value to its unsigned integer
     /// equivalent of type `dest_ty`.
@@ -366,11 +366,7 @@ pub trait BlockBuilderMethods<'a, 'b>:
     fn to_immediate(&mut self, v: Self::Value, layout: LayoutId) -> Self::Value {
         layout
             .map(|layout| {
-                if let AbiRepresentation::Scalar(scalar) = layout.abi {
-                    Some(scalar)
-                } else {
-                    None
-                }
+                if let AbiRepresentation::Scalar(scalar) = layout.abi { Some(scalar) } else { None }
             })
             .map_or(v, |scalar| self.to_immediate_scalar(v, scalar))
     }

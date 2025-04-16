@@ -16,12 +16,12 @@ use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_ir::{
     ir::{
         BasicBlock, Body, BodyMetadata, BodySource, Local, LocalDecl, LocalDecls, Place,
-        Projections, TerminatorKind, START_BLOCK,
+        Projections, START_BLOCK, TerminatorKind,
     },
     ty::{Mutability, ReprTy},
 };
 use hash_source::identifier::Identifier;
-use hash_storage::store::{statics::StoreId, SequenceStoreKey};
+use hash_storage::store::{SequenceStoreKey, statics::StoreId};
 use hash_target::{HasTarget, Target};
 use hash_tir::{
     context::{Context, HasContext, ScopeKind},

@@ -2,15 +2,16 @@
 //! propagation and constant folding optimisations that can occur on
 //! Hash IR.
 
+use derive_more::Constructor;
 use hash_repr::{
     compute::LayoutComputer,
     constant::{Const, ConstKind},
     ty::{ReprTy, ReprTyId},
 };
-use hash_source::{constant::Scalar, FloatTy, Size};
+use hash_source::{FloatTy, Size, constant::Scalar};
 use hash_storage::store::statics::StoreId;
 use hash_target::data_layout::HasDataLayout;
-use hash_utils::{derive_more::Constructor, num_traits};
+use hash_utils::num_traits;
 
 use crate::op::{BinOp, UnOp};
 

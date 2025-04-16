@@ -10,7 +10,7 @@ use hash_tir::{
 use crate::{
     diagnostics::{TcError, TcResult},
     env::TcEnv,
-    options::normalisation::{normalise_nested, NormaliseResult},
+    options::normalisation::{NormaliseResult, normalise_nested},
     tc::Tc,
     traits::{OperationsOn, ScopedOperationsOnNode},
 };

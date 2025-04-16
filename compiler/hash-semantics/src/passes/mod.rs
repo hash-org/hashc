@@ -1,5 +1,5 @@
+use derive_more::{Constructor, Deref};
 use hash_source::SourceId;
-use hash_utils::derive_more::{Constructor, Deref};
 
 use self::{
     analysis_pass::AnalysisPass, ast_info::AstInfo, discovery::DiscoveryPass,

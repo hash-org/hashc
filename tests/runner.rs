@@ -35,8 +35,8 @@ use hash_driver::{Compiler, CompilerBuilder};
 use hash_pipeline::{interface::CompilerInterface, settings::CompilerSettings};
 use hash_reporting::report::Report;
 use hash_testing_internal::{
-    metadata::{HandleWarnings, TestResult},
     TestingInput,
+    metadata::{HandleWarnings, TestResult},
 };
 use hash_testing_macros::generate_tests;
 use hash_utils::{
@@ -237,11 +237,7 @@ fn handle_failure_case(
     let diagnostics = diagnostics
         .into_iter()
         .filter(|report| {
-            if test.metadata.warnings == HandleWarnings::Ignore {
-                report.is_error()
-            } else {
-                true
-            }
+            if test.metadata.warnings == HandleWarnings::Ignore { report.is_error() } else { true }
         })
         .collect();
 

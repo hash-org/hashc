@@ -10,25 +10,25 @@ use hash_ir::{
         AggregateKind, BasicBlock, Const, LogicalBinOp, Operand, Place, RValue, Statement,
         StatementKind, TerminatorKind,
     },
-    ty::{AdtId, Mutability, RefKind, ReprTy, ReprTyId, VariantIdx, COMMON_REPR_TYS},
+    ty::{AdtId, COMMON_REPR_TYS, Mutability, RefKind, ReprTy, ReprTyId, VariantIdx},
 };
 use hash_reporting::macros::panic_on_span;
 use hash_source::identifier::Identifier;
-use hash_storage::store::{statics::StoreId, SequenceStoreKey};
+use hash_storage::store::{SequenceStoreKey, statics::StoreId};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     context::Context,
     intrinsics::utils::try_use_term_as_machine_integer,
     term_as_variant,
     tir::{
-        self, commands::AssignTerm, ArgsId, ArrayTerm, CallTerm, CtorTerm, HasAstNodeId,
-        LoopControlTerm, NodesId, ParamIndex, RefTerm, ReturnTerm, Term, TermId, TupleTerm, Ty,
-        UnsafeTerm,
+        self, ArgsId, ArrayTerm, CallTerm, CtorTerm, HasAstNodeId, LoopControlTerm, NodesId,
+        ParamIndex, RefTerm, ReturnTerm, Term, TermId, TupleTerm, Ty, UnsafeTerm,
+        commands::AssignTerm,
     },
 };
 use hash_utils::itertools::Itertools;
 
-use super::{ty::FnCallTermKind, unpack, BlockAnd, BlockAndExtend, BodyBuilder, LoopBlockInfo};
+use super::{BlockAnd, BlockAndExtend, BodyBuilder, LoopBlockInfo, ty::FnCallTermKind, unpack};
 
 impl BodyBuilder<'_> {
     /// Compile the given [Term] and place the value of the [Term]
@@ -41,7 +41,7 @@ impl BodyBuilder<'_> {
     ) -> BlockAnd<()> {
         let span = self.span_of_term(term);
 
-        let block_and = match *term.value() {
+        match *term.value() {
             // // This includes `loop { ... } `, `{ ... }`, `match { ... }`
             Term::Block(_) | Term::Match(_) | Term::Loop(_) => {
                 self.block_into_dest(destination, block, term)
@@ -351,9 +351,7 @@ impl BodyBuilder<'_> {
             | Ty::Universe(_)
             | Term::Hole(_)
             | Term::Intrinsic(_) => block.unit(),
-        };
-
-        block_and
+        }
     }
 
     /// Convert a [`Term::Assign`] into IR by first lowering the right-hand side

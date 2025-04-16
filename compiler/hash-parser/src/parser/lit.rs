@@ -2,7 +2,7 @@
 //! logic that transforms tokens into an AST.
 use hash_ast::ast::*;
 use hash_source::{identifier::Identifier, location::ByteRange};
-use hash_token::{delimiter::Delimiter, keyword::Keyword, FloatLitKind, IntLitKind, TokenKind};
+use hash_token::{FloatLitKind, IntLitKind, TokenKind, delimiter::Delimiter, keyword::Keyword};
 use hash_utils::thin_vec::thin_vec;
 
 use super::AstGen;
@@ -23,7 +23,7 @@ impl AstGen<'_> {
         self.node_with_span(
             match token.kind {
                 TokenKind::Int(_, _) | TokenKind::Byte(_) | TokenKind::Float(_) => {
-                    return self.parse_numeric_lit()
+                    return self.parse_numeric_lit();
                 }
                 TokenKind::Char(value) => Lit::Char(CharLit { data: value }),
                 TokenKind::Str(value) => Lit::Str(StrLit { data: value }),
@@ -116,47 +116,46 @@ impl AstGen<'_> {
     /// also handles array literals that specify a repeat expression, i.e.
     /// `[0; 10]` which would be an array of 10 `0`'s.
     pub(crate) fn parse_array_lit(&mut self) -> ParseResult<AstNode<Expr>> {
-        self.in_tree(Delimiter::Bracket, None, |gen| {
+        self.in_tree(Delimiter::Bracket, None, |g| {
             macro_rules! make_arr {
                 ($elements:expr; $span:expr) => {{
-                    let elements = gen.nodes_with_span($elements, $span);
-                    Ok(gen.node_with_span(Expr::Array(ArrayExpr { elements }), $span))
+                    let elements = g.nodes_with_span($elements, $span);
+                    Ok(g.node_with_span(Expr::Array(ArrayExpr { elements }), $span))
                 }};
             }
 
-            let span = gen.range();
+            let span = g.range();
 
             // If the generator is empty, then we can just return an empty array literal...
-            if gen.is_empty() {
+            if g.is_empty() {
                 return make_arr!(thin_vec![]; span);
             }
 
             // Parse the initial expression, then if the next token is a
             // semi colon, this must be a repeat expression!
-            let start = gen.parse_expr_with_precedence(0)?;
+            let start = g.parse_expr_with_precedence(0)?;
 
-            match gen.peek_kind() {
+            match g.peek_kind() {
                 Some(TokenKind::Semi) => {
-                    gen.skip_fast(TokenKind::Semi); // ';'
+                    g.skip_fast(TokenKind::Semi); // ';'
 
-                    let repeat = gen.parse_expr_with_precedence(0)?;
+                    let repeat = g.parse_expr_with_precedence(0)?;
 
-                    Ok(gen
-                        .node_with_span(Expr::Repeat(RepeatExpr { subject: start, repeat }), span))
+                    Ok(g.node_with_span(Expr::Repeat(RepeatExpr { subject: start, repeat }), span))
                 }
                 Some(TokenKind::Comma) => {
                     // We might have to perform some cleanup here, if the next token is a comma,
                     // then we need to parse the rest of the elements.
-                    gen.skip_fast(TokenKind::Comma); // ';'
+                    g.skip_fast(TokenKind::Comma); // ';'
 
-                    let mut elements = gen.parse_nodes(
+                    let mut elements = g.parse_nodes(
                         |g| g.parse_expr_with_precedence(0),
                         |g| g.parse_token(TokenKind::Comma),
                     );
 
                     // Insert the first element into the array...
                     elements.insert(start, 0);
-                    Ok(gen.node_with_span(Expr::Array(ArrayExpr { elements }), span))
+                    Ok(g.node_with_span(Expr::Array(ArrayExpr { elements }), span))
                 }
                 _ => {
                     make_arr!(thin_vec![start]; span)

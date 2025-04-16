@@ -1,25 +1,26 @@
 [package]
 name = "hash-tir"
 version = "0.1.0"
-authors = ["The Hash Language authors"]
-edition = "2021"
+authors = { workspace = true }
+edition = { workspace = true }
 
 [lib]
 doctest = false
 
 [dependencies]
-num_enum = "0.5"
-paste = "1.0"
-textwrap = "0.16"
-typed-builder = "0.11"
-utility-types = "0.0.2"
+num_enum = { workspace = true }
+paste = { workspace = true }
+textwrap = { workspace = true }
+typed-builder = { workspace = true }
+utility-types = { workspace = true }
+derive_more = { workspace = true }
 
-hash-ast = { path = "../hash-ast" }
-hash-ast-utils = { path = "../hash-ast-utils" }
-hash-const-eval = { path = "../hash-const-eval" }
-hash-repr = {path = "../hash-repr" }
-hash-reporting = { path = "../hash-reporting" }
-hash-source = { path = "../hash-source" }
-hash-storage = { path = "../hash-storage" }
-hash-target = { path = "../hash-target" }
-hash-utils = { path = "../hash-utils" }
+hash-ast = { workspace = true }
+hash-ast-utils = { workspace = true }
+hash-const-eval = { workspace = true }
+hash-repr = { workspace = true }
+hash-reporting = { workspace = true }
+hash-source = { workspace = true }
+hash-storage = { workspace = true }
+hash-target = { workspace = true }
+hash-utils = { workspace = true }

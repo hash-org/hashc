@@ -8,15 +8,15 @@
 //!    to those locals that may affect counts of other [Local]s.
 
 use hash_ir::{
-    ir::{
-        Body, BodyInfo, IrRef, Local, LocalDecl, Place, PlaceProjection, RValue, Statement,
-        StatementKind, RETURN_PLACE,
-    },
-    visitor::{walk_mut, IrVisitorCtx, IrVisitorMut, ModifyingIrVisitor, PlaceCtx},
     IrCtx,
+    ir::{
+        Body, BodyInfo, IrRef, Local, LocalDecl, Place, PlaceProjection, RETURN_PLACE, RValue,
+        Statement, StatementKind,
+    },
+    visitor::{IrVisitorCtx, IrVisitorMut, ModifyingIrVisitor, PlaceCtx, walk_mut},
 };
 use hash_pipeline::settings::{CompilerSettings, OptimisationLevel};
-use hash_utils::index_vec::{index_vec, IndexVec};
+use hash_utils::index_vec::{IndexVec, index_vec};
 
 use super::IrOptimisationPass;
 
@@ -68,7 +68,7 @@ impl CleanupLocalPass {
     /// particular statement.
     fn simplify_locals(&self, body: &mut Body, local_map: &mut LocalUseMap) {
         let mut changed = true;
-        let Body { ref locals, ref projections, ref mut basic_blocks, .. } = body;
+        let Body { locals, projections, basic_blocks, .. } = body;
         let info = BodyInfo { locals, projections };
 
         while changed {

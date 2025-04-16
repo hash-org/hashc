@@ -7,15 +7,15 @@
 
 use hash_ast::ast::AstNodeId;
 use hash_const_eval::{
-    op::{BinOp, LogicalBinOp, UnOp},
     Const, ConstKind,
+    op::{BinOp, LogicalBinOp, UnOp},
 };
 use hash_ir::{
     ir::{BodyInfo, Scalar},
     ty::{ReprTy, ReprTyId},
 };
-use hash_storage::store::{statics::StoreId, TrivialSequenceStoreKey};
-use hash_target::{size::Size, HasTarget};
+use hash_storage::store::{TrivialSequenceStoreKey, statics::StoreId};
+use hash_target::{HasTarget, size::Size};
 use hash_tir::{
     atom_info::ItemInAtomInfo,
     intrinsics::{definitions::Intrinsic as TirIntrinsic, utils::try_use_term_as_integer_lit},
@@ -176,7 +176,10 @@ impl BodyBuilder<'_> {
                     | TirIntrinsic::Abort
                     | TirIntrinsic::Panic => FnCallTermKind::Call,
                     TirIntrinsic::Eval | TirIntrinsic::UserError | TirIntrinsic::DebugPrint => {
-                        panic!("Found unexpected intrinsic {} which should have been evaluated during TC", intrinsic)
+                        panic!(
+                            "Found unexpected intrinsic {} which should have been evaluated during TC",
+                            intrinsic
+                        )
                     }
                 }
             }

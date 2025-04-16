@@ -12,32 +12,32 @@ use hash_attrs::{attr::attr_store, builtin::attrs};
 use hash_const_eval::op::{BinOp, LogicalBinOp, UnOp};
 use hash_reporting::macros::panic_on_span;
 use hash_storage::store::{
-    statics::{SequenceStoreValue, StoreId},
     SequenceStoreKey, TrivialSequenceStoreKey,
+    statics::{SequenceStoreValue, StoreId},
 };
 use hash_tir::{
     intrinsics::{
-        definitions::{equal_ty, Intrinsic},
+        definitions::{Intrinsic, equal_ty},
         utils::{bool_term, create_term_from_const},
     },
     tir::{
-        blocks::{BlockStatement, BlockTerm, Decl},
-        commands::AssignTerm,
         AccessTerm, AnnotTerm, Arg, ArgsId, ArrayTerm, CallTerm, DataTy, DerefTerm, IndexTerm, Lit,
         LoopControlTerm, LoopTerm, MatchCase, MatchTerm, Node, NodeId, NodeOrigin, ParamIndex,
         RefKind, RefTerm, ReturnTerm, Term, TermId, TupleTerm, Ty, TyOfTerm, UnsafeTerm, VarTerm,
+        blocks::{BlockStatement, BlockTerm, Decl},
+        commands::AssignTerm,
     },
 };
 use hash_utils::itertools::Itertools;
 
 use super::{
+    ResolutionPass,
     params::AstArgGroup,
     paths::{
         AstPath, AstPathComponent, NonTerminalResolvedPathComponent, ResolvedAstPathComponent,
         TerminalResolvedPathComponent,
     },
     scoping::ContextKind,
-    ResolutionPass,
 };
 use crate::{
     diagnostics::definitions::{SemanticError, SemanticResult},

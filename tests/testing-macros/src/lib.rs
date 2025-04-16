@@ -16,18 +16,18 @@ use std::{
 
 use convert_case::{Case, Casing};
 use hash_testing_internal::metadata::{
-    parse_test_case_metadata, ParseWarning, ParsedMetadata, TestMetadata,
+    ParseWarning, ParsedMetadata, TestMetadata, parse_test_case_metadata,
 };
 use proc_macro::{Span, TokenStream};
 use proc_macro_error::{Diagnostic, Level};
 use quote::{format_ident, quote};
 use regex::Regex;
 use syn::{
+    Expr,
     parse::{Parse, ParseStream},
     parse_macro_input,
     punctuated::Punctuated,
     token::Comma,
-    Expr,
 };
 
 /// Struct representing parameter inputs to the [`generate_tests!`] proc macro.

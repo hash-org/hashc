@@ -1,7 +1,7 @@
 //! Hash Compiler entry point.
 use std::panic;
 
-use hash_driver::{utils, CompilerBuilder};
+use hash_driver::{CompilerBuilder, utils};
 use hash_pipeline::settings::CompilerSettings;
 use hash_utils::{
     crash::crash_handler, log, logging::CompilerLogger, stream::CompilerOutputStream,

@@ -1,11 +1,11 @@
 //! Hash AST semantic passes diagnostic definitions and logic.
 
+use derive_more::From;
 use hash_ast::ast::AstNodeId;
 use hash_reporting::{
     diagnostic::{DiagnosticStore, HasDiagnosticsMut},
     reporter::Reports,
 };
-use hash_utils::derive_more::From;
 
 use self::{error::AnalysisError, warning::AnalysisWarning};
 use crate::analysis::SemanticAnalyser;

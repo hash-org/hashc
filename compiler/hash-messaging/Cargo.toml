@@ -1,15 +1,15 @@
 [package]
 name = "hash-messaging"
 version = "0.1.0"
-authors = ["The Hash Language authors"]
-edition = "2021"
+authors = { workspace = true }
+edition = { workspace = true }
 
 [lib]
 doctest = false
 
 [dependencies]
-hash-reporting = {path = "../hash-reporting" }
-hash-utils = {path = "../hash-utils" }
+hash-reporting = { workspace = true }
+hash-utils = { workspace = true }
 
 # perhaps this isn't ideal to put here?
-hash-pipeline = {path = "../hash-pipeline" }
+hash-pipeline = { workspace = true }

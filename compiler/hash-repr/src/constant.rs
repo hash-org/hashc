@@ -6,6 +6,7 @@
 
 use std::fmt::Debug;
 
+use derive_more::Constructor;
 use hash_source::constant::{AllocId, Scalar};
 use hash_storage::store::statics::StoreId;
 use hash_target::data_layout::HasDataLayout;
@@ -13,10 +14,10 @@ use hash_target::data_layout::HasDataLayout;
 // them who depends on `hash-source`
 pub use hash_target::primitives::*;
 pub use hash_target::size::Size;
-use hash_utils::{derive_more::Constructor, num_bigint::BigInt};
+use hash_utils::num_bigint::BigInt;
 use paste::paste;
 
-use crate::ty::{ReprTyId, COMMON_REPR_TYS};
+use crate::ty::{COMMON_REPR_TYS, ReprTyId};
 
 /// A [Const] represents a constant value within the Hash IR. This can
 /// be anything that can be represented as a constant, including ABI scalars,
