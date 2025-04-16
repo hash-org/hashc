@@ -38,10 +38,10 @@ option_monad := () => {
       b: U -> Option<V>
     ) -> Option<V> => {
       match a {
-        Option::Some(x) => b(x),
-        Option::None => Option::None
+        Option.Some(x) => b(x),
+        Option.None => Option.None
       }
     },
-    ret = <U> => (x: U) -> Option<U> => Option::Some(x)
+    ret = <U> => (x: U) -> Option<U> => Option.Some(x)
   )
 }
