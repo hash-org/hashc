@@ -1,0 +1,26 @@
+// stage=exe, run=pass
+
+printing := import("printing");
+
+
+Array := struct(
+    data: [u8],
+    capacity: usize,
+)
+
+Decimal := struct(
+    sign: u8,
+    exponent: i32,
+    mantissa: [u8; 16],
+)
+
+main := () => {
+    printing::print_usize(#size_of Decimal); // Should be 24
+    println("")
+    printing::print_usize(#size_of u32); // Should be 4
+    println("")
+    printing::print_usize(#size_of str); // Should be 8
+    println("")
+    printing::print_usize(#size_of Array); // Should be 24
+    println("")
+}

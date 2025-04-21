@@ -2,6 +2,7 @@
 //! applied before continuing processing of the TIR.
 
 use hash_ast::ast;
+use hash_source::identifier::IDENTS;
 use hash_tir::{
     intrinsics::definitions::Intrinsic,
     tir::{Arg, CallTerm, NodeOrigin, Term, TermId},
@@ -35,6 +36,16 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
 
             // Check what kind of invocation we have.
             match invocation.name.ident {
+                n if n == IDENTS.size_of => {
+                    subject = Term::from(
+                        CallTerm {
+                            subject: Term::from(Term::Intrinsic(Intrinsic::SizeOf), origin),
+                            args: Arg::seq_positional([subject], origin),
+                            implicit: false,
+                        },
+                        origin,
+                    );
+                }
                 _ => {
                     // Don't do anything, but potentially emit a warning for an
                     // unknown directive (as we should of
