@@ -1,4 +1,4 @@
-//! This module contains printing utilties for the language.
+//! This module contains printing utilities for the language.
 
 math := import("math");
 
@@ -37,9 +37,66 @@ print_int := (value: i32) => {
     libc::free(data);
 }
 
+/// Simple printing utility for usize values. Similar to print_int but handles
+/// the usize type which is commonly used for indices and memory sizes.
+print_usize := (value: usize) => {
+    if value == 0 {
+        print_char('0');
+        return;
+    }
+
+    // Allocate a buffer large enough to hold any usize value
+    // For a 64-bit system, the maximum usize would need at most 20 characters 
+    // plus a null terminator
+    data := libc::malloc(24);
+    buf: [u8] = Intrinsics::transmute(type SizedPointer, type [u8], SizedPointer(data, 24));
+    len := usize_to_string(value, buf, 10);
+
+    // Convert it back to a sized_ptr and trim the string
+    new_buf := Intrinsics::transmute(type [u8], type SizedPointer, buf);
+    new_buf.1 = len;
+
+    message := Intrinsics::transmute(type SizedPointer, type str, new_buf);
+    print(message);
+
+    libc::free(data);
+}
+
+/// Helper function to convert a usize to a string
+priv usize_to_string := (value: usize, buf: [u8], base: i32) -> usize => {
+    mut i := 0usize;
+
+    if value == 0 {
+        buf[i] = 0u8;
+        return i + 1usize;
+    }
+
+    // Note: No need to check for negative values since usize is unsigned
+    
+    mut val := value;
+    // Keep dividing by the base until we get 0 and add the remainder.
+    while val != 0 {
+        rem := cast<usize, i32>(val % cast<i32, usize>(base));
+
+        // Convert the remainder into a character.
+        buf[i] = if rem > 9 {
+            Intrinsics::cast(type i32, type u8, (rem - 10) + 65)
+        } else {
+            // We add `48` to denote the ASCII offset for numbers.
+            Intrinsics::cast(type i32, type u8, rem + 48)
+        };
+
+        i += 1;
+        val /= cast<i32, usize>(base);
+    }
+
+    reverse(buf, i);
+    i
+}
+
 /// Print a f64 value.
 ///
-/// @@Todo: make the `print_float` have a default argument of preicision, rather
+/// @@Todo: make the `print_float` have a default argument of precision, rather
 /// than having a separate function.
 print_float := (value: f64) => {
     print_float_with_precision(value, 6)

@@ -1,0 +1,29 @@
+// run=fail, stage=semantic
+
+// Size_of can only work on exprs/types/expr-args
+
+// ~ERROR: This cannot make sense since we're attempting to apply this to
+// a literal value.
+#size_of 5;
+
+// ~ERROR: Cannot directly apply to a declaration.
+#size_of
+Val := struct (
+    x: i32,
+    y: i32,
+    z: usize,
+);
+
+foo := () => {
+    // ~ERROR: Cannot apply size_of to a expr arg with a name, this
+    // should be directly on the value itself.
+    bar(#size_of z=Val);
+}
+
+bar := (z: usize) -> Val => {
+    Val(
+        x=5,
+        y=6,
+        z=z,
+    )
+}

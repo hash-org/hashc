@@ -39,6 +39,9 @@ pub enum FnCallTermKind {
     /// first term into the desired second [ReprTyId].
     Cast(TermId, ReprTyId),
 
+    /// Size of call.
+    SizeOf(TermId),
+
     /// A "boolean" binary operation which takes two terms and yields a boolean
     /// term as a result.
     BinaryOp(BinOp, TermId, TermId),
@@ -113,6 +116,13 @@ impl BodyBuilder<'_> {
 
                         FnCallTermKind::Cast(value, ty)
                     }
+                    TirIntrinsic::AlignOf => {
+                        unimplemented!("align_of/ptr_offset not implemented yet")
+                    }
+                    TirIntrinsic::SizeOf => {
+                        let value = args.at(0).unwrap().borrow().value;
+                        FnCallTermKind::SizeOf(value)
+                    }
                     TirIntrinsic::CondBinOp => {
                         let (op, lhs, rhs) = (
                             args.at(1).unwrap().borrow().value,
@@ -167,9 +177,7 @@ impl BodyBuilder<'_> {
 
                         FnCallTermKind::UnaryOp(parsed_op, subject)
                     }
-                    TirIntrinsic::SizeOf
-                    | TirIntrinsic::AlignOf
-                    | TirIntrinsic::PtrOffset
+                    TirIntrinsic::PtrOffset
                     | TirIntrinsic::Transmute
                     | TirIntrinsic::Memcmp
                     | TirIntrinsic::Memcpy

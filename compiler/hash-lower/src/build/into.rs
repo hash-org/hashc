@@ -158,6 +158,22 @@ impl BodyBuilder<'_> {
                             this.fn_call_into_dest(destination, block, subject, args, span)
                         })
                     }
+                    FnCallTermKind::SizeOf(op) => {
+                        // We need to get the size of the type that is being passed in
+                        // as an operand.
+                        let ty = self.ty_id_from_tir_ty(op);
+                        let size = self.ctx.size_of(ty).unwrap();
+                        let constant = Const::usize(size as u64, &self.ctx);
+
+                        self.control_flow_graph.push_assign(
+                            block,
+                            destination,
+                            constant.into(),
+                            span,
+                        );
+                        block.unit()
+                    }
+
                     FnCallTermKind::Cast(..)
                     | FnCallTermKind::UnaryOp(_, _)
                     | FnCallTermKind::BinaryOp(_, _, _) => {

@@ -211,7 +211,7 @@ macro_rules! make_intrinsics {
                             #[allow(clippy::redundant_closure_call)]
                             (|$env: I| $impl)(env)
                         },
-                        _ => Err(format!("intrinisic `{}` has type {}, but got {} arguments", stringify!($name), self.ty(), args.len()))
+                        _ => Err(format!("intrinsic `{}` has type {}, but got {} arguments", stringify!($name), self.ty(), args.len()))
                     }
                 }
             }
