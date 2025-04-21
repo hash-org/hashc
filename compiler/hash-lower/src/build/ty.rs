@@ -116,6 +116,9 @@ impl BodyBuilder<'_> {
 
                         FnCallTermKind::Cast(value, ty)
                     }
+                    TirIntrinsic::AlignOf => {
+                        unimplemented!("align_of/ptr_offset not implemented yet")
+                    }
                     TirIntrinsic::SizeOf => {
                         let value = args.at(0).unwrap().borrow().value;
                         FnCallTermKind::SizeOf(value)
@@ -174,8 +177,7 @@ impl BodyBuilder<'_> {
 
                         FnCallTermKind::UnaryOp(parsed_op, subject)
                     }
-                    | TirIntrinsic::AlignOf
-                    | TirIntrinsic::PtrOffset
+                    TirIntrinsic::PtrOffset
                     | TirIntrinsic::Transmute
                     | TirIntrinsic::Memcmp
                     | TirIntrinsic::Memcpy
