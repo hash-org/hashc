@@ -16,6 +16,7 @@ use super::{analysis_pass::AnalysisPass, ast_info::AstInfo};
 use crate::{diagnostics::definitions::SemanticResult, env::SemanticEnv, progress::AnalysisStage};
 
 pub mod defs;
+pub mod directives;
 pub mod exprs;
 pub mod params;
 pub(crate) mod pat_binds;

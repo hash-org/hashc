@@ -65,6 +65,8 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
             .iter()
             .enumerate()
             .map(|(i, arg)| {
+                let value = self.apply_directives(arg.macros.as_ref(), arg.value.ast_ref())?;
+
                 Ok(Node::at(
                     Arg {
                         target: arg
@@ -72,7 +74,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                             .as_ref()
                             .map(|name| ParamIndex::Name(name.ident))
                             .unwrap_or_else(|| ParamIndex::pos(i)),
-                        value: self.make_term_from_ast_expr(arg.value.ast_ref())?,
+                        value,
                     },
                     NodeOrigin::Given(arg.id()),
                 ))
@@ -91,6 +93,8 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
             .iter()
             .enumerate()
             .map(|(i, arg)| {
+                let value = self.apply_directives(arg.macros.as_ref(), arg.value.ast_ref())?;
+
                 Ok(Node::at(
                     Arg {
                         target: arg
@@ -98,7 +102,7 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                             .as_ref()
                             .map(|name| ParamIndex::Name(name.ident))
                             .unwrap_or_else(|| ParamIndex::pos(i)),
-                        value: self.make_term_from_ast_expr(arg.value.ast_ref())?,
+                        value,
                     },
                     NodeOrigin::Given(arg.id()),
                 ))
@@ -439,12 +443,15 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
         }
     }
 
-    /// Make a term from an [`ast::DirectiveExpr`].
+    /// Make a term from an [`ast::ExprMacroInvocation`].
     fn make_term_from_ast_macro_invocation_expr(
         &self,
         node: AstNodeRef<ast::ExprMacroInvocation>,
     ) -> SemanticResult<TermId> {
-        self.make_term_from_ast_expr(node.subject.ast_ref())
+        // Here, we need to check what kind of invocation this is, and whether we need
+        // to map into an intrinsic call.
+        let ast::ExprMacroInvocation { macros, subject } = node.body();
+        self.apply_directives(Some(macros), subject.ast_ref())
     }
 
     /// Make a term from an [`ast::Declaration`] in non-constant scope.
