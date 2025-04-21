@@ -360,6 +360,7 @@ core_idents! {
     entry_point: "entry_point",
     transmute: "transmute",
     cast: "cast",
+    size_of: "size_of",
 
     // Language attributes
     no_mangle: "no_mangle",
