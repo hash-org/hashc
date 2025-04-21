@@ -1,6 +1,7 @@
 //! Implementation of attribute checking for specific attributes.
 //!
 //!  
+use hash_ast::ast;
 use hash_ast_utils::attr::{AttrNode, AttrTarget};
 use hash_source::SourceId;
 use hash_target::data_layout::TargetDataLayout;
@@ -42,6 +43,7 @@ impl<'env> AttrChecker<'env> {
             attrs::INTRINSICS => self.check_intrinsics_attr(attrs, attr, node)?,
             attrs::REPR => self.check_repr_attr(attrs, attr, node)?,
             attrs::LAYOUT_OF => self.check_layout_of_attr(attrs, attr, node)?,
+            attrs::SIZE_OF => self.check_size_of_attr(attrs, attr, node)?,
             _ => {
                 // By default, check if we are trying to apply the attribute twice.
                 self.check_duplicate_attr(attrs, attr)?;
@@ -157,5 +159,35 @@ impl<'env> AttrChecker<'env> {
         } else {
             Ok(())
         }
+    }
+
+    /// Check that the `#size_of` attribute application is valid.
+    fn check_size_of_attr(&mut self, attrs: &Attrs, attr: &Attr, node: AttrNode<'_>) -> AttrResult {
+        self.check_duplicate_attr(attrs, attr)?;
+
+        if let AttrNode::ExprArg(arg) = &node {
+            let ast::ExprArg { name, value, .. } = arg.body();
+
+            // If we have a name, emit an error to indicate that
+            // we may not allow this size_of to be applied since
+            // it's not being directly applied to the value, but rather
+            // the entire `expr_arg`, i.e.
+            //
+            // We do not allow this:
+            // ```
+            //    #size_of z=Val;
+            // ```
+            //
+            // But we do allow this:
+            // ```
+            //    #size_of Val;
+            // ```
+            if let Some(name) = name {
+                let arg_name_span = name.span().join(value.span());
+                return Err(AttrError::InvalidSizeOfExprArg { subject: arg_name_span });
+            }
+        }
+
+        Ok(())
     }
 }

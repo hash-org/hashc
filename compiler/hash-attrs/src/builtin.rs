@@ -92,6 +92,7 @@ define_attrs!(
     // Language feature based attributes.
     // ------------------------------------------
     run { AttrTarget::Expr },
+    size_of { AttrTarget::Ty | AttrTarget::Field | AttrTarget::Expr },
 
     // ------------------------------------------
     // Function attributes.

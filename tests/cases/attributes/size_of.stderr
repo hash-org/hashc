@@ -1,0 +1,24 @@
+error: attribute `size_of` cannot be applied to an a literal
+ --> $DIR/size_of.hash:7:2
+6 |   // a literal value.
+7 |   #size_of 5;
+  |    ^^^^^^^ `size_of` cannot be applied to a literal
+8 |   
+  = help: `size_of` can only be applied to either expression, type, or field
+
+error: attribute `size_of` cannot be applied to an a `struct` definition
+  --> $DIR/size_of.hash:10:2
+ 9 |   // ~ERROR: Cannot directly apply to a declaration.
+10 |   #size_of
+   |    ^^^^^^^ `size_of` cannot be applied to a `struct` definition
+11 |   Val := struct (
+   = help: `size_of` can only be applied to either expression, type, or field
+
+error: cannot apply `#size_of` to a named argument
+  --> $DIR/size_of.hash:20:18
+19 |       // should be directly on the value itself.
+20 |       bar(#size_of z=Val);
+   |                    ^^^^^ cannot apply `#size_of` to this argument
+21 |   }
+   = note: `#size_of` cannot be applied to an expression with a name.
+           Instead move the `#size_of` to the expression itself.

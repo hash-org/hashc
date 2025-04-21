@@ -3,6 +3,7 @@
 use hash_ast::ast::AstNodeId;
 use hash_ast_utils::attr::AttrTarget;
 use hash_reporting::reporter::Reporter;
+use hash_source::location::Span;
 use hash_utils::printing::SequenceDisplay;
 
 use crate::attr::{AttrValue, REPR_OPTIONS};
@@ -65,6 +66,10 @@ pub enum AttrError {
         generics: AstNodeId,
     },
 
+    /// When a `size_of` is being applied to an expr-arg which has a name that
+    /// is associate with the argument.
+    InvalidSizeOfExprArg { subject: Span },
+
     /// When a `ubig` or `ibig` is being used as a `repr` value.
     InvalidReprIntKind { arg: AttrValue },
 }
@@ -110,6 +115,13 @@ impl AttrError {
                     .title(format!("cannot use `#layout_of` on {item} with generic parameters"))
                     .add_labelled_span(origin.span(), "this item is generic")
                     .add_labelled_span(generics.span(), "generic parameters declared here");
+            }
+            AttrError::InvalidSizeOfExprArg { subject } => {
+                reporter
+                    .error()
+                    .title("cannot apply `#size_of` to a named argument")
+                    .add_labelled_span(*subject, "cannot apply `#size_of` to this argument")
+                    .add_note("`#size_of` cannot be applied to an expression with a name.\nInstead move the `#size_of` to the expression itself.");
             }
             AttrError::InvalidReprIntKind { arg } => {
                 reporter
