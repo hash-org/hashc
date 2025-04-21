@@ -1,4 +1,4 @@
-//! This module contains printing utilties for the language.
+//! This module contains printing utilities for the language.
 
 math := import("math");
 
@@ -39,7 +39,7 @@ print_int := (value: i32) => {
 
 /// Print a f64 value.
 ///
-/// @@Todo: make the `print_float` have a default argument of preicision, rather
+/// @@Todo: make the `print_float` have a default argument of precision, rather
 /// than having a separate function.
 print_float := (value: f64) => {
     print_float_with_precision(value, 6)
