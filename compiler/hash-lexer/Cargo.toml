@@ -15,7 +15,7 @@ hash-target = { workspace = true }
 hash-utils = { workspace = true }
 
 [dev-dependencies]
-criterion = "0.5.1"
+criterion = "0.7.0"
 
 [[bench]]
 name = "bench"

@@ -38,5 +38,5 @@ hash-testing-macros = { workspace = true }
 hash-testing-internal = { workspace = true }
 
 [dev-dependencies]
-clap = { version = "4.3.8", features = ["derive"] }
+clap = { version = "4.5.47", features = ["derive"] }
 rusty-fork = "0.3"
