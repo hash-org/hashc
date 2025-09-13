@@ -24,12 +24,12 @@ This will build the compiler without the `llvm` feature, and hence you won't hav
 ### Linux, macOS
 
 You can download this version of LLVM from
-[here](https://github.com/llvm/llvm-project/releases/tag/llvmorg-15.0.6) for
+[here](https://github.com/llvm/llvm-project/releases/tag/llvmorg-18.1.8) for
 your specific OS. Additionally, you need to install `zstd`  (which can be
 aquired using a package manager or from
 [here](https://github.com/facebook/zstd/releases/tag/v1.5.5)).
 
-Once LLVM 15.0.6 and `zstd` are installed, you need to set the following
+Once LLVM 18.1.8 and `zstd` are installed, you need to set the following
 environment variables, replacing `$PATH_TO_LLVM` and `$PATH_TO_ZSTD`
 appropriately for your system depending on your installation:
 
@@ -40,7 +40,7 @@ export DYLD_LIBRARY_PATH="$DYLD_LIBRARY_PATH:$PATH_TO_LLVM/lib"
 export LDFLAGS="-L$PATH_TO_LLVM/lib"
 export CPPFLAGS="-I$PATH_TO_LLVM/include"
 export PATH="$PATH:$PATH_TO_LLVM/bin"
-export LLVM_SYS_150_PREFIX="$PATH_TO_LLVM"
+export LLVM_SYS_181_PREFIX="$PATH_TO_LLVM"
 ```
 
 This can be put in your shell script startup file
@@ -55,7 +55,7 @@ To install on Windows, the simplest way to install it is using
 [Chocolatey](https://chocolatey.org/):
 
 ```pwsh
-choco install llvm --version 15.0.6
+choco install llvm --version 18.1.8
 ```
 
 Alternatively, you can download the pre-built binaries from the [LLVM
