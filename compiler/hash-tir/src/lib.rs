@@ -4,7 +4,7 @@
 //! It is used to perform semantic analysis and type checking. After this
 //! stage, the TIR is lowered into the IR, which continues on down the
 //! pipeline.
-#![feature(let_chains, decl_macro, trait_alias, never_type, unwrap_infallible, macro_metavar_expr)]
+#![feature(decl_macro, trait_alias, never_type, unwrap_infallible, macro_metavar_expr)]
 #![recursion_limit = "128"]
 
 pub mod atom_info;

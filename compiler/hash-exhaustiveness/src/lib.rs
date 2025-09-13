@@ -45,7 +45,7 @@
 //! inspired by and based off of the Rust Compiler implementation:
 //!
 //! <https://github.com/rust-lang/rust/tree/master/compiler/rustc_mir_build/src/thir/pattern/usefulness.rs>
-#![feature(let_chains, if_let_guard)]
+#![feature(if_let_guard)]
 
 // ##GeneratedOrigin(crate): This crate only produces TIR nodes which are
 // printed, and never shown as a span in any diagnostics. Therefore, all origins

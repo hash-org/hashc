@@ -1,7 +1,6 @@
 //! Hash AST expanding passes crate. This crate holds an implementation for the
 //! visitor pattern on the AST in order to expand any directives or macros that
 //! need to run after the parsing stage. Currently this function does not have
-#![feature(let_chains)]
 
 use diagnostics::ExpansionDiagnostic;
 use expander::AstExpander;

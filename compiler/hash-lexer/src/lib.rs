@@ -1,5 +1,5 @@
 //! Hash Compiler Lexer crate.
-#![feature(cell_update, let_chains, if_let_guard)]
+#![feature(if_let_guard)]
 
 use std::cell::Cell;
 

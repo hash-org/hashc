@@ -1,5 +1,5 @@
 //! Hash Compiler source location definitions.
-#![feature(path_file_prefix, let_chains, const_trait_impl, box_patterns)]
+#![feature(const_trait_impl, box_patterns)]
 
 pub mod constant;
 pub mod entry_point;

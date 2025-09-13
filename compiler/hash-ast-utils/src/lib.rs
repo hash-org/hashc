@@ -2,7 +2,6 @@
 //! crate defines AST printing functionalities, including the `tree` view
 //! and the `pretty` printing view, in addition to the implementation of
 //! the `#dump_ast` directive.
-#![feature(let_chains)]
 #![allow(dead_code)]
 
 pub mod attr;

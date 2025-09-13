@@ -6,7 +6,6 @@
 //! One of the main uses of this crate uses `hash-layout` to provide needed
 //! information about data representation when constructing and destructing
 //! Hash IR constants into various representations.
-#![feature(let_chains)]
 pub mod graphviz;
 pub mod pretty;
 

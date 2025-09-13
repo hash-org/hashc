@@ -1,5 +1,5 @@
 //! Hash Compiler Intermediate Representation (IR) crate.
-#![feature(let_chains, type_alias_impl_trait, decl_macro, box_patterns, variant_count)]
+#![feature(type_alias_impl_trait, decl_macro, box_patterns, variant_count)]
 
 pub mod basic_blocks;
 pub mod cast;
