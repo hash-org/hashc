@@ -10,7 +10,10 @@ use crate::{env::TcEnv, tc::Tc};
 impl<T: TcEnv> Tc<'_, T> {
     /// Create a new [ExhaustivenessChecker] so it can be used to check
     /// refutability or exhaustiveness of patterns.
-    pub fn exhaustiveness_checker<U: HasAstNodeId>(&self, subject: U) -> ExhaustivenessChecker<T> {
+    pub fn exhaustiveness_checker<U: HasAstNodeId>(
+        &self,
+        subject: U,
+    ) -> ExhaustivenessChecker<'_, T> {
         let location = subject.span().unwrap();
         ExhaustivenessChecker::new(location, self.env, self.context)
     }

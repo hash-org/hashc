@@ -32,7 +32,7 @@ pub struct AstDesugaringCtx<'a> {
 }
 
 pub trait AstDesugaringCtxQuery: CompilerInterface {
-    fn data(&mut self) -> AstDesugaringCtx;
+    fn data(&mut self) -> AstDesugaringCtx<'_>;
 }
 
 impl<Ctx: AstDesugaringCtxQuery> CompilerStage<Ctx> for AstDesugaringPass {

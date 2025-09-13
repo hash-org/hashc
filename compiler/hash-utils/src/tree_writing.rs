@@ -159,7 +159,7 @@ impl<'t> TreeWriter<'t, '_> {
         child_index == self.tree.children.len() - 1
     }
 
-    fn next_depth(&self, child: &'t TreeNode, child_index: usize) -> TreeWriter {
+    fn next_depth(&self, child: &'t TreeNode, child_index: usize) -> TreeWriter<'_, '_> {
         let vertical_line_or_pad = iter::once(if self.is_last(child_index) {
             self.config.pad
         } else {

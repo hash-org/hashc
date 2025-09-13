@@ -57,7 +57,7 @@ impl<E: SemanticEnv> HasTarget for TcEnvImpl<'_, E> {
 }
 
 impl<E: SemanticEnv> HasLayout for TcEnvImpl<'_, E> {
-    fn layout_computer(&self) -> LayoutComputer {
+    fn layout_computer(&self) -> LayoutComputer<'_> {
         self.env.layout_computer()
     }
 }

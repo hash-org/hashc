@@ -37,7 +37,7 @@ impl<T: TcEnv> HasTarget for IntrinsicAbilitiesImpl<'_, T> {
 }
 
 impl<T: TcEnv> HasLayout for IntrinsicAbilitiesImpl<'_, T> {
-    fn layout_computer(&self) -> LayoutComputer {
+    fn layout_computer(&self) -> LayoutComputer<'_> {
         self.tc.layout_computer()
     }
 }

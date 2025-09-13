@@ -34,7 +34,7 @@ pub struct UntypedSemanticAnalysisCtx<'s> {
 /// A trait that allows the [SemanticAnalysis] stage to query the
 /// pipeline for the required information.
 pub trait UntypedSemanticAnalysisCtxQuery: CompilerInterface {
-    fn data(&mut self) -> UntypedSemanticAnalysisCtx;
+    fn data(&mut self) -> UntypedSemanticAnalysisCtx<'_>;
 }
 
 impl<Ctx: UntypedSemanticAnalysisCtxQuery> CompilerStage<Ctx> for UntypedSemanticAnalysis {

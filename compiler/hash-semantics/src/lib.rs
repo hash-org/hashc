@@ -66,7 +66,7 @@ pub struct SemanticAnalysisCtx<'env> {
 }
 
 pub trait SemanticAnalysisCtxQuery: CompilerInterface {
-    fn data(&mut self) -> SemanticAnalysisCtx;
+    fn data(&mut self) -> SemanticAnalysisCtx<'_>;
 }
 
 impl<Ctx: SemanticAnalysisCtxQuery> CompilerStage<Ctx> for SemanticAnalysis {
@@ -151,7 +151,7 @@ impl HasTarget for SemanticEnvImpl<'_> {
 }
 
 impl HasLayout for SemanticEnvImpl<'_> {
-    fn layout_computer(&self) -> LayoutComputer {
+    fn layout_computer(&self) -> LayoutComputer<'_> {
         LayoutComputer::new(self.ctx.lcx)
     }
 }

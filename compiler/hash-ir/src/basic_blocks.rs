@@ -163,7 +163,7 @@ impl<'s> graph::GraphSuccessors<'s> for BasicBlocks {
 }
 
 impl graph::WithSuccessors for BasicBlocks {
-    fn successors(&self, node: BasicBlock) -> <Self as graph::GraphSuccessors>::Iter {
+    fn successors(&self, node: BasicBlock) -> <Self as graph::GraphSuccessors<'_>>::Iter {
         self.blocks[node].terminator().successors()
     }
 }

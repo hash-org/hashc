@@ -54,7 +54,7 @@ impl<E: TcEnv> Tc<'_, E> {
     }
 
     /// Create a substituter for this typechecker.
-    pub fn substituter(&self) -> Substituter<E> {
+    pub fn substituter(&self) -> Substituter<'_, E> {
         Substituter::new(self)
     }
 }

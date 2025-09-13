@@ -47,7 +47,7 @@ pub struct AstExpansionCtx<'ctx> {
 /// A trait that allows the [AstExpansionPass] stage to query the
 /// pipeline for the required information.
 pub trait AstExpansionCtxQuery: CompilerInterface {
-    fn data(&mut self) -> AstExpansionCtx;
+    fn data(&mut self) -> AstExpansionCtx<'_>;
 }
 
 impl<Ctx: AstExpansionCtxQuery> CompilerStage<Ctx> for AstExpansionPass {

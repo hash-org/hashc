@@ -186,12 +186,12 @@ impl NodeMap {
     }
 
     /// /// Create an [Iter] over the currently stores modules within [NodeMap]
-    pub fn iter_modules(&self) -> Iter<ModuleId, ModuleEntry> {
+    pub fn iter_modules(&self) -> Iter<'_, ModuleId, ModuleEntry> {
         self.modules.iter()
     }
 
     /// Create an [IterMut] over the currently stores modules within [NodeMap].
-    pub fn iter_mut_modules(&mut self) -> IterMut<ModuleId, ModuleEntry> {
+    pub fn iter_mut_modules(&mut self) -> IterMut<'_, ModuleId, ModuleEntry> {
         self.modules.iter_mut()
     }
 }

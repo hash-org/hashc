@@ -619,5 +619,5 @@ impl LayoutId {
 
 /// Interface to access information about the representations and layout.
 pub trait HasLayout {
-    fn layout_computer(&self) -> LayoutComputer;
+    fn layout_computer(&self) -> LayoutComputer<'_>;
 }

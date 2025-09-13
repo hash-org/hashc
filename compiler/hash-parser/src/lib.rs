@@ -72,7 +72,7 @@ pub struct ParserCtx<'p> {
 }
 
 pub trait ParserCtxQuery: CompilerInterface {
-    fn data(&mut self) -> ParserCtx;
+    fn data(&mut self) -> ParserCtx<'_>;
 }
 
 impl<Ctx: ParserCtxQuery> CompilerStage<Ctx> for Parser {

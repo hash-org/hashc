@@ -96,22 +96,22 @@ impl IrCtx {
     }
 
     /// Get a reference to the [Intrinsics] map.
-    pub fn intrinsics(&self) -> Ref<Intrinsics> {
+    pub fn intrinsics(&self) -> Ref<'_, Intrinsics> {
         self.intrinsics.borrow()
     }
 
     /// Get a mutable reference to the [Intrinsics] map.
-    pub fn intrinsics_mut(&self) -> RefMut<Intrinsics> {
+    pub fn intrinsics_mut(&self) -> RefMut<'_, Intrinsics> {
         self.intrinsics.borrow_mut()
     }
 
     /// Get a reference to the [LangItems] map.
-    pub fn lang_items(&self) -> Ref<LangItems> {
+    pub fn lang_items(&self) -> Ref<'_, LangItems> {
         self.lang_items.borrow()
     }
 
     /// Get a mutable reference to the [LangItems] map.
-    pub fn lang_items_mut(&self) -> RefMut<LangItems> {
+    pub fn lang_items_mut(&self) -> RefMut<'_, LangItems> {
         self.lang_items.borrow_mut()
     }
 }

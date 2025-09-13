@@ -37,7 +37,7 @@ pub trait WithPredecessors: DirectedGraph
 where
     Self: for<'graph> GraphPredecessors<'graph, Item = <Self as DirectedGraph>::Node>,
 {
-    fn predecessors(&self, node: Self::Node) -> <Self as GraphPredecessors>::Iter;
+    fn predecessors(&self, node: Self::Node) -> <Self as GraphPredecessors<'_>>::Iter;
 }
 
 pub trait GraphSuccessors<'graph> {
@@ -52,7 +52,7 @@ where
     Self: for<'graph> GraphSuccessors<'graph, Item = <Self as DirectedGraph>::Node>,
 {
     /// Get the successors of a node.
-    fn successors(&self, node: Self::Node) -> <Self as GraphSuccessors>::Iter;
+    fn successors(&self, node: Self::Node) -> <Self as GraphSuccessors<'_>>::Iter;
 
     /// Create a [DepthFirstSearch] iterator that starts at the given
     /// node.

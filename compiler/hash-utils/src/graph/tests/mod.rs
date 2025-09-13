@@ -79,7 +79,7 @@ impl super::GraphPredecessors<'_> for TestGraph {
 }
 
 impl WithPredecessors for TestGraph {
-    fn predecessors(&self, node: TestNode) -> <Self as super::GraphPredecessors>::Iter {
+    fn predecessors(&self, node: TestNode) -> <Self as super::GraphPredecessors<'_>>::Iter {
         let nodes = self.predecessors[&node.index()]
             .clone()
             .into_iter()
@@ -96,7 +96,7 @@ impl super::GraphSuccessors<'_> for TestGraph {
 }
 
 impl super::WithSuccessors for TestGraph {
-    fn successors(&self, node: TestNode) -> <Self as super::GraphSuccessors>::Iter {
+    fn successors(&self, node: TestNode) -> <Self as super::GraphSuccessors<'_>>::Iter {
         let nodes = self.successors[&node.index()]
             .clone()
             .into_iter()
