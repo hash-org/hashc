@@ -218,7 +218,7 @@ pub fn generate_tests(input: TokenStream) -> TokenStream {
     let call_site = Span::call_site();
 
     let file_path = fs::canonicalize(
-        call_site.source_file().path().parent().unwrap().to_owned().join(test_path),
+        call_site.local_file().unwrap().parent().unwrap().to_owned().join(test_path),
     )
     .unwrap();
 
