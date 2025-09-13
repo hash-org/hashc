@@ -269,13 +269,13 @@ impl AstVisitorMutSelf for SemanticAnalyser {
         // constant scope, then we should check if binding contains a visibility
         // modifier which is disallowed within body blocks.
         if self.is_in_constant_block() {
-            if let Some(mut_annotation) = mutability {
-                if *mut_annotation.body() == ast::Mutability::Mutable {
-                    self.append_error(
-                        AnalysisErrorKind::IllegalBindingMutability,
-                        mut_annotation.ast_ref(),
-                    );
-                }
+            if let Some(mut_annotation) = mutability
+                && *mut_annotation.body() == ast::Mutability::Mutable
+            {
+                self.append_error(
+                    AnalysisErrorKind::IllegalBindingMutability,
+                    mut_annotation.ast_ref(),
+                );
             }
         } else if let Some(visibility_annotation) = visibility {
             self.append_error(

@@ -346,13 +346,13 @@ impl<'m> ExtendedTyBuilderMethods<'m> for TyInfo {
 
                                     // If we have a specific variant for this layout, then we
                                     // can be more precise about the type name..
-                                    if let Variants::Single { index } = &layout.variants {
-                                        if adt.flags.is_enum() {
-                                            return Some(format!(
-                                                "{}::{}",
-                                                name, adt.variants[*index].name
-                                            ));
-                                        }
+                                    if let Variants::Single { index } = &layout.variants
+                                        && adt.flags.is_enum()
+                                    {
+                                        return Some(format!(
+                                            "{}::{}",
+                                            name, adt.variants[*index].name
+                                        ));
                                     }
 
                                     Some(format!("{name}"))

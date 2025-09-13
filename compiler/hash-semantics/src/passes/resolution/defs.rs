@@ -63,82 +63,62 @@ impl<'env, E: SemanticEnv + 'env> ResolutionPass<'env, E> {
                 ast::Expr::StructDef(struct_def) => {
                     // Type parameters
                     if let Some(ty_params) = &struct_def.ty_params {
-                        attempt(self.resolve_params_from_ast_ty_params(
-                            ty_params
-                        ));
+                        attempt(self.resolve_params_from_ast_ty_params(ty_params));
                     }
 
-                    self.scoping().enter_scope(
-                        ContextKind::Environment,
-                        || {
-                            // Struct fields
-                            attempt(self.resolve_params_from_ast_params(
-                                &struct_def.fields,
-                                false,
-                            ));
-                        },
-                    );
+                    self.scoping().enter_scope(ContextKind::Environment, || {
+                        // Struct fields
+                        attempt(self.resolve_params_from_ast_params(&struct_def.fields, false));
+                    });
                 }
                 ast::Expr::EnumDef(enum_def) => {
                     // Type parameters
                     if let Some(ty_params) = &enum_def.ty_params {
-                        attempt(self.resolve_params_from_ast_ty_params(
-                            ty_params
-                        ));
+                        attempt(self.resolve_params_from_ast_ty_params(ty_params));
                     }
 
                     // Enum variants
-                    let data_def_ctors =
-                        match data_def_id.borrow().ctors {
-                            DataDefCtors::Defined(id) => id,
-                            DataDefCtors::Primitive(_) => unreachable!() // No primitive user-defined enums
-                        };
+                    let data_def_ctors = match data_def_id.borrow().ctors {
+                        DataDefCtors::Defined(id) => id,
+                        DataDefCtors::Primitive(_) => unreachable!(), /* No primitive
+                                                                       * user-defined enums */
+                    };
                     assert!(data_def_ctors.len() == enum_def.entries.len());
 
                     for (i, variant) in enum_def.entries.ast_ref_iter().enumerate() {
-                        self.scoping().enter_scope(
-                            ContextKind::Environment,
-                            || {
-                                // Variant fields
-                                if let Some(fields) = &variant.fields {
-                                    attempt(self.resolve_params_from_ast_params(
-                                        fields,
-                                        false,
-                                    ));
-                                }
+                        self.scoping().enter_scope(ContextKind::Environment, || {
+                            // Variant fields
+                            if let Some(fields) = &variant.fields {
+                                attempt(self.resolve_params_from_ast_params(fields, false));
+                            }
 
-                                // Variant indices
-                                if let Some(variant_ty) = variant.ty.as_ref() {
-                                    if let Some(result) = self.try_or_add_error(
-                                        self.make_ty_from_ast_ty(variant_ty.ast_ref()),
-                                    ) {
-                                        match *result.value() {
-                                            Ty::DataTy(d) if d.data_def == data_def_id => {
-                                                // Variant type is the same as the enum type
-                                                data_def_ctors.value().borrow_mut()[i].result_args = d.args;
-                                            }
-                                            _ => {
-                                                self.diagnostics().add_error(
-                                                    SemanticError::EnumTypeAnnotationMustBeOfDefiningType {
-                                                       location: variant_ty.span()
-                                                    }
-                                                );
-                                            }
-                                        }
+                            // Variant indices
+                            if let Some(variant_ty) = variant.ty.as_ref()
+                                && let Some(result) = self.try_or_add_error(
+                                    self.make_ty_from_ast_ty(variant_ty.ast_ref()),
+                                )
+                            {
+                                match *result.value() {
+                                    Ty::DataTy(d) if d.data_def == data_def_id => {
+                                        // Variant type is the same as the enum type
+                                        data_def_ctors.value().borrow_mut()[i].result_args = d.args;
+                                    }
+                                    _ => {
+                                        self.diagnostics().add_error(
+                                            SemanticError::EnumTypeAnnotationMustBeOfDefiningType {
+                                                location: variant_ty.span(),
+                                            },
+                                        );
                                     }
                                 }
-                            },
-                        )
+                            }
+                        })
                     }
                 }
                 _ => unreachable!("Expected a data definition node"),
             }
 
-            if found_error.get() {
-                Err(SemanticError::Signal)
-            } else {
-                Ok(())
-            }
+            if found_error.get() { Err(SemanticError::Signal) } else { Ok(()) }
         })
     }
 

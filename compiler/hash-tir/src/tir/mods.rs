@@ -119,10 +119,10 @@ impl ModDef {
     pub fn get_mod_fn_member_by_ident(&self, name: impl Into<Identifier>) -> Option<FnDefId> {
         let name = name.into();
         self.members.iter().find_map(|member| {
-            if let ModMemberValue::Fn(fn_def_id) = member.borrow().value {
-                if member.borrow().name.borrow().name.is_some_and(|sym| sym == name) {
-                    return Some(fn_def_id);
-                }
+            if let ModMemberValue::Fn(fn_def_id) = member.borrow().value
+                && member.borrow().name.borrow().name.is_some_and(|sym| sym == name)
+            {
+                return Some(fn_def_id);
             }
             None
         })

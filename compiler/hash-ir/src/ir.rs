@@ -681,10 +681,10 @@ impl SwitchTargets {
             }
         }
 
-        if let Some(otherwise) = self.otherwise {
-            if otherwise == successor {
-                self.otherwise = Some(replacement);
-            }
+        if let Some(otherwise) = self.otherwise
+            && otherwise == successor
+        {
+            self.otherwise = Some(replacement);
         }
     }
 

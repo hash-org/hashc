@@ -172,10 +172,10 @@ impl<I: PrimInt + Clone + Copy, V> RangeMap<I, V> {
         // If the store is empty, we can just immediately push the range
         // into the map, and exit early. Otherwise, we ensure that the
         // range does not overlap with the last range in the map.
-        if let Some((last, _)) = self.store.last() {
-            if last.end >= key.start {
-                panic!("keys are not allowed to overlap in a range map")
-            }
+        if let Some((last, _)) = self.store.last()
+            && last.end >= key.start
+        {
+            panic!("keys are not allowed to overlap in a range map")
         }
 
         self.store.push((key, value));

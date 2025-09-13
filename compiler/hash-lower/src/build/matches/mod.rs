@@ -104,14 +104,13 @@ impl<'tcx> BodyBuilder<'tcx> {
 
         // If this is a `&&`, we can create a `then-else` block sequence
         // that respects the short-circuiting behaviour of `&&`.
-        if let Term::Call(ref fn_call) = *expr.value() {
-            if let FnCallTermKind::LogicalBinOp(LogicalBinOp::And, lhs, rhs) =
+        if let Term::Call(ref fn_call) = *expr.value()
+            && let FnCallTermKind::LogicalBinOp(LogicalBinOp::And, lhs, rhs) =
                 self.classify_fn_call_term(fn_call)
-            {
-                let lhs_then_block = unpack!(self.then_else_break(block, else_block, lhs));
-                let rhs_then_block = unpack!(self.then_else_break(lhs_then_block, else_block, rhs));
-                return rhs_then_block.unit();
-            }
+        {
+            let lhs_then_block = unpack!(self.then_else_break(block, else_block, lhs));
+            let rhs_then_block = unpack!(self.then_else_break(lhs_then_block, else_block, rhs));
+            return rhs_then_block.unit();
         }
 
         let place = unpack!(block = self.as_place(block, expr, Mutability::Mutable));

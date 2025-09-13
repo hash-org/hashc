@@ -55,14 +55,14 @@ impl<E: TcEnv> OperationsOn<MatchTerm> for Tc<'_, E> {
                 let new_unified_ty =
                     Ty::expect_is(case_data.value, self.visitor().copy(unified_ty));
 
-                if let Some(match_subject_var) = match_subject_var {
-                    if let Some(pat_term) = case_data.bind_pat.try_use_as_term() {
-                        self.context().add_assignment(
-                            match_subject_var.symbol,
-                            subject_ty_copy,
-                            pat_term,
-                        );
-                    }
+                if let Some(match_subject_var) = match_subject_var
+                    && let Some(pat_term) = case_data.bind_pat.try_use_as_term()
+                {
+                    self.context().add_assignment(
+                        match_subject_var.symbol,
+                        subject_ty_copy,
+                        pat_term,
+                    );
                 }
 
                 match match_annotation_ty {
