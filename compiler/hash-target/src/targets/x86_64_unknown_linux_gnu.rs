@@ -5,7 +5,10 @@ use super::linux_gnu_base;
 pub fn target() -> Target {
     let mut base = linux_gnu_base::options();
     base.cpu = "x86-64".into();
-    base.add_pre_link_args(crate::link::LinkerFlavour::Gnu(Cc::Yes, Lld::No), &["-m64"]);
+
+    let flavour = crate::link::LinkerFlavour::Gnu(Cc::Yes, Lld::No);
+    base.add_pre_link_args(flavour, &["-m64"]);
+    base.add_post_link_args(flavour, &["-lm"]);
 
     Target {
         name: "x86_64-unknown-linux-gnu".into(),
