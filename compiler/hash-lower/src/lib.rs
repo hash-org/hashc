@@ -3,7 +3,7 @@
 //! the Hash IR builder crate contains implemented passes that will optimise the
 //! IR, performing optimisations such as constant folding or dead code
 //! elimination.
-#![feature(decl_macro, let_chains, never_type, unwrap_infallible)]
+#![feature(decl_macro, never_type, unwrap_infallible)]
 
 mod build;
 mod cfg;

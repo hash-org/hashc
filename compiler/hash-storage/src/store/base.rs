@@ -228,6 +228,14 @@ impl<K: StoreKey, V: Clone> Store<K, V> for DefaultStore<K, V> {
 
 #[cfg(test)]
 mod test_super {
+    use crate::store::StoreKey;
+
     // Ensuring macros expand correctly:
     new_store_key!(pub TestK);
+
+    #[test]
+    fn test_construct_testk() {
+        let _key = unsafe { TestK::from_index_unchecked(0usize) };
+        assert_eq!(_key.to_index(), 0);
+    }
 }

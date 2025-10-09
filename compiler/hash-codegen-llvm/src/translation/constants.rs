@@ -222,7 +222,7 @@ impl<'b> ConstValueBuilderMethods<'b> for CodeGenCtx<'b, '_> {
             if sign_extend {
                 val.get_sign_extended_constant().map(|v| {
                     // upcast to i128, and then convert into u128
-                    unsafe { std::mem::transmute::<i128, u128>(v as i128) }
+                    i128::cast_unsigned(v as i128)
                 })
             } else {
                 val.get_zero_extended_constant().map(|v| v as u128)

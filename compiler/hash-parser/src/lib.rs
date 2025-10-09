@@ -1,6 +1,5 @@
 //! Self hosted hash parser, this function contains the implementations for
 //! `hash-ast` which provides a general interface to write a parser.
-#![feature(cell_update, let_chains)]
 
 mod diagnostics;
 mod import_resolver;
@@ -72,7 +71,7 @@ pub struct ParserCtx<'p> {
 }
 
 pub trait ParserCtxQuery: CompilerInterface {
-    fn data(&mut self) -> ParserCtx;
+    fn data(&mut self) -> ParserCtx<'_>;
 }
 
 impl<Ctx: ParserCtxQuery> CompilerStage<Ctx> for Parser {

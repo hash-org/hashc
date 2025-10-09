@@ -180,11 +180,11 @@ impl From<ParseError> for Reports {
         // `AstGenErrorKind::Expected` format the error message in their own way,
         // whereas all the other error types follow a conformed order to
         // formatting expected tokens
-        if !matches!(&err.kind, ParseErrorKind::UnExpected) {
-            if let Some(kind) = err.received {
-                let atom_msg = format!(", however received {}", kind.as_error_string());
-                base_message.push_str(&atom_msg);
-            }
+        if !matches!(&err.kind, ParseErrorKind::UnExpected)
+            && let Some(kind) = err.received
+        {
+            let atom_msg = format!(", however received {}", kind.as_error_string());
+            base_message.push_str(&atom_msg);
         }
 
         // If the generated error has suggested tokens that aren't empty.

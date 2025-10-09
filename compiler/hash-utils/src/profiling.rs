@@ -195,7 +195,7 @@ impl From<CellStageMetrics> for StageMetrics {
     }
 }
 
-cfg_match! {
+cfg_select! {
     windows => {
         pub fn get_resident_set_size() -> Option<usize> {
             use std::mem;

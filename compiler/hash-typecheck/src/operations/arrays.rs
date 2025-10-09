@@ -176,13 +176,13 @@ impl<E: TcEnv> OperationsOn<ArrayTerm> for Tc<'_, E> {
         };
 
         // Ensure the array lengths match if given
-        if let Some(len) = array_len {
-            if !self.nodes_are_equal(len, inferred_len_term) {
-                return Err(TcError::MismatchingArrayLengths {
-                    expected_len: len,
-                    got_len: inferred_len_term,
-                });
-            }
+        if let Some(len) = array_len
+            && !self.nodes_are_equal(len, inferred_len_term)
+        {
+            return Err(TcError::MismatchingArrayLengths {
+                expected_len: len,
+                got_len: inferred_len_term,
+            });
         }
 
         // Either create  a default type, or apply a substitution to the annotation

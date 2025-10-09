@@ -410,18 +410,18 @@ impl<'b, 'm> ExtendedFnAbiMethods<'b, 'm> for FnAbi {
 
         let abi = self.ret_abi.info.layout.borrow().abi;
 
-        if let AbiRepresentation::Scalar(scalar) = abi {
-            if let ScalarKind::Int { .. } = scalar.kind() {
-                // ##Hack: if the value is boolean, the range metadata would become
-                // 0..0 due to the fact that the type of it is `i1`. This would be rejected
-                // by the LLVM IR verifier... so we don't add the range metadata for
-                // boolean types.
-                if !scalar.is_bool() && !scalar.is_always_valid(builder) {
-                    builder.add_range_metadata_to(
-                        call_site.as_any_value_enum(),
-                        scalar.valid_range(builder),
-                    )
-                }
+        if let AbiRepresentation::Scalar(scalar) = abi
+            && let ScalarKind::Int { .. } = scalar.kind()
+        {
+            // ##Hack: if the value is boolean, the range metadata would become
+            // 0..0 due to the fact that the type of it is `i1`. This would be rejected
+            // by the LLVM IR verifier... so we don't add the range metadata for
+            // boolean types.
+            if !scalar.is_bool() && !scalar.is_always_valid(builder) {
+                builder.add_range_metadata_to(
+                    call_site.as_any_value_enum(),
+                    scalar.valid_range(builder),
+                )
             }
         }
 

@@ -126,38 +126,38 @@ pub(super) fn get_linker<'a>(
 
     // Due to Windows being crazy^TM, we need tell MSVC to link with the default
     // libraries (vcruntime, msvcrt, etc).
-    if flavour.is_msvc_like() {
-        if let Some(tool) = msvc_tool {
-            // For UWP(Windows Store) apps, we need to comply with the Windows App
-            // Certification Kit, which means that we need to link with the
-            // Windows Store libraries.
-            if target.vendor == "uwp" {
-                let tool_path = tool.path();
+    if flavour.is_msvc_like()
+        && let Some(tool) = msvc_tool
+    {
+        // For UWP(Windows Store) apps, we need to comply with the Windows App
+        // Certification Kit, which means that we need to link with the
+        // Windows Store libraries.
+        if target.vendor == "uwp" {
+            let tool_path = tool.path();
 
-                if let Some(root_path) = tool_path.ancestors().nth(4) {
-                    // We need to add the store library path to the linker search path.
-                    let arch = match target.arch {
-                        TargetArch::X86 => Some("x64"),
-                        TargetArch::X86_64 => Some("x86"),
-                        TargetArch::Aarch64 => Some("arm64"),
-                        TargetArch::Arm => Some("arm"),
-                        TargetArch::Unknown => None,
-                    };
+            if let Some(root_path) = tool_path.ancestors().nth(4) {
+                // We need to add the store library path to the linker search path.
+                let arch = match target.arch {
+                    TargetArch::X86 => Some("x64"),
+                    TargetArch::X86_64 => Some("x86"),
+                    TargetArch::Aarch64 => Some("arm64"),
+                    TargetArch::Arm => Some("arm"),
+                    TargetArch::Unknown => None,
+                };
 
-                    if let Some(arch_name) = arch {
-                        let mut arg = OsString::from("/LIBPATH:");
-                        arg.push(format!("{}\\lib\\{}\\store", root_path.display(), arch_name));
-                        command.arg(&arg);
-                    }
+                if let Some(arch_name) = arch {
+                    let mut arg = OsString::from("/LIBPATH:");
+                    arg.push(format!("{}\\lib\\{}\\store", root_path.display(), arch_name));
+                    command.arg(&arg);
                 }
             }
+        }
 
-            command.args(tool.args());
+        command.args(tool.args());
 
-            // Add any environment variables that the tool provides to our command
-            for (key, value) in tool.env() {
-                command.env(key, value);
-            }
+        // Add any environment variables that the tool provides to our command
+        for (key, value) in tool.env() {
+            command.env(key, value);
         }
     }
 

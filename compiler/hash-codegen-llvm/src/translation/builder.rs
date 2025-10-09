@@ -1285,10 +1285,9 @@ fn load_scalar_value_metadata<'m>(
             // Compute the layout of the pointee_ty
             if let Some(pointee_info) =
                 builder.layouts().compute_layout_info_of_pointee_at(info, offset)
+                && pointee_info.kind.is_some()
             {
-                if pointee_info.kind.is_some() {
-                    builder.set_alignment(load, pointee_info.alignment);
-                }
+                builder.set_alignment(load, pointee_info.alignment);
             }
         }
     }

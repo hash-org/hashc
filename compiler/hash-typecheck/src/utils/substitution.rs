@@ -211,11 +211,11 @@ impl<'a, T: TcEnv> Substituter<'a, T> {
                 return seen;
             }
             seen.remove(&param.name);
-            if let Some(default) = param.default {
-                if self.contains_vars(default, &seen) {
-                    *can_apply = true;
-                    return seen;
-                }
+            if let Some(default) = param.default
+                && self.contains_vars(default, &seen)
+            {
+                *can_apply = true;
+                return seen;
             }
         }
         seen

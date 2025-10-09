@@ -1,7 +1,6 @@
 //! Defines all logic regarding computing the layout of types, and
 //! representing the said layouts in a way that is usable by the
 //! code generation backends.
-#![feature(let_chains)]
 
 pub mod compute;
 pub mod constant;
@@ -619,5 +618,5 @@ impl LayoutId {
 
 /// Interface to access information about the representations and layout.
 pub trait HasLayout {
-    fn layout_computer(&self) -> LayoutComputer;
+    fn layout_computer(&self) -> LayoutComputer<'_>;
 }

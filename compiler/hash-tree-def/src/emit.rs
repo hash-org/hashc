@@ -191,12 +191,11 @@ fn emit_visitor(tree_def: &TreeDef, nodes_mut: bool, self_mut: bool) -> TokenStr
 
 /// If the given `ty` represents a node, return the name of the node.
 fn is_node_ty(ty: &syn::Type, tree_def: &TreeDef) -> Option<syn::Ident> {
-    if let syn::Type::Path(path) = ty {
-        if let Some(ident) = path.path.get_ident() {
-            if tree_def.nodes.contains_key(ident) {
-                return Some(ident.clone());
-            }
-        }
+    if let syn::Type::Path(path) = ty
+        && let Some(ident) = path.path.get_ident()
+        && tree_def.nodes.contains_key(ident)
+    {
+        return Some(ident.clone());
     }
     None
 }

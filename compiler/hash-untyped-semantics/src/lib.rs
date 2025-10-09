@@ -1,7 +1,7 @@
 //! Hash AST semantic passes crate. This crate holds an implementation for the
 //! visitor pattern on the AST to perform semantic checking and analysis on the
 //! de-sugared AST.
-#![feature(let_chains, if_let_guard)]
+#![feature(if_let_guard)]
 
 pub mod analysis;
 pub(crate) mod diagnostics;
@@ -34,7 +34,7 @@ pub struct UntypedSemanticAnalysisCtx<'s> {
 /// A trait that allows the [SemanticAnalysis] stage to query the
 /// pipeline for the required information.
 pub trait UntypedSemanticAnalysisCtxQuery: CompilerInterface {
-    fn data(&mut self) -> UntypedSemanticAnalysisCtx;
+    fn data(&mut self) -> UntypedSemanticAnalysisCtx<'_>;
 }
 
 impl<Ctx: UntypedSemanticAnalysisCtxQuery> CompilerStage<Ctx> for UntypedSemanticAnalysis {

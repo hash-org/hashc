@@ -238,12 +238,12 @@ impl<T> AstNode<T> {
     }
 
     /// Create an [AstNodeRef] from this [AstNode].
-    pub fn ast_ref(&self) -> AstNodeRef<T> {
+    pub fn ast_ref(&self) -> AstNodeRef<'_, T> {
         AstNodeRef { body: self.body.as_ref(), id: self.id }
     }
 
     /// Create an [AstNodeRefMut] from this [AstNode].
-    pub fn ast_ref_mut(&mut self) -> AstNodeRefMut<T> {
+    pub fn ast_ref_mut(&mut self) -> AstNodeRefMut<'_, T> {
         AstNodeRefMut { body: self.body.as_mut(), id: self.id }
     }
 
@@ -350,7 +350,7 @@ impl<'t, T> AstNodeRefMut<'t, T> {
     }
 
     /// Get this node as an immutable reference
-    pub fn immutable(&self) -> AstNodeRef<T> {
+    pub fn immutable(&self) -> AstNodeRef<'_, T> {
         AstNodeRef::new(self.body, self.id)
     }
 }
@@ -378,12 +378,12 @@ pub trait OwnsAstNode<T> {
     fn node_mut(&mut self) -> &mut AstNode<T>;
 
     /// Get a [AstNodeRef<T>].
-    fn node_ref(&self) -> AstNodeRef<T> {
+    fn node_ref(&self) -> AstNodeRef<'_, T> {
         self.node().ast_ref()
     }
 
     /// Get a [AstNodeRefMut<T>].
-    fn node_ref_mut(&mut self) -> AstNodeRefMut<T> {
+    fn node_ref_mut(&mut self) -> AstNodeRefMut<'_, T> {
         self.node_mut().ast_ref_mut()
     }
 }
@@ -452,7 +452,7 @@ impl<T> AstNodes<T> {
     }
 
     /// Iterate over each child whilst wrapping it in a [AstNodeRef].
-    pub fn ast_ref_iter(&self) -> impl Iterator<Item = AstNodeRef<T>> {
+    pub fn ast_ref_iter(&self) -> impl Iterator<Item = AstNodeRef<'_, T>> {
         self.nodes.iter().map(|x| x.ast_ref())
     }
 }
@@ -1596,7 +1596,7 @@ define_tree! {
     impl BodyBlock {
         /// Get the members of the body block: the list of statements as well as the
         /// optional ending expression.
-        pub fn members(&self) -> impl Iterator<Item = AstNodeRef<Expr>> + '_ {
+        pub fn members(&self) -> impl Iterator<Item = AstNodeRef<'_, Expr>> + '_ {
             self.statements.ast_ref_iter().chain(self.expr.as_ref().map(|x| x.ast_ref()))
         }
     }

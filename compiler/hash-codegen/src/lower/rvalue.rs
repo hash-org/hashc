@@ -660,15 +660,15 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
     /// [Place]. This computes the value and returns a [`Builder::Value`]
     /// from it.
     fn evaluate_array_len(&mut self, builder: &mut Builder, place: ir::Place) -> Builder::Value {
-        if let Some(local) = place.as_local() {
-            if let LocalRef::Operand(Some(op)) = self.locals[local] {
-                let size = op.info.ty.map(|ty| {
-                    if let ty::ReprTy::Array { length: size, .. } = ty { Some(*size) } else { None }
-                });
+        if let Some(local) = place.as_local()
+            && let LocalRef::Operand(Some(op)) = self.locals[local]
+        {
+            let size = op.info.ty.map(|ty| {
+                if let ty::ReprTy::Array { length: size, .. } = ty { Some(*size) } else { None }
+            });
 
-                if let Some(size) = size {
-                    return builder.const_usize(size as u64);
-                }
+            if let Some(size) = size {
+                return builder.const_usize(size as u64);
             }
         }
 

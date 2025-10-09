@@ -173,10 +173,10 @@ fn repr_ty_from_primitive_ctor(ctor: PrimitiveCtorInfo) -> Option<ReprTyId> {
 /// attributes can only be literals, therefore we can rely on this method to
 /// lower the supported subset of types.
 pub fn repr_ty_from_primitive_ty(ty: TyId) -> Option<ReprTyId> {
-    if let Ty::DataTy(DataTy { data_def, .. }) = ty.value().data {
-        if let DataDefCtors::Primitive(ctor) = data_def.value().ctors {
-            return repr_ty_from_primitive_ctor(ctor);
-        }
+    if let Ty::DataTy(DataTy { data_def, .. }) = ty.value().data
+        && let DataDefCtors::Primitive(ctor) = data_def.value().ctors
+    {
+        return repr_ty_from_primitive_ctor(ctor);
     }
 
     None

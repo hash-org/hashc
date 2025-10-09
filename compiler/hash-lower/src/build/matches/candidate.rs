@@ -196,28 +196,24 @@ impl BodyBuilder<'_> {
             let match_pairs = mem::take(&mut candidate.pairs);
 
             // Check if the bindings has a single or-pattern
-            if let [pair] = &*match_pairs {
-                if pair.pat.borrow().is_or() {
-                    // append all the new bindings, and then swap the two vectors around
-                    existing_bindings.extend_from_slice(&new_bindings);
-                    mem::swap(&mut candidate.bindings, &mut existing_bindings);
+            if let [pair] = &*match_pairs
+                && pair.pat.borrow().is_or()
+            {
+                // append all the new bindings, and then swap the two vectors around
+                existing_bindings.extend_from_slice(&new_bindings);
+                mem::swap(&mut candidate.bindings, &mut existing_bindings);
 
-                    // Now we need to create sub-candidates for each of the or-patterns
-                    let Pat::Or(sub_pats) = *pair.pat.value() else { unreachable!() };
+                // Now we need to create sub-candidates for each of the or-patterns
+                let Pat::Or(sub_pats) = *pair.pat.value() else { unreachable!() };
 
-                    // @@Temporary: We need to load in the alternatives for the or pat...
-                    let sub_pats = sub_pats
-                        .alternatives
-                        .borrow()
-                        .iter()
-                        .map(|pat| pat.assert_pat())
-                        .collect_vec();
+                // @@Temporary: We need to load in the alternatives for the or pat...
+                let sub_pats =
+                    sub_pats.alternatives.borrow().iter().map(|pat| pat.assert_pat()).collect_vec();
 
-                    candidate.sub_candidates =
-                        self.create_sub_candidates(&pair.place, candidate, &sub_pats);
+                candidate.sub_candidates =
+                    self.create_sub_candidates(&pair.place, candidate, &sub_pats);
 
-                    return true;
-                }
+                return true;
             }
 
             // There are multiple patterns to check here, so we need to iterate

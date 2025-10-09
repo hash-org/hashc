@@ -7,7 +7,7 @@
 //! methods for "selecting" the information that is needed by the stage.
 //! This creates a clear separation between the stages and the global state,
 //! keeping the crate dependency graph clean.
-#![feature(let_chains, thread_id_value)]
+#![feature(thread_id_value)]
 pub mod driver;
 
 use std::collections::HashSet;
@@ -285,25 +285,25 @@ impl CompilerInterface for Compiler {
 }
 
 impl ParserCtxQuery for Compiler {
-    fn data(&mut self) -> ParserCtx {
+    fn data(&mut self) -> ParserCtx<'_> {
         ParserCtx { workspace: &mut self.workspace, pool: &self.pool }
     }
 }
 
 impl AstDesugaringCtxQuery for Compiler {
-    fn data(&mut self) -> AstDesugaringCtx {
+    fn data(&mut self) -> AstDesugaringCtx<'_> {
         AstDesugaringCtx { workspace: &mut self.workspace, pool: &self.pool }
     }
 }
 
 impl UntypedSemanticAnalysisCtxQuery for Compiler {
-    fn data(&mut self) -> UntypedSemanticAnalysisCtx {
+    fn data(&mut self) -> UntypedSemanticAnalysisCtx<'_> {
         UntypedSemanticAnalysisCtx { workspace: &mut self.workspace, pool: &self.pool }
     }
 }
 
 impl AstExpansionCtxQuery for Compiler {
-    fn data(&mut self) -> AstExpansionCtx {
+    fn data(&mut self) -> AstExpansionCtx<'_> {
         AstExpansionCtx {
             workspace: &mut self.workspace,
             settings: &self.settings,
@@ -314,7 +314,7 @@ impl AstExpansionCtxQuery for Compiler {
 }
 
 impl SemanticAnalysisCtxQuery for Compiler {
-    fn data(&mut self) -> SemanticAnalysisCtx {
+    fn data(&mut self) -> SemanticAnalysisCtx<'_> {
         SemanticAnalysisCtx {
             workspace: &mut self.workspace,
             semantic_storage: &mut self.semantic_storage,
@@ -326,7 +326,7 @@ impl SemanticAnalysisCtxQuery for Compiler {
 }
 
 impl LoweringCtxQuery for Compiler {
-    fn data(&mut self) -> LoweringCtx {
+    fn data(&mut self) -> LoweringCtx<'_> {
         LoweringCtx {
             semantic_storage: &self.semantic_storage,
             workspace: &mut self.workspace,
@@ -339,7 +339,7 @@ impl LoweringCtxQuery for Compiler {
 }
 
 impl BackendCtxQuery for Compiler {
-    fn data(&mut self) -> BackendCtx {
+    fn data(&mut self) -> BackendCtx<'_> {
         BackendCtx {
             codegen_storage: &self.codegen_storage,
             workspace: &mut self.workspace,

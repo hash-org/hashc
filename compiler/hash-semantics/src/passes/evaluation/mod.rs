@@ -124,13 +124,13 @@ impl<E: SemanticEnv> AnalysisPass for EvaluationPass<'_, E> {
             dump_tir(mod_def_id);
         }
 
-        if settings.eval_tir {
-            if let Some(term) = main_call_term {
-                let context = Context::new();
-                let tc = env.checker(&context);
-                tc.normalisation_opts.mode.set(NormalisationMode::Full);
-                let _ = tc.normalise_node_no_signals(term)?;
-            }
+        if settings.eval_tir
+            && let Some(term) = main_call_term
+        {
+            let context = Context::new();
+            let tc = env.checker(&context);
+            tc.normalisation_opts.mode.set(NormalisationMode::Full);
+            let _ = tc.normalise_node_no_signals(term)?;
         }
 
         Ok(())

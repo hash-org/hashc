@@ -176,13 +176,13 @@ fn parse_path_field(fields: &FieldsNamed, field_name: &str) -> Result<Path, syn:
         .named
         .iter()
         .find_map(|field| {
-            if let Some(ident) = &field.ident {
-                if ident == field_name {
-                    if let Type::Path(path) = &field.ty {
-                        return Some(Ok(path.path.clone()));
-                    }
-                    return Some(Err(syn::Error::new(field.ty.span(), "Expected a path")));
+            if let Some(ident) = &field.ident
+                && ident == field_name
+            {
+                if let Type::Path(path) = &field.ty {
+                    return Some(Ok(path.path.clone()));
                 }
+                return Some(Err(syn::Error::new(field.ty.span(), "Expected a path")));
             }
             None
         })
@@ -201,18 +201,15 @@ fn parse_ident_field(fields: &FieldsNamed, field_name: &str) -> Result<Ident, sy
         .named
         .iter()
         .find_map(|field| {
-            if let Some(ident) = &field.ident {
-                if ident == field_name {
-                    if let Type::Path(path) = &field.ty {
-                        if let Some(name) = path.path.get_ident() {
-                            return Some(Ok(name.clone()));
-                        }
-                    }
-                    return Some(Err(syn::Error::new(
-                        field.ty.span(),
-                        "Expected a type identifier",
-                    )));
+            if let Some(ident) = &field.ident
+                && ident == field_name
+            {
+                if let Type::Path(path) = &field.ty
+                    && let Some(name) = path.path.get_ident()
+                {
+                    return Some(Ok(name.clone()));
                 }
+                return Some(Err(syn::Error::new(field.ty.span(), "Expected a type identifier")));
             }
             None
         })

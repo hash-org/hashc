@@ -1,5 +1,5 @@
 //! Hash Compiler source location definitions.
-#![feature(path_file_prefix, let_chains, const_trait_impl, box_patterns)]
+#![feature(const_trait_impl, box_patterns)]
 
 pub mod constant;
 pub mod entry_point;
@@ -274,11 +274,11 @@ impl Source {
                 let prefix = path.file_prefix().unwrap();
 
                 // deal with `index.hash` case...
-                if prefix == "index" {
-                    if let Some(parent) = path.parent() {
-                        // Now we should be at the `parent` direct
-                        return parent.file_name().unwrap_or(prefix).to_str().unwrap();
-                    }
+                if prefix == "index"
+                    && let Some(parent) = path.parent()
+                {
+                    // Now we should be at the `parent` direct
+                    return parent.file_name().unwrap_or(prefix).to_str().unwrap();
                 }
 
                 // If it is a normal filename, then just use the resultant prefix, or default

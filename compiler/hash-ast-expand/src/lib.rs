@@ -1,7 +1,6 @@
 //! Hash AST expanding passes crate. This crate holds an implementation for the
 //! visitor pattern on the AST in order to expand any directives or macros that
 //! need to run after the parsing stage. Currently this function does not have
-#![feature(let_chains)]
 
 use diagnostics::ExpansionDiagnostic;
 use expander::AstExpander;
@@ -47,7 +46,7 @@ pub struct AstExpansionCtx<'ctx> {
 /// A trait that allows the [AstExpansionPass] stage to query the
 /// pipeline for the required information.
 pub trait AstExpansionCtxQuery: CompilerInterface {
-    fn data(&mut self) -> AstExpansionCtx;
+    fn data(&mut self) -> AstExpansionCtx<'_>;
 }
 
 impl<Ctx: AstExpansionCtxQuery> CompilerStage<Ctx> for AstExpansionPass {

@@ -103,12 +103,12 @@ impl<'env, E: SemanticEnv + 'env> ResolutionPass<'env, E> {
     }
 
     /// Get a new pattern binder checker.
-    fn pat_binds_validator(&self) -> PatBindsChecker<E> {
+    fn pat_binds_validator(&self) -> PatBindsChecker<'_, E> {
         PatBindsChecker::new(self.env)
     }
 
     /// Get access to the current scoping state and operations.
-    fn scoping(&self) -> &Scoping<E> {
+    fn scoping(&self) -> &Scoping<'_, E> {
         &self.scoping
     }
 }

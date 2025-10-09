@@ -11,8 +11,6 @@
 //! that defines all the required items for the typechecker to work, provided by
 //! the greater compiler context.
 
-#![feature(let_chains)]
-
 pub mod diagnostics;
 pub mod env;
 pub mod operations;

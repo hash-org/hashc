@@ -209,7 +209,7 @@ impl Context {
     }
 
     /// Get a reference to the current scope.
-    pub fn get_current_scope_ref(&self) -> Ref<Scope> {
+    pub fn get_current_scope_ref(&self) -> Ref<'_, Scope> {
         Ref::map(self.scopes.borrow(), |scopes| {
             scopes.last().unwrap_or_else(|| {
                 panic!("tried to get the scope kind of a context with no scopes");
@@ -223,7 +223,7 @@ impl Context {
     }
 
     /// Get the closest stack scope and its index.
-    pub fn get_closest_stack_scope_ref(&self) -> Ref<Scope> {
+    pub fn get_closest_stack_scope_ref(&self) -> Ref<'_, Scope> {
         Ref::map(self.scopes.borrow(), |scopes| {
             scopes
                 .iter()
@@ -235,7 +235,7 @@ impl Context {
         })
     }
 
-    pub fn get_scope_ref_at_index(&self, index: usize) -> Ref<Scope> {
+    pub fn get_scope_ref_at_index(&self, index: usize) -> Ref<'_, Scope> {
         Ref::map(self.scopes.borrow(), |scopes| {
             scopes.get(index).unwrap_or_else(|| {
                 panic!("tried to get the scope kind of a context with no scopes");
@@ -251,7 +251,7 @@ impl Context {
     }
 
     /// Get information about the scope with the given index.
-    pub fn get_scope(&self, index: usize) -> Ref<Scope> {
+    pub fn get_scope(&self, index: usize) -> Ref<'_, Scope> {
         Ref::map(self.scopes.borrow(), |scopes| &scopes[index])
     }
 

@@ -77,12 +77,12 @@ impl SemanticReporter {
                     format!("tried to look for {noun} `{search_name}` in {def_name}",),
                 );
 
-                if let ContextKind::Access(_, def) = looking_in {
-                    if let Some(location) = def.span() {
-                        error.add_span(location).add_info(format!(
-                            "{def_name} is defined here, and has no member `{search_name}`",
-                        ));
-                    }
+                if let ContextKind::Access(_, def) = looking_in
+                    && let Some(location) = def.span()
+                {
+                    error.add_span(location).add_info(format!(
+                        "{def_name} is defined here, and has no member `{search_name}`",
+                    ));
                 }
             }
             SemanticError::CannotUseModuleInValuePosition { location } => {
