@@ -5,27 +5,45 @@
 The Rust Programming language and `cargo` are required to build the Hash
 compiler. The easiest way to install Rust is using [rustup](https://rustup.rs/).
 
-## LLVM
+## 2. LLVM
+
+> _Note_: This section is only necessary if you want to build the LLVM backend of
+> the Hash compiler. If you want to build the compiler without LLVM support, see **[3. Building without LLVM](#3-building-without-llvm)**.
 
 One of the Hash compiler code generation backends is LLVM, so you will need to
-install LLVM on your system. Currently, the compiler uses LLVM 15.0.6.
+install LLVM on your system. Currently, the compiler uses LLVM 18.1.8.
 
-### Building without LLVM
+We provide instructions for installing LLVM 18 on macOS, Linux, and Windows.
 
-We all know that LLVM is a huge and bulky dependency, which isn't always easy to install on a local machine. Therefore, this project
-provides a way to build the compiler without LLVM. To do so, you can simply build the main package in the following way:
+### macOS
 
-```bash
-cargo build -p hashc --no-default-features
+On macOS, you can install LLVM 18 using Homebrew:
+
+```sh
+brew install llvm@18
 ```
 
-This will build the compiler without the `llvm` feature, and hence you won't have the LLVM backend available.
+After installation, you need to set the following environment variables, replacing
+`$PATH_TO_LLVM` with the actual path where Homebrew installed LLVM (you can
+find it by running `brew --prefix llvm@18`):
 
-### Linux, macOS
+Add the path to your shell profile file (e.g., `~/.zprofile`, `~/.bash_profile`, etc.):
+
+```sh
+export LLVM_SYS_181_PREFIX=$(brew --prefix llvm@18)
+export PATH="$PATH:$LLVM_SYS_181_PREFIX/bin"
+```
+
+```fish
+set -x LLVM_SYS_181_PREFIX (brew --prefix llvm@18)
+set -x PATH $PATH $LLVM_SYS_181_PREFIX/bin
+```
+
+### Linux
 
 You can download this version of LLVM from
 [here](https://github.com/llvm/llvm-project/releases/tag/llvmorg-18.1.8) for
-your specific OS. Additionally, you need to install `zstd`  (which can be
+your specific OS. Additionally, you need to install `zstd` (which can be
 aquired using a package manager or from
 [here](https://github.com/facebook/zstd/releases/tag/v1.5.5)).
 
