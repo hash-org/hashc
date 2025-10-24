@@ -1,6 +1,9 @@
 # Installing tools and dependencies
 
-## Rust
+This document describes how to install the necessary tools and dependencies
+to build the Hash compiler from source.
+
+## 1. Rust
 
 The Rust Programming language and `cargo` are required to build the Hash
 compiler. The easiest way to install Rust is using [rustup](https://rustup.rs/).
