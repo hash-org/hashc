@@ -99,3 +99,26 @@ cargo build -p hashc --no-default-features
 This will build the compiler without the `llvm` feature, and hence you won't have the LLVM backend available.
 
 
+## 4. Hello World
+
+To verify that everything is working correctly, you can create a simple "Hello, World!" program in Hash.
+
+```bash
+mkdir examples/
+echo 'main := () => { println("Hello, World!"); }' > examples/hello.hash
+```
+
+```bash
+target/debug/hashc -i examples/hello.hash --stage exe
+Hello, World!
+```
+
+:tada: Yes! You've successfully built and run the Hash compiler from source.
+
+## 5. Installing `hashc` globally
+
+To install `hashc` globally on your system, you can use Cargo's install command:
+
+```bash
+cargo install --path .
+```
