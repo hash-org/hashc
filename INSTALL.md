@@ -79,3 +79,23 @@ choco install llvm --version 18.1.8
 Alternatively, you can download the pre-built binaries from the [LLVM
 website](https://releases.llvm.org/download.html).
 
+Once LLVM is installed, verify that `$LLVM_SYS_181_PREFIX/bin` is in your `PATH` and the variable itslef is set.
+
+After which, we may proceed to build the project using `cargo build`.
+
+```bash
+cargo build
+```
+
+## 3. Building without LLVM
+
+We all know that LLVM is a huge and bulky dependency, which isn't always easy to install on a local machine. Therefore, this project
+provides a way to build the compiler without LLVM. To do so, you can simply build the main package in the following way:
+
+```bash
+cargo build -p hashc --no-default-features
+```
+
+This will build the compiler without the `llvm` feature, and hence you won't have the LLVM backend available.
+
+
