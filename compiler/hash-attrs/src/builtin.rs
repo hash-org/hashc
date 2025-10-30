@@ -86,6 +86,7 @@ define_attrs!(
     dump_tir { AttrTarget::all() },
     dump_ir { AttrTarget::FnDef },
     dump_llvm_ir { AttrTarget::FnDef },
+    dump_bytecode { AttrTarget::FnDef },
     layout_of { AttrTarget::StructDef | AttrTarget::EnumDef },
 
     // ------------------------------------------
