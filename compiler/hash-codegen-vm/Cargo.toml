@@ -8,8 +8,13 @@ edition = { workspace = true }
 doctest = false
 
 [dependencies]
+log = { workspace = true }
+
+hash-attrs = { workspace = true }
 hash-codegen = { workspace = true }
 hash-ir = { workspace = true }
 hash-pipeline = { workspace = true }
 hash-source = { workspace = true }
+hash-storage = { workspace = true }
 hash-utils = { workspace = true }
+hash-vm = { workspace = true }
