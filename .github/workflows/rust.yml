@@ -8,6 +8,8 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  # Link against libc++ which is required when LLVM is built with libc++
+  RUSTFLAGS: "-C link-arg=-lc++ -C link-arg=-lc++abi"
 
 jobs:
   build_and_test:
@@ -26,14 +28,14 @@ jobs:
       - name: Cache LLVM
         id: cache-llvm
         uses: actions/cache@v4
-        with: 
+        with:
           path: ./llvm
-          key: llvm-18
+          key: llvm-20
 
       - name: Install LLVM
-        uses: KyleMayes/install-llvm-action@v2.0.7
+        uses: KyleMayes/install-llvm-action@v2.0.8
         with:
-          version: "18.1.8"
+          version: "20.1.8"
           cached: ${{ steps.cache-llvm.outputs.cache-hit }}
 
       - name: Install Rust nightly
@@ -52,14 +54,17 @@ jobs:
         run: |
           wget http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.3-2ubuntu0.1_amd64.deb
           sudo apt install -y ./libtinfo5_6.3-2ubuntu0.1_amd64.deb
+          # Install libc++ which is required when LLVM is built with libc++
+          sudo apt-get update
+          sudo apt-get install -y libc++-dev libc++abi-dev
           echo $LLVM_PATH
           $LLVM_PATH/bin/llvm-config --version
-      
+
       - name: Run tests
-        run: "LLVM_SYS_181_PREFIX=$LLVM_PATH cargo test --all --verbose"
+        run: "LLVM_SYS_201_PREFIX=$LLVM_PATH cargo test --all --verbose"
 
       - name: Run clippy
-        run: "LLVM_SYS_181_PREFIX=$LLVM_PATH cargo clippy --all -- -D warnings"
+        run: "LLVM_SYS_201_PREFIX=$LLVM_PATH cargo clippy --all -- -D warnings"
 
       - name: Check formatting
         run: "cargo fmt --all -- --check"
