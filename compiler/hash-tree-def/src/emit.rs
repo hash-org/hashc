@@ -528,14 +528,14 @@ fn emit_walk_node_field(
             // Directly call visit
             let visit_child_function_name = get_visit_child_function_name(child_name);
             Ok(Some(quote! {
-                visitor.#visit_child_function_name(#field_path.#ref_function_name())?
+                visitor.#visit_child_function_name((#field_path).#ref_function_name())?
             }))
         }
         NodeFieldData::ChildList { node_name: child_name } => {
             // Iterate over the children and call visit, then collect to vector
             let visit_child_function_name = get_visit_child_function_name(child_name);
             Ok(Some(quote! {
-                #field_path
+                (#field_path)
                     .#iter_name()
                     .map(|t| visitor.#visit_child_function_name(t.#ref_function_name()))
                     .collect::<Result<Vec<_>, _>>()?
@@ -545,7 +545,7 @@ fn emit_walk_node_field(
             // Map over the optional and collect inner
             let visit_child_function_name = get_visit_child_function_name(child_name);
             Ok(Some(quote! {
-                #field_path
+                (#field_path)
                     .#as_ref_name()
                     .map(|t| visitor.#visit_child_function_name(t.#ref_function_name()))
                     .transpose()?
@@ -654,7 +654,7 @@ fn emit_walker_struct_function(
             let field_name = &field.name;
             emit_walk_node_field(
                 &field.data,
-                quote! { (#ref_or_mut_ref node.#field_name) },
+                quote! { #ref_or_mut_ref node.#field_name },
                 tree_def,
                 nodes_mut,
             )
