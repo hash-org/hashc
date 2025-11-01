@@ -342,8 +342,8 @@ pub trait BlockBuilderMethods<'a, 'b>:
     ) -> Self::Value {
         let in_ty = self.ty_of_value(value);
 
-        let (float_ty, int_ty) = if self.ty_kind(in_ty) == TypeKind::FixedVector
-            || self.ty_kind(dest_ty) == TypeKind::FixedVector
+        let (float_ty, int_ty) = if self.ty_kind(in_ty) == TypeKind::Vector
+            || self.ty_kind(dest_ty) == TypeKind::Vector
         {
             (self.element_type(in_ty), self.element_type(dest_ty))
         } else {

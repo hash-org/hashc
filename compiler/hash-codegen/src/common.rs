@@ -20,14 +20,14 @@ pub enum CheckedOp {
 
 /// This defines all of the type "kinds" that are used by LLVM.
 ///
-/// <https://llvm.org/doxygen/classllvm_1_1Type.html#a5e9e1c0dd93557be1b4ad72860f3cbda>
+/// https://llvm.org/doxygen/group__LLVMCCoreTypes.html#ga2da643b0ebe215106a07c8e03f3ad8d8>
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TypeKind {
+    /// Void type, no size.
+    Void,
+
     /// 16-bit floating point type.
     Half,
-
-    /// 16-bit floating point type (7-bit mantissa).
-    BFloatTy,
 
     /// 32-bit floating point type.
     Float,
@@ -44,26 +44,8 @@ pub enum TypeKind {
     /// 128-bit floating point type (two 64-bits, PowerPC).
     PPCFP128,
 
-    /// Void type, no size.
-    Void,
-
     /// Label type, only used as function return type.
     Label,
-
-    /// Metadata type, only used in LLVM metadata.
-    ///
-    /// More information can be found here:
-    /// <https://llvm.org/doxygen/classllvm_1_1Metadata.html>
-    Metadata,
-
-    /// X86 MMX vector type (64 bits, X86 specific).
-    X86MMX,
-
-    /// X86 AMX vector type (8192 bits, X86 specific).
-    X86AMX,
-
-    /// Token type, only used in LLVM metadata.
-    Token,
 
     /// Integer types
     Integer,
@@ -71,29 +53,41 @@ pub enum TypeKind {
     /// Function types
     Function,
 
-    /// Pointer types
-    Pointer,
-
     /// Structure types
     Struct,
 
     /// Array types
     Array,
 
-    /// Fixed vector types
-    FixedVector,
+    /// Pointer types.
+    Pointer,
 
-    /// Scalable vector types
+    /// Fixed vector types.
+    Vector,
+
+    /// Metadata type, only used in LLVM metadata.
+    ///
+    /// More information can be found here:
+    /// <https://llvm.org/doxygen/classllvm_1_1Metadata.html>
+    Metadata,
+
+    /// Token type, only used in LLVM metadata.
+    Token,
+
+    /// Scalable vector types.
     ScalableVector,
 
-    /// Typed pointer types
-    TypedPointerTy,
+    /// 16-bit floating point type (7-bit mantissa).
+    BFloatTy,
+
+    /// X86 AMX vector type (8192 bits, X86 specific).
+    X86AMX,
 
     /// Target extension types
     TargetExtensionTy,
 }
 
-/// Rerpesents all of the comparison kinds that can occur between
+/// Represents all of the comparison kinds that can occur between
 /// two integer operands. This is a backend-agnostic representation
 /// of the comparison kinds.
 ///

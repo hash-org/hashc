@@ -219,13 +219,12 @@ impl<'b> TypeBuilderMethods<'b> for CodeGenCtx<'b, '_> {
             LLVMTypeKind::LLVMStructTypeKind => TypeKind::Struct,
             LLVMTypeKind::LLVMArrayTypeKind => TypeKind::Array,
             LLVMTypeKind::LLVMPointerTypeKind => TypeKind::Pointer,
-            LLVMTypeKind::LLVMVectorTypeKind => TypeKind::FixedVector,
+            LLVMTypeKind::LLVMVectorTypeKind => TypeKind::Vector,
             LLVMTypeKind::LLVMMetadataTypeKind => TypeKind::Metadata,
-            LLVMTypeKind::LLVMX86_MMXTypeKind => TypeKind::X86MMX,
+            LLVMTypeKind::LLVMX86_AMXTypeKind => TypeKind::X86AMX,
             LLVMTypeKind::LLVMTokenTypeKind => TypeKind::Token,
             LLVMTypeKind::LLVMScalableVectorTypeKind => TypeKind::ScalableVector,
             LLVMTypeKind::LLVMBFloatTypeKind => TypeKind::Float,
-            LLVMTypeKind::LLVMX86_AMXTypeKind => TypeKind::X86AMX,
             LLVMTypeKind::LLVMTargetExtTypeKind => TypeKind::TargetExtensionTy,
         }
     }
