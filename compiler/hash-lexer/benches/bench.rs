@@ -1,5 +1,7 @@
 //! Some Hash lexer benchmarks.
-use criterion::{Criterion, Throughput, black_box, criterion_group, criterion_main};
+use std::hint::black_box;
+
+use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use hash_lexer::Lexer;
 use hash_source::{SourceId, location::SpannedSource};
 
