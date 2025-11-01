@@ -184,7 +184,7 @@ bitflags::bitflags! {
 /// ABI defines whether the value should be sign-extended or zero-extended.
 ///
 /// If this is not required, this should be set to [`ArgExtension::NoExtend`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ArgExtension {
     /// The argument should be zero-extended.
     ZeroExtend,
@@ -193,13 +193,8 @@ pub enum ArgExtension {
     SignExtend,
 
     /// The argument does not need to be extended.
+    #[default]
     NoExtend,
-}
-
-impl Default for ArgExtension {
-    fn default() -> Self {
-        Self::NoExtend
-    }
 }
 
 /// [ArgAttributes] provides all of the attributes that a
