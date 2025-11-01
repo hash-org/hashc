@@ -6,7 +6,10 @@ use hash_codegen::{
     target::link::{CodeModel, RelocationModel},
 };
 use hash_pipeline::settings::OptimisationLevel;
-use inkwell::attributes::Attribute;
+use inkwell::{
+    attributes::Attribute,
+    types::{AnyTypeEnum, BasicMetadataTypeEnum},
+};
 
 use crate::ctx::CodeGenCtx;
 
@@ -353,5 +356,22 @@ mod tests {
 
         assert_eq!(Attribute::get_named_enum_kind_id("signext"), AttributeKind::SExt as u32);
         assert_eq!(Attribute::get_named_enum_kind_id("zeroext"), AttributeKind::ZExt as u32);
+    }
+}
+
+/// Convert a [BasicMetadataTypeEnum] into an [AnyTypeEnum].
+///
+/// This is similar to the conversion from [BasicTypeEnum] to [AnyTypeEnum],
+/// but works with metadata types which are used in function parameter types.
+pub fn convert_basic_metadata_ty_to_any<'m>(ty: BasicMetadataTypeEnum<'m>) -> AnyTypeEnum<'m> {
+    match ty {
+        BasicMetadataTypeEnum::ArrayType(ty) => AnyTypeEnum::ArrayType(ty),
+        BasicMetadataTypeEnum::FloatType(ty) => AnyTypeEnum::FloatType(ty),
+        BasicMetadataTypeEnum::IntType(ty) => AnyTypeEnum::IntType(ty),
+        BasicMetadataTypeEnum::PointerType(ty) => AnyTypeEnum::PointerType(ty),
+        BasicMetadataTypeEnum::ScalableVectorType(ty) => AnyTypeEnum::ScalableVectorType(ty),
+        BasicMetadataTypeEnum::StructType(ty) => AnyTypeEnum::StructType(ty),
+        BasicMetadataTypeEnum::VectorType(ty) => AnyTypeEnum::VectorType(ty),
+        _ => unreachable!(),
     }
 }

@@ -29,7 +29,7 @@ use hash_storage::store::{Store, statics::StoreId};
 use hash_utils::rayon::iter::Either;
 use inkwell::{
     basic_block::BasicBlock,
-    types::{AnyType, AnyTypeEnum, AsTypeRef, BasicTypeEnum, FunctionType},
+    types::{AnyTypeEnum, AsTypeRef, BasicTypeEnum, FunctionType},
     values::{
         AggregateValueEnum, AnyValue, AnyValueEnum, AsValueRef, BasicMetadataValueEnum, BasicValue,
         BasicValueEnum, InstructionValue, IntValue, PhiValue, UnnamedAddress,
@@ -43,6 +43,7 @@ use super::{
 };
 use crate::misc::{
     AtomicOrderingWrapper, FloatPredicateWrapper, IntPredicateWrapper, MetadataTypeKind,
+    convert_basic_metadata_ty_to_any,
 };
 
 /// Convert a [AnyValueEnum] to a [InstructionValue] by first
@@ -103,7 +104,8 @@ impl<'m> LLVMBuilder<'_, '_, 'm> {
         // early.
         let all_args_match = args.iter().zip(func_params.iter()).all(|(arg, param)| {
             let ty: BasicTypeEnum = self.ty_of_value(arg.as_any_value_enum()).try_into().unwrap();
-            ty == *param
+            let param_ty: BasicTypeEnum = (*param).try_into().unwrap();
+            ty == param_ty
         });
 
         if all_args_match {
@@ -115,9 +117,8 @@ impl<'m> LLVMBuilder<'_, '_, 'm> {
                 let actual_ty = self.ty_of_value(actual_val.as_any_value_enum());
 
                 if expected_ty != actual_ty.try_into().unwrap() {
-                    self.bit_cast(actual_val.as_any_value_enum(), expected_ty.as_any_type_enum())
-                        .try_into()
-                        .unwrap()
+                    let expected_ty = convert_basic_metadata_ty_to_any(expected_ty);
+                    self.bit_cast(actual_val.as_any_value_enum(), expected_ty).try_into().unwrap()
                 } else {
                     actual_val
                 }
