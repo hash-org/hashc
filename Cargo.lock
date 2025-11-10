@@ -697,11 +697,15 @@ dependencies = [
 name = "hash-codegen-vm"
 version = "0.1.0"
 dependencies = [
+ "hash-attrs",
  "hash-codegen",
  "hash-ir",
  "hash-pipeline",
  "hash-source",
+ "hash-storage",
  "hash-utils",
+ "hash-vm",
+ "log",
 ]
 
 [[package]]
