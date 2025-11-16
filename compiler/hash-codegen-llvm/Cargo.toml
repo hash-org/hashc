@@ -11,9 +11,9 @@ doctest = false
 # We make an exclusion to the `{ workspace = true }` rule as we want to fully encapsulate
 # the LLVM dependency in this crate. This is to enforce no other crate to depend on
 # LLVM directly, as we want to keep the dependency tree clean and avoid version conflicts.
-llvm-sys = "181.2.0"
+llvm-sys = "201.0.0"
 inkwell = { git = "https://github.com/hash-org/inkwell.git", branch = "master", features = [
-    "llvm18-0",
+    "llvm20-1",
 ] }
 
 hash-attrs = { workspace = true }

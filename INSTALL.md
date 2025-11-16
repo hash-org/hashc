@@ -14,43 +14,43 @@ compiler. The easiest way to install Rust is using [rustup](https://rustup.rs/).
 > the Hash compiler. If you want to build the compiler without LLVM support, see **[3. Building without LLVM](#3-building-without-llvm)**.
 
 One of the Hash compiler code generation backends is LLVM, so you will need to
-install LLVM on your system. Currently, the compiler uses LLVM 18.1.8.
+install LLVM on your system. Currently, the compiler uses LLVM 20.1.8.
 
-We provide instructions for installing LLVM 18 on macOS, Linux, and Windows.
+We provide instructions for installing LLVM 20 on macOS, Linux, and Windows.
 
 ### macOS
 
-On macOS, you can install LLVM 18 using Homebrew:
+On macOS, you can install LLVM 20 using Homebrew:
 
 ```sh
-brew install llvm@18
+brew install llvm@20
 ```
 
 After installation, you need to set the following environment variables, replacing
 `$PATH_TO_LLVM` with the actual path where Homebrew installed LLVM (you can
-find it by running `brew --prefix llvm@18`):
+find it by running `brew --prefix llvm@20`):
 
 Add the path to your shell profile file (e.g., `~/.zprofile`, `~/.bash_profile`, etc.):
 
 ```sh
-export LLVM_SYS_181_PREFIX=$(brew --prefix llvm@18)
-export PATH="$PATH:$LLVM_SYS_181_PREFIX/bin"
+export LLVM_SYS_201_PREFIX=$(brew --prefix llvm@20)
+export PATH="$PATH:$LLVM_SYS_201_PREFIX/bin"
 ```
 
 ```fish
-set -x LLVM_SYS_181_PREFIX (brew --prefix llvm@18)
-set -x PATH $PATH $LLVM_SYS_181_PREFIX/bin
+set -x LLVM_SYS_201_PREFIX (brew --prefix llvm@20)
+set -x PATH $PATH $LLVM_SYS_201_PREFIX/bin
 ```
 
 ### Linux
 
 You can download this version of LLVM from
-[here](https://github.com/llvm/llvm-project/releases/tag/llvmorg-18.1.8) for
+[here](https://github.com/llvm/llvm-project/releases/tag/llvmorg-20.1.8) for
 your specific OS. Additionally, you need to install `zstd` (which can be
-aquired using a package manager or from
+acquired using a package manager or from
 [here](https://github.com/facebook/zstd/releases/tag/v1.5.5)).
 
-Once LLVM 18.1.8 and `zstd` are installed, you need to set the following
+Once LLVM 20.1.8 and `zstd` are installed, you need to set the following
 environment variables, replacing `$PATH_TO_LLVM` and `$PATH_TO_ZSTD`
 appropriately for your system depending on your installation:
 
@@ -61,7 +61,7 @@ export DYLD_LIBRARY_PATH="$DYLD_LIBRARY_PATH:$PATH_TO_LLVM/lib"
 export LDFLAGS="-L$PATH_TO_LLVM/lib"
 export CPPFLAGS="-I$PATH_TO_LLVM/include"
 export PATH="$PATH:$PATH_TO_LLVM/bin"
-export LLVM_SYS_181_PREFIX="$PATH_TO_LLVM"
+export LLVM_SYS_201_PREFIX="$PATH_TO_LLVM"
 ```
 
 This can be put in your shell script startup file
@@ -76,13 +76,13 @@ To install on Windows, the simplest way to install it is using
 [Chocolatey](https://chocolatey.org/):
 
 ```pwsh
-choco install llvm --version 18.1.8
+choco install llvm --version 20.1.8
 ```
 
 Alternatively, you can download the pre-built binaries from the [LLVM
 website](https://releases.llvm.org/download.html).
 
-Once LLVM is installed, verify that `$LLVM_SYS_181_PREFIX/bin` is in your `PATH` and the variable itslef is set.
+Once LLVM is installed, verify that `$LLVM_SYS_201_PREFIX/bin` is in your `PATH` and the variable itslef is set.
 
 After which, we may proceed to build the project using `cargo build`.
 
@@ -100,7 +100,6 @@ cargo build -p hashc --no-default-features
 ```
 
 This will build the compiler without the `llvm` feature, and hence you won't have the LLVM backend available.
-
 
 ## 4. Hello World
 

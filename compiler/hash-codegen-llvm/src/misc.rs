@@ -6,7 +6,10 @@ use hash_codegen::{
     target::link::{CodeModel, RelocationModel},
 };
 use hash_pipeline::settings::OptimisationLevel;
-use inkwell::attributes::Attribute;
+use inkwell::{
+    attributes::Attribute,
+    types::{AnyTypeEnum, BasicMetadataTypeEnum},
+};
 
 use crate::ctx::CodeGenCtx;
 
@@ -104,7 +107,7 @@ pub enum MetadataTypeKind {
 /// Represents a **subset** the attribute kinds that can be applied to a
 /// function or a call site of a function. This mimics the LLVM `AttributeKind`
 /// enum defined in `llvm/IR/Attributes.h`, more specifically at
-/// <https://github.com/llvm/llvm-project/blob/bf47ffaa76fbda1ba96d41ee2681e45d2445be1e/llvm/include/llvm/IR/Attributes.td#L63>
+/// <https://github.com/llvm/llvm-project/blob/llvmorg-20.1.8/llvm/include/llvm/IR/Attributes.td#L63>
 #[derive(Copy, Clone, Debug)]
 pub enum AttributeKind {
     Alignment,
@@ -124,28 +127,28 @@ pub enum AttributeKind {
     Memory,
     MinSize,
     Naked,
-    NoAlias = 20,
+    NoAlias = 22,
     NoBuiltin,
     NoCallback,
-    NoCapture = 23,
+    NoCapture = 25,
     NoDuplicate,
     NoFree,
-    NoReturn = 33,
+    NoReturn = 37,
     NoImplicitFloat,
     NoInline,
-    NoUndef = 37,
+    NoUndef = 41,
     NoMerge,
     NoRecurse,
-    NonNull = 40,
+    NonNull = 44,
     NoRedZone,
     NoSync,
     NoUnwind,
     NoSanitizeBounds,
     NoSanitizeCoverage,
-    ReadOnly = 48,
+    ReadOnly = 52,
     NullPointerIsValid,
     OptimizeForSize,
-    SExt = 51,
+    SExt = 55,
     OptimizeNone,
     Preallocated,
     ReadNone,
@@ -154,15 +157,15 @@ pub enum AttributeKind {
     StackAlignment,
     StackProtect,
     StackProtectReq,
-    ZExt = 72,
+    ZExt = 80,
     StackProtectStrong,
-    ByVal = 74,
-    StructRet = 78,
+    ByVal = 82,
+    StructRet = 86,
     SanitizeAddress,
     SanitizeThread,
     SanitizeMemory,
-    Dereferenceable = 82,
-    DereferenceableOrNull = 83,
+    Dereferenceable = 91,
+    DereferenceableOrNull,
     UWTable,
 }
 
@@ -216,7 +219,7 @@ impl AttributeKind {
             AttributeKind::Returned => "returned",
             AttributeKind::SafeStack => "safestack",
             AttributeKind::SExt => "signext",
-            AttributeKind::StackAlignment => "stackalign",
+            AttributeKind::StackAlignment => "alignstack",
             AttributeKind::StackProtect => "ssp",
             AttributeKind::StackProtectReq => "sspreq",
             AttributeKind::StackProtectStrong => "sspstrong",
@@ -353,5 +356,22 @@ mod tests {
 
         assert_eq!(Attribute::get_named_enum_kind_id("signext"), AttributeKind::SExt as u32);
         assert_eq!(Attribute::get_named_enum_kind_id("zeroext"), AttributeKind::ZExt as u32);
+    }
+}
+
+/// Convert a [BasicMetadataTypeEnum] into an [AnyTypeEnum].
+///
+/// This is similar to the conversion from [BasicTypeEnum] to [AnyTypeEnum],
+/// but works with metadata types which are used in function parameter types.
+pub fn convert_basic_metadata_ty_to_any<'m>(ty: BasicMetadataTypeEnum<'m>) -> AnyTypeEnum<'m> {
+    match ty {
+        BasicMetadataTypeEnum::ArrayType(ty) => AnyTypeEnum::ArrayType(ty),
+        BasicMetadataTypeEnum::FloatType(ty) => AnyTypeEnum::FloatType(ty),
+        BasicMetadataTypeEnum::IntType(ty) => AnyTypeEnum::IntType(ty),
+        BasicMetadataTypeEnum::PointerType(ty) => AnyTypeEnum::PointerType(ty),
+        BasicMetadataTypeEnum::ScalableVectorType(ty) => AnyTypeEnum::ScalableVectorType(ty),
+        BasicMetadataTypeEnum::StructType(ty) => AnyTypeEnum::StructType(ty),
+        BasicMetadataTypeEnum::VectorType(ty) => AnyTypeEnum::VectorType(ty),
+        _ => unreachable!(),
     }
 }
