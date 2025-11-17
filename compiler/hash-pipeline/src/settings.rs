@@ -415,10 +415,12 @@ impl Default for CompilerSettings {
     JsonSchema,
 )]
 #[serde(crate = "self::serde", rename_all = "kebab-case")]
+#[derive(Default)]
 pub enum OptimisationLevel {
     /// Run the compiler using the debug optimisation level. This will
     /// disable most optimisations that the compiler would otherwise do.
     /// This is intended for building the program as fast as possible.
+    #[default]
     Debug,
 
     /// Optimise the given program as much as possible, essentially
@@ -470,12 +472,6 @@ impl FromStr for OptimisationLevel {
             "min-size" => Ok(Self::MinSize),
             _ => Err(PipelineError::InvalidValue("optimisation-level".to_string(), s.to_string())),
         }
-    }
-}
-
-impl Default for OptimisationLevel {
-    fn default() -> Self {
-        Self::Debug
     }
 }
 
@@ -709,6 +705,20 @@ pub enum CodeGenBackend {
     VM,
 }
 
+#[allow(clippy::derivable_impls)]
+impl Default for CodeGenBackend {
+    fn default() -> Self {
+        #[cfg(feature = "llvm")]
+        {
+            Self::LLVM
+        }
+        #[cfg(not(feature = "llvm"))]
+        {
+            Self::VM
+        }
+    }
+}
+
 impl CodeGenBackend {
     /// Check if the code generation backend is the LLVM backend.
     #[cfg(feature = "llvm")]
@@ -724,20 +734,6 @@ impl CodeGenBackend {
     /// Check if the code generation backend is the Hash VM backend.
     pub fn is_vm(&self) -> bool {
         matches!(self, Self::VM)
-    }
-}
-
-#[cfg(feature = "llvm")]
-impl Default for CodeGenBackend {
-    fn default() -> Self {
-        Self::LLVM
-    }
-}
-
-#[cfg(not(feature = "llvm"))]
-impl Default for CodeGenBackend {
-    fn default() -> Self {
-        Self::VM
     }
 }
 

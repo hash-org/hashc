@@ -95,9 +95,7 @@ fn strip_contents(contents: &str, test: &TestingInput) -> String {
     // @@Hack: the forward slash at the end is unconditional, since we
     // need to re-add it because we removed it in the `stringify_test_dir_path`
     // function.
-    let stripped = dir_regex.replace_all(stripped.as_ref(), r"$$DIR/").replace("\r\n", "\n");
-
-    stripped
+    dir_regex.replace_all(stripped.as_ref(), r"$$DIR/").replace("\r\n", "\n")
 }
 
 /// Given the testing input, and a pre-filtered [Vec<Report>] based on

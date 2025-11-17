@@ -10,9 +10,10 @@ use serde::{Deserialize, Serialize};
 
 /// What kind of character set to use when printing compiler
 /// messages.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize, JsonSchema)]
 pub enum CharacterSet {
     /// Use unicode character set, this is used by default.
+    #[default]
     Unicode,
 
     /// Use the ASCII character set.
@@ -36,12 +37,6 @@ impl fmt::Display for CharacterSet {
             Self::Unicode => write!(f, "unicode"),
             Self::Ascii => write!(f, "ascii"),
         }
-    }
-}
-
-impl Default for CharacterSet {
-    fn default() -> Self {
-        Self::Unicode
     }
 }
 
