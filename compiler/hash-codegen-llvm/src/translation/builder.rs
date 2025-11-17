@@ -42,8 +42,8 @@ use super::{
     ty::ExtendedTyBuilderMethods,
 };
 use crate::misc::{
-    AtomicOrderingWrapper, FloatPredicateWrapper, IntPredicateWrapper, MetadataTypeKind,
-    convert_basic_metadata_ty_to_any,
+    AtomicOrderingWrapper, FastMathFlags, FixedMetadataTypeKind, FloatPredicateWrapper,
+    IntPredicateWrapper, convert_basic_metadata_ty_to_any,
 };
 
 /// Convert a [AnyValueEnum] to a [InstructionValue] by first
@@ -991,7 +991,7 @@ impl<'a, 'b> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, '_> {
             // [1]: https://llvm.org/docs/LangRef.html#store-instruction
             let metadata: BasicMetadataValueEnum = self.ctx.const_i32(1).try_into().unwrap();
             let node = self.ctx.ll_ctx.metadata_node(&[metadata]);
-            store_value.set_metadata(node, MetadataTypeKind::NonTemporal as u32).unwrap();
+            store_value.set_metadata(node, FixedMetadataTypeKind::NonTemporal as u32).unwrap();
         }
 
         store_value.into()
@@ -1210,10 +1210,9 @@ impl<'a, 'b> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, '_> {
         let end: BasicMetadataValueEnum =
             self.ctx.const_uint_big(ty, range.end.wrapping_add(1)).try_into().unwrap();
 
-        let metadata = self.ctx.ll_ctx.metadata_node(&[start, end]);
-
         let value = instruction_from_any_value(load_value);
-        value.set_metadata(metadata, MetadataTypeKind::Range as u32).unwrap();
+        let metadata = self.ctx.ll_ctx.metadata_node(&[start, end]);
+        value.set_metadata(metadata, FixedMetadataTypeKind::Range as u32).unwrap();
     }
 
     fn extract_field_value(&mut self, value: Self::Value, field_index: usize) -> Self::Value {

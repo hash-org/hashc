@@ -9,19 +9,19 @@ use inkwell as llvm;
 use llvm::values::{AnyValueEnum, BasicMetadataValueEnum, InstructionValue};
 
 use super::LLVMBuilder;
-use crate::misc::MetadataTypeKind;
+use crate::misc::FixedMetadataTypeKind;
 
 impl<'m> LLVMBuilder<'_, '_, 'm> {
     /// Emit a `no-undef` metadata attribute on a specific value.
     pub fn set_no_undef(&mut self, value: InstructionValue<'m>) {
         let metadata = self.ctx.ll_ctx.metadata_node(&[]);
-        value.set_metadata(metadata, MetadataTypeKind::NoUndef as u32).unwrap();
+        value.set_metadata(metadata, FixedMetadataTypeKind::NoUndef as u32).unwrap();
     }
 
     /// Emit a `nonnull` metadata attribute on a specific value.
     pub fn set_non_null(&mut self, value: InstructionValue<'m>) {
         let metadata = self.ctx.ll_ctx.metadata_node(&[]);
-        value.set_metadata(metadata, MetadataTypeKind::NonNull as u32).unwrap();
+        value.set_metadata(metadata, FixedMetadataTypeKind::NonNull as u32).unwrap();
     }
 
     /// Specify the alignment for a particular value.
@@ -31,7 +31,7 @@ impl<'m> LLVMBuilder<'_, '_, 'm> {
 
         let metadata = self.ctx.ll_ctx.metadata_node(&[alignment_metadata]);
 
-        value.set_metadata(metadata, MetadataTypeKind::Align as u32).unwrap();
+        value.set_metadata(metadata, FixedMetadataTypeKind::Align as u32).unwrap();
     }
 
     /// Emit lifetime marker information to LLVM via a `llvm.lifetime.start`
