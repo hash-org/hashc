@@ -1,4 +1,4 @@
-// stage=full, run=pass
+// stage=exe, run=pass, args=--backend=llvm
 
 #entry_point foo := () => {
 

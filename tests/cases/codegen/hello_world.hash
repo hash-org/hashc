@@ -1,4 +1,4 @@
-// stage=exe, run=pass
+// stage=exe, run=pass, args=--backend=llvm
 
 main := () => {
     println("hello world!")
