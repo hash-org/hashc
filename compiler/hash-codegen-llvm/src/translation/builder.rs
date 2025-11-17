@@ -26,7 +26,6 @@ use hash_codegen::{
 use hash_ir::ty::{ReprTy, ReprTyId};
 use hash_source::constant::{IntTy, SIntTy, UIntTy};
 use hash_storage::store::{Store, statics::StoreId};
-use hash_utils::rayon::iter::Either;
 use inkwell::{
     basic_block::BasicBlock,
     types::{AnyTypeEnum, AsTypeRef, BasicTypeEnum, FunctionType},
@@ -246,13 +245,7 @@ impl<'a, 'b> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, '_> {
             })
         }
 
-        // Convert the `CallSiteValue` into a `AnyEnumValue`...
-        //
-        // @@Cleanup: maybe patch inkwell with this func?
-        match site.try_as_basic_value() {
-            Either::Left(val) => val.into(),
-            Either::Right(val) => val.into(),
-        }
+        site.as_any_value_enum()
     }
 
     // @@Todo: would be nice to make this a macro...
