@@ -275,12 +275,10 @@ impl<'a, 'b> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, '_> {
         let lhs = lhs.into_float_value();
         let rhs = rhs.into_float_value();
 
-        let value = self.builder.build_float_add(lhs, rhs, "");
+        let value = self.builder.build_float_add(lhs, rhs, "").unwrap();
 
-        // @@Todo: set the `fast` metadata flag on this operation
-        // value.as_instruction().map(|instruction| instruction.set_metadata(metadata,
-        // kind_id));
-        value.unwrap().into()
+        value.as_instruction_value().unwrap().set_fast_math_flags(FastMathFlags::FAST.bits());
+        value.into()
     }
 
     fn sub(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
@@ -301,12 +299,9 @@ impl<'a, 'b> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, '_> {
         let lhs = lhs.into_float_value();
         let rhs = rhs.into_float_value();
 
-        let value = self.builder.build_float_sub(lhs, rhs, "");
-
-        // @@Todo: set the `fast` metadata flag on this operation
-        // value.as_instruction().map(|instruction| instruction.set_metadata(metadata,
-        // kind_id));
-        value.unwrap().into()
+        let value = self.builder.build_float_sub(lhs, rhs, "").unwrap();
+        value.as_instruction_value().unwrap().set_fast_math_flags(FastMathFlags::FAST.bits());
+        value.into()
     }
 
     fn mul(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
@@ -327,12 +322,10 @@ impl<'a, 'b> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, '_> {
         let lhs = lhs.into_float_value();
         let rhs = rhs.into_float_value();
 
-        let value = self.builder.build_float_mul(lhs, rhs, "");
+        let value = self.builder.build_float_mul(lhs, rhs, "").unwrap();
 
-        // @@Todo: set the `fast` metadata flag on this operation
-        // value.as_instruction().map(|instruction| instruction.set_metadata(metadata,
-        // kind_id));
-        value.unwrap().into()
+        value.as_instruction_value().unwrap().set_fast_math_flags(FastMathFlags::FAST.bits());
+        value.into()
     }
 
     fn udiv(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
@@ -384,12 +377,10 @@ impl<'a, 'b> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, '_> {
         let lhs = lhs.into_float_value();
         let rhs = rhs.into_float_value();
 
-        let value = self.builder.build_float_div(lhs, rhs, "");
+        let value = self.builder.build_float_div(lhs, rhs, "").unwrap();
 
-        // @@Todo: set the `fast` metadata flag on this operation
-        // value.as_instruction().map(|instruction| instruction.set_metadata(metadata,
-        // kind_id)).into();
-        value.unwrap().into()
+        value.as_instruction_value().unwrap().set_fast_math_flags(FastMathFlags::FAST.bits());
+        value.into()
     }
 
     fn urem(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
@@ -417,12 +408,10 @@ impl<'a, 'b> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, '_> {
         let lhs = lhs.into_float_value();
         let rhs = rhs.into_float_value();
 
-        let value = self.builder.build_float_rem(lhs, rhs, "");
+        let value = self.builder.build_float_rem(lhs, rhs, "").unwrap();
 
-        // @@Todo: set the `fast` metadata flag on this operation
-        // value.as_instruction().map(|instruction| instruction.set_metadata(metadata,
-        // kind_id)).into();
-        value.unwrap().into()
+        value.as_instruction_value().unwrap().set_fast_math_flags(FastMathFlags::FAST.bits());
+        value.into()
     }
 
     fn fpow(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
