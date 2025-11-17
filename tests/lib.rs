@@ -1,6 +1,7 @@
 #![feature(test)]
 extern crate test;
 
+pub mod reporting;
 /// Modules to do with UI tests and running them
 mod runner;
 

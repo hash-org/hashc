@@ -1,4 +1,4 @@
-// stage=exe, run=pass
+// stage=exe, run=pass, args=--backend=llvm
 
 #[repr("i8")]
 Direction := enum(

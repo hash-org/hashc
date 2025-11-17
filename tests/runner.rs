@@ -25,7 +25,7 @@
 #![cfg(test)]
 
 use std::{
-    fs, io,
+    fs, io, panic,
     path::Path,
     sync::{Arc, Mutex},
 };
@@ -47,7 +47,7 @@ use hash_utils::{
 };
 use regex::Regex;
 
-use crate::{ANSI_REGEX, REGENERATE_OUTPUT};
+use crate::{ANSI_REGEX, REGENERATE_OUTPUT, reporting::TestErrorInfo};
 
 const WORKER_COUNT: usize = 2;
 
@@ -182,9 +182,8 @@ fn compare_output(test: &TestingInput, kind: OutputKind, contents: &str) -> std:
     pretty_assertions::assert_str_eq!(
         expected_contents,
         actual_contents,
-        "\ncase `.{}` does not match for: {:#?}\n",
-        kind.extension(),
-        test
+        "\nTest case file: {}",
+        test.path.display()
     );
 
     Ok(())
@@ -214,20 +213,26 @@ fn handle_failure_case(
     output_stream: &Arc<Mutex<Vec<u8>>>,
 ) -> std::io::Result<()> {
     // verify that the case failed, as in reports where generated
-    assert!(
-        diagnostics.iter().any(|report| report.is_error()),
-        "\ntest case did not fail: {test:#?}{}",
-        ""
-    );
+    if !diagnostics.iter().any(|report| report.is_error()) {
+        let error_info = TestErrorInfo::new(
+            &test.path,
+            "Expected test case to fail with errors, but no errors were emitted.",
+            "test_case_did_not_fail",
+        );
+        panic!("\n{}", error_info.format());
+    }
 
     // If the test specifies that no warnings should be generated, then check
     // that this is the case
     if test.metadata.warnings == HandleWarnings::Disallow {
-        assert!(
-            diagnostics.iter().all(|report| report.is_error()),
-            "\ntest case generated warnings where they were disallowed: {test:#?}{}",
-            ""
-        );
+        if !diagnostics.iter().all(|report| report.is_error()) {
+            let error_info = TestErrorInfo::new(
+                &test.path,
+                "Test case generated warnings where they were disallowed.",
+                "warnings_disallowed",
+            );
+            panic!("\n{}", error_info.format());
+        }
     }
 
     // Filter out `warnings` if the function specifies them to be
@@ -261,15 +266,17 @@ fn handle_pass_case(
     };
 
     if !did_pass {
-        panic!(
-            "\ntest case did not pass:\nconfiguration: {:?}\n\n{}",
-            test.metadata,
-            diagnostics
-                .into_iter()
-                .map(|report| format!("{}", report))
-                .collect::<Vec<_>>()
-                .join("\n")
-        );
+        let diagnostics_str = diagnostics
+            .into_iter()
+            .map(|report| format!("{}", report))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let message =
+            format!("Configuration: {:?}\n\nDiagnostics:\n{}", test.metadata, diagnostics_str);
+
+        let error_info = TestErrorInfo::new(&test.path, message, "test_case_did_not_pass");
+        panic!("\n{}", error_info.format());
     }
 
     // If we need to compare the output of the warnings, to the previous result...
@@ -284,7 +291,7 @@ fn handle_pass_case(
 pub static COMPILER_LOGGER: CompilerLogger = CompilerLogger::new();
 
 /// Generic test handler in the event whether a case should pass or fail.
-fn handle_test(test: TestingInput) {
+fn handle_test_inner(test: TestingInput) {
     // we create an error and output stream so that we can later
     // compare the output of the compiler to the expected output
     let raw_output_stream = Arc::new(Mutex::new(Vec::new()));
@@ -356,6 +363,32 @@ fn handle_test(test: TestingInput) {
         handle_failure_case(test, diagnostics, &raw_output_stream).unwrap();
     } else {
         handle_pass_case(test, diagnostics, &raw_output_stream).unwrap();
+    }
+}
+
+/// Wrapper function that catches panics and formats them with a clickable file
+/// path. This ensures that even when the compiler panics, the test output
+/// includes the file path in a format that IDEs can recognize and make
+/// clickable.
+fn handle_test(test: TestingInput) {
+    let test_clone = test.clone();
+
+    // Catch any panics that occur during test execution
+    let result =
+        panic::catch_unwind(panic::AssertUnwindSafe(move || handle_test_inner(test_clone)));
+
+    // If a panic occurred, format it with the file path and re-panic
+    if let Err(panic_payload) = result {
+        let panic_msg = if let Some(s) = panic_payload.downcast_ref::<String>() {
+            s.clone()
+        } else if let Some(s) = panic_payload.downcast_ref::<&str>() {
+            s.to_string()
+        } else {
+            "Compiler panic occurred during test execution".to_string()
+        };
+
+        let error_info = TestErrorInfo::new(&test.path, panic_msg, "compiler_panic");
+        panic!("\n{}", error_info.format());
     }
 }
 
