@@ -160,6 +160,9 @@ pub struct Target {
     /// The integer width of the target in bits.
     pub c_int_width: u8,
 
+    /// The minimum alignment for global symbols.
+    pub min_global_align: Option<u64>,
+
     /// The default visibility for symbols in this target should be "hidden"
     /// rather than "default"
     pub default_hidden_visibility: bool,
@@ -350,6 +353,8 @@ impl Default for Target {
             data_layout: "e-m:e-i64:64-f80:128-n8:16:32:64-S128".into(),
             target_data_layout: TargetDataLayout::default(),
             pointer_bit_width,
+
+            min_global_align: None,
 
             // Entry point options
             entry_name: "main".into(),
