@@ -6,6 +6,7 @@ use hash_codegen::{
     target::link::{CodeModel, RelocationModel},
 };
 use hash_pipeline::settings::OptimisationLevel;
+use hash_utils::bitflags::bitflags;
 use inkwell::{
     attributes::Attribute,
     types::{AnyTypeEnum, BasicMetadataTypeEnum},
@@ -91,7 +92,7 @@ impl From<AtomicOrdering> for AtomicOrderingWrapper {
 /// Defined in <https://github.com/llvm-mirror/llvm/blob/master/include/llvm/IR/FixedMetadataKinds.def>
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub enum MetadataTypeKind {
+pub enum FixedMetadataTypeKind {
     FpMath = 3,
     Range = 4,
     InvariantLoad = 6,
@@ -242,6 +243,33 @@ impl AttributeKind {
         //
         // This comes from having a look at https://docs.hdoc.io/hdoc/llvm-project/rA9A65D21E1B5E7CF.html#DEBC8EEACD63FC31
         ctx.ll_ctx.create_enum_attribute(*self as u32, 0)
+    }
+}
+
+bitflags! {
+    /// Represents the flags that can be used to enable or disable fast math
+    /// optimizations.
+    ///
+    /// https://llvm.org/docs/LangRef.html#fast-math-flags
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct FastMathFlags: u32 {
+        /// Fast - Enable all fast math optimizations.
+        const FAST = 1 << 0;
+
+        /// No NaNs - Allow optimizations to assume the arguments and result are not
+        /// NaN. If an argument is NaN, or the result would be NaN, it produces a
+        /// poison value instead.
+        const NNAN = 1 << 1;
+
+        /// No Infs - Allow optimizations to assume the arguments and result are not
+        /// +/-Inf. If an argument is +/-Inf, or the result would be +/-Inf, it
+        /// produces a poison value instead.
+        const NINF = 1 << 2;
+
+        /// No Signed Zeros - Allow optimizations to treat the sign of a zero
+        /// argument or zero result as insignificant. This does not imply that -0.0
+        /// is poison and/or guaranteed to not exist in the operation.
+        const NSZ = 1 << 3;
     }
 }
 

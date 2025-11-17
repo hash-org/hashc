@@ -26,7 +26,6 @@ use hash_codegen::{
 use hash_ir::ty::{ReprTy, ReprTyId};
 use hash_source::constant::{IntTy, SIntTy, UIntTy};
 use hash_storage::store::{Store, statics::StoreId};
-use hash_utils::rayon::iter::Either;
 use inkwell::{
     basic_block::BasicBlock,
     types::{AnyTypeEnum, AsTypeRef, BasicTypeEnum, FunctionType},
@@ -42,8 +41,8 @@ use super::{
     ty::ExtendedTyBuilderMethods,
 };
 use crate::misc::{
-    AtomicOrderingWrapper, FloatPredicateWrapper, IntPredicateWrapper, MetadataTypeKind,
-    convert_basic_metadata_ty_to_any,
+    AtomicOrderingWrapper, FastMathFlags, FixedMetadataTypeKind, FloatPredicateWrapper,
+    IntPredicateWrapper, convert_basic_metadata_ty_to_any,
 };
 
 /// Convert a [AnyValueEnum] to a [InstructionValue] by first
@@ -246,13 +245,7 @@ impl<'a, 'b> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, '_> {
             })
         }
 
-        // Convert the `CallSiteValue` into a `AnyEnumValue`...
-        //
-        // @@Cleanup: maybe patch inkwell with this func?
-        match site.try_as_basic_value() {
-            Either::Left(val) => val.into(),
-            Either::Right(val) => val.into(),
-        }
+        site.as_any_value_enum()
     }
 
     // @@Todo: would be nice to make this a macro...
@@ -275,12 +268,10 @@ impl<'a, 'b> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, '_> {
         let lhs = lhs.into_float_value();
         let rhs = rhs.into_float_value();
 
-        let value = self.builder.build_float_add(lhs, rhs, "");
+        let value = self.builder.build_float_add(lhs, rhs, "").unwrap();
 
-        // @@Todo: set the `fast` metadata flag on this operation
-        // value.as_instruction().map(|instruction| instruction.set_metadata(metadata,
-        // kind_id));
-        value.unwrap().into()
+        value.as_instruction_value().unwrap().set_fast_math_flags(FastMathFlags::FAST.bits());
+        value.into()
     }
 
     fn sub(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
@@ -301,12 +292,9 @@ impl<'a, 'b> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, '_> {
         let lhs = lhs.into_float_value();
         let rhs = rhs.into_float_value();
 
-        let value = self.builder.build_float_sub(lhs, rhs, "");
-
-        // @@Todo: set the `fast` metadata flag on this operation
-        // value.as_instruction().map(|instruction| instruction.set_metadata(metadata,
-        // kind_id));
-        value.unwrap().into()
+        let value = self.builder.build_float_sub(lhs, rhs, "").unwrap();
+        value.as_instruction_value().unwrap().set_fast_math_flags(FastMathFlags::FAST.bits());
+        value.into()
     }
 
     fn mul(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
@@ -327,12 +315,10 @@ impl<'a, 'b> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, '_> {
         let lhs = lhs.into_float_value();
         let rhs = rhs.into_float_value();
 
-        let value = self.builder.build_float_mul(lhs, rhs, "");
+        let value = self.builder.build_float_mul(lhs, rhs, "").unwrap();
 
-        // @@Todo: set the `fast` metadata flag on this operation
-        // value.as_instruction().map(|instruction| instruction.set_metadata(metadata,
-        // kind_id));
-        value.unwrap().into()
+        value.as_instruction_value().unwrap().set_fast_math_flags(FastMathFlags::FAST.bits());
+        value.into()
     }
 
     fn udiv(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
@@ -384,12 +370,10 @@ impl<'a, 'b> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, '_> {
         let lhs = lhs.into_float_value();
         let rhs = rhs.into_float_value();
 
-        let value = self.builder.build_float_div(lhs, rhs, "");
+        let value = self.builder.build_float_div(lhs, rhs, "").unwrap();
 
-        // @@Todo: set the `fast` metadata flag on this operation
-        // value.as_instruction().map(|instruction| instruction.set_metadata(metadata,
-        // kind_id)).into();
-        value.unwrap().into()
+        value.as_instruction_value().unwrap().set_fast_math_flags(FastMathFlags::FAST.bits());
+        value.into()
     }
 
     fn urem(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
@@ -417,12 +401,10 @@ impl<'a, 'b> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, '_> {
         let lhs = lhs.into_float_value();
         let rhs = rhs.into_float_value();
 
-        let value = self.builder.build_float_rem(lhs, rhs, "");
+        let value = self.builder.build_float_rem(lhs, rhs, "").unwrap();
 
-        // @@Todo: set the `fast` metadata flag on this operation
-        // value.as_instruction().map(|instruction| instruction.set_metadata(metadata,
-        // kind_id)).into();
-        value.unwrap().into()
+        value.as_instruction_value().unwrap().set_fast_math_flags(FastMathFlags::FAST.bits());
+        value.into()
     }
 
     fn fpow(&mut self, lhs: Self::Value, rhs: Self::Value) -> Self::Value {
@@ -991,7 +973,7 @@ impl<'a, 'b> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, '_> {
             // [1]: https://llvm.org/docs/LangRef.html#store-instruction
             let metadata: BasicMetadataValueEnum = self.ctx.const_i32(1).try_into().unwrap();
             let node = self.ctx.ll_ctx.metadata_node(&[metadata]);
-            store_value.set_metadata(node, MetadataTypeKind::NonTemporal as u32).unwrap();
+            store_value.set_metadata(node, FixedMetadataTypeKind::NonTemporal as u32).unwrap();
         }
 
         store_value.into()
@@ -1210,10 +1192,9 @@ impl<'a, 'b> BlockBuilderMethods<'a, 'b> for LLVMBuilder<'a, 'b, '_> {
         let end: BasicMetadataValueEnum =
             self.ctx.const_uint_big(ty, range.end.wrapping_add(1)).try_into().unwrap();
 
-        let metadata = self.ctx.ll_ctx.metadata_node(&[start, end]);
-
         let value = instruction_from_any_value(load_value);
-        value.set_metadata(metadata, MetadataTypeKind::Range as u32).unwrap();
+        let metadata = self.ctx.ll_ctx.metadata_node(&[start, end]);
+        value.set_metadata(metadata, FixedMetadataTypeKind::Range as u32).unwrap();
     }
 
     fn extract_field_value(&mut self, value: Self::Value, field_index: usize) -> Self::Value {

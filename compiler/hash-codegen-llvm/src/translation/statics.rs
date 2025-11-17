@@ -1,8 +1,10 @@
 //! Implementation of the `StaticMethods` trait for the `CodeGenCtx` struct in
 //! the LLVM backend.
 
+use std::cmp;
+
 use hash_codegen::{
-    target::alignment::Alignment,
+    target::{HasTarget, alignment::Alignment},
     traits::{statics::StaticMethods, ty::TypeBuilderMethods},
 };
 use inkwell::values::{AnyValue, AnyValueEnum, BasicValueEnum, GlobalValue, UnnamedAddress};
@@ -26,9 +28,17 @@ impl<'m> CodeGenCtx<'_, 'm> {
     }
 
     /// Set the alignment on a global variable.
-    fn set_alignmnent_on_global(&self, value: GlobalValue<'m>, align: Alignment) {
-        // @@FixMe: https://github.com/rust-lang/rust/issues/44411 - respect targets
-        // which require for a minimum alignment to be specified on globals.
+    fn set_alignmnent_on_global(&self, value: GlobalValue<'m>, mut align: Alignment) {
+        let target = self.target();
+
+        if let Some(min_global_align) = target.min_global_align {
+            match Alignment::from_bits(min_global_align) {
+                Ok(min) => {
+                    align = cmp::max(align, min);
+                }
+                Err(_) => panic!("Invalid minimum global alignment: {}", min_global_align),
+            }
+        }
 
         let align = align.bytes() as u32;
         value.set_alignment(align);
