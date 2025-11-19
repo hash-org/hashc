@@ -17,7 +17,10 @@ use build::BodyBuilder;
 use ctx::BuilderCtx;
 use discover::FnDiscoverer;
 use hash_attrs::{attr::attr_store, builtin::attrs};
-use hash_ir::IrStorage;
+use hash_ir::{
+    IrStorage,
+    call_graph::{CallGraph, CallGraphWriter},
+};
 use hash_ir_utils::{graphviz::IrGraphWriter, pretty::IrPrettyWriter};
 use hash_pipeline::{
     interface::{CompilerInterface, CompilerResult, CompilerStage, StageMetrics},
@@ -225,6 +228,13 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrOptimiser {
 
     fn cleanup(&mut self, _entry_point: SourceId, ctx: &mut Ctx) {
         let LoweringCtx { icx, settings, lcx, .. } = ctx.data();
+
+        // Build the call graph
+        if settings.lowering_settings.show_call_graph {
+            let call_graph = CallGraph::build(icx.bodies.iter().as_slice());
+            let writer = CallGraphWriter::with_default_options(call_graph);
+            log::info!("call graph:\n{}", writer);
+        }
 
         // we need to check if any of the bodies have been marked for `dumping`
         // and emit the IR that they have generated.
