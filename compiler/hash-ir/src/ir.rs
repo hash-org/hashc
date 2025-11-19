@@ -956,6 +956,11 @@ impl Body {
         &self.basic_blocks.blocks
     }
 
+    /// Get an iterator over all of the [Terminator]s of this [Body].
+    pub fn terminators(&self) -> impl Iterator<Item = &Terminator> {
+        self.basic_blocks.blocks.iter().flat_map(|block| block.terminator.iter())
+    }
+
     /// Get a reference to the stored [Projections] of this [Body].
     pub fn projections(&self) -> &Projections {
         &self.projections
