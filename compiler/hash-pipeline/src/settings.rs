@@ -533,11 +533,20 @@ pub struct LoweringSettings {
     /// the compiler is building a debug variant or not.
     #[arg(long = "ir-checked-operations", default_value_t = true, action = clap::ArgAction::Set)]
     pub checked_operations: bool,
+
+    /// Whether the compiler should show the call graph.
+    #[arg(long = "show-call-graph", default_value_t = false)]
+    pub show_call_graph: bool,
 }
 
 impl Default for LoweringSettings {
     fn default() -> Self {
-        Self { dump_mode: IrDumpMode::Pretty, checked_operations: true, dump: false }
+        Self {
+            dump_mode: IrDumpMode::Pretty,
+            checked_operations: true,
+            dump: false,
+            show_call_graph: false,
+        }
     }
 }
 
@@ -546,6 +555,7 @@ impl MergeConfig for LoweringSettings {
         self.dump = config.dump;
         self.dump_mode = config.dump_mode;
         self.checked_operations = config.checked_operations;
+        self.show_call_graph = config.show_call_graph;
     }
 }
 

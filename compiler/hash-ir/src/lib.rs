@@ -2,6 +2,7 @@
 #![feature(type_alias_impl_trait, decl_macro, box_patterns, variant_count)]
 
 pub mod basic_blocks;
+pub mod call_graph;
 pub mod cast;
 pub mod intrinsics;
 pub mod ir;
