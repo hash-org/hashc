@@ -3,9 +3,11 @@
 use std::cell::Cell;
 
 use crate::{
-    bytecode::Instruction,
+    bytecode::{
+        Instruction,
+        register::{Register, RegisterSet},
+    },
     error::RuntimeError,
-    register::{Register, RegisterSet},
     stack::Stack,
 };
 

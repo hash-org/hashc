@@ -1,7 +1,5 @@
 //! Hash Compiler VM tests.
-use hash_vm::{
-    bytecode::Instruction, bytecode_builder::BytecodeBuilder, register::Register, vm::Interpreter,
-};
+use hash_vm::{builder::BytecodeBuilder, bytecode::register::Register, inst, r, vm::Interpreter};
 
 #[test]
 fn push_two_and_add() {

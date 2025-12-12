@@ -183,3 +183,18 @@ impl RegisterSet {
         reg[7]
     }
 }
+
+/// Macro to create a new register.
+///
+/// # Example
+/// ```
+/// use hash_vm::bytecode::register::Register;
+/// let r0 = r!(0);
+/// let r1 = r!(1);
+/// ```
+#[macro_export]
+macro_rules! r {
+    ($index:expr) => {
+        Register::new($index)
+    };
+}
