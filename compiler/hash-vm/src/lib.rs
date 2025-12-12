@@ -2,8 +2,7 @@
 mod heap;
 mod stack;
 
+pub mod builder;
 pub mod bytecode;
-
-pub mod bytecode_builder;
 pub mod error;
 pub mod vm;
