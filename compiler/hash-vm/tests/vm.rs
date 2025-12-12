@@ -5,18 +5,20 @@ use hash_vm::{builder::BytecodeBuilder, bytecode::register::Register, inst, r, v
 fn push_two_and_add() {
     let mut builder = BytecodeBuilder::default();
 
-    let l1 = Register::new(0);
-    let l2 = Register::new(1);
-
-    builder.add_instruction(Instruction::Add16 { l1, l2 });
+    let r0 = r!(0);
+    builder.append(inst! {
+        write16 [0], #[2];
+        write16 [1], #[2];
+        add16 [0], [1];
+    });
 
     let mut vm = Interpreter::new();
-    vm.set_program(builder.into());
 
-    // set registers l1 and l2 to appropriate values...
-    vm.registers_mut().set_register16(l1, 2);
-    vm.registers_mut().set_register16(l2, 2);
-
+    // @@Todo: this is definitely not correct, as we'd
+    // still need to ensure that we've got all of the right
+    // labels and offsets set up within the bytecode, i.e.
+    // function addresses, block label addresses.
+    vm.set_program(builder.instructions);
     vm.run().unwrap();
-    assert_eq!(vm.registers().get_register16(l1), 4);
+    assert_eq!(vm.registers().get_register16(r0), 4);
 }
