@@ -11,3 +11,4 @@ doctest = false
 hash-reporting = { workspace = true }
 hash-source = { workspace = true }
 hash-utils = { workspace = true }
+hash-abi = { workspace = true }

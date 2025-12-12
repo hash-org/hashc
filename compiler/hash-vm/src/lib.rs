@@ -1,4 +1,6 @@
 //! Hash Compiler VM crate.
+#![feature(if_let_guard)]
+
 mod heap;
 mod stack;
 

@@ -62,6 +62,11 @@ impl Interpreter {
         }
     }
 
+    /// Get a reference to the current program space.
+    pub fn program(&self) -> &[Instruction] {
+        &self.instructions
+    }
+
     fn run_next_instruction(&mut self) -> Result<(), RuntimeError> {
         let ip = self.get_instruction_pointer();
         let instruction = self.instructions.get(ip).unwrap();

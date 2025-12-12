@@ -43,7 +43,7 @@ impl CallingConvention {
     }
 }
 
-new_store_key!(pub FnAbiId);
+new_store_key!(pub FnAbiId, derives = Debug);
 
 /// Defines ABI specific information about a function.
 ///
