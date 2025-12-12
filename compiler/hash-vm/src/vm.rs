@@ -711,10 +711,8 @@ impl Interpreter {
                 self.registers.set_register64(dest, value);
             }
             Instruction::Jmp { location } => {
-                // @@Correctness: is this the correct conversion??
-                let value = self.registers.get_register64(location).try_into().unwrap();
-
                 // Arbitrarily jump to the specified location in the register
+                let value = location.as_literal_usize(&self.registers);
                 self.set_instruction_pointer(value);
             }
             Instruction::JmpPos { l1, location } => {
@@ -723,7 +721,7 @@ impl Interpreter {
                 // Arbitrarily jump to the specified location in the register if the comparison
                 // value is less than zero or in other words, negative...
                 if r1 > 0 {
-                    let value = self.registers.get_register64(location).try_into().unwrap();
+                    let value = location.as_literal_usize(&self.registers);
                     self.set_instruction_pointer(value);
                 }
             }
@@ -733,7 +731,7 @@ impl Interpreter {
                 // Arbitrarily jump to the specified location in the register if the comparison
                 // value is less than zero or in other words, negative...
                 if r1 < 0 {
-                    let value = self.registers.get_register64(location).try_into().unwrap();
+                    let value = location.as_literal_usize(&self.registers);
                     self.set_instruction_pointer(value);
                 }
             }
@@ -743,7 +741,7 @@ impl Interpreter {
                 // Arbitrarily jump to the specified location in the register if the comparison
                 // value is less than zero or in other words, negative...
                 if r1 == 0 {
-                    let value = self.registers.get_register64(location).try_into().unwrap();
+                    let value = location.as_literal_usize(&self.registers);
                     self.set_instruction_pointer(value);
                 }
             }
