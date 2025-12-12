@@ -866,7 +866,7 @@ impl Interpreter {
     }
 
     pub fn run(&mut self) -> Result<(), RuntimeError> {
-        let ip = self.get_instruction_pointer();
+        let mut ip = self.get_instruction_pointer();
 
         while ip < self.instructions.len() {
             // Ok, now we need to run the current instruction, so we pass it into the
@@ -882,7 +882,8 @@ impl Interpreter {
                 return Ok(());
             }
 
-            self.set_instruction_pointer(ip + 1);
+            ip += 1;
+            self.set_instruction_pointer(ip);
         }
 
         Ok(())
