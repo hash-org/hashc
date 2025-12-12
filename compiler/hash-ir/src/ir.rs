@@ -839,6 +839,13 @@ impl BasicBlockData {
         self.statements.is_empty()
             && self.terminator.as_ref().is_some_and(|t| t.kind == TerminatorKind::Unreachable)
     }
+
+    /// Get the size of the [BasicBlockData].
+    ///
+    /// This is the number of statements in the block plus the terminator.
+    pub fn size(&self) -> usize {
+        self.statements.len() + self.terminator.as_ref().map_or(0, |_| 1)
+    }
 }
 
 index_vec::define_index_type! {
@@ -1032,6 +1039,37 @@ impl Body {
     pub fn source(&self) -> SourceId {
         self.origin.source()
     }
+
+    /// Get the size of the [Body].
+    pub fn size(&self) -> usize {
+        let stats = self.stats();
+        stats.statements as usize
+    }
+
+    /// Get the statistics of the [Body].
+    pub fn stats(&self) -> BodyStats {
+        let mut stats = BodyStats::default();
+
+        for block in self.basic_blocks.blocks.iter() {
+            stats.statements += block.size() as u32;
+            stats.terminators += block.terminator.as_ref().map_or(0, |_| 1) as u32;
+            stats.basic_blocks += 1;
+        }
+
+        stats
+    }
+}
+
+/// The statistics of the body.
+#[derive(Default)]
+
+pub struct BodyStats {
+    /// The number of basic blocks in the body.
+    pub basic_blocks: u32,
+    /// The number of statements in the body.
+    pub statements: u32,
+    /// The number of terminators in the body.
+    pub terminators: u32,
 }
 
 /// This struct contains additional metadata about the body that was lowered,
