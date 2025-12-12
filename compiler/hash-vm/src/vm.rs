@@ -793,8 +793,6 @@ impl Interpreter {
                 let value = self.registers.get_register_8b(l1);
                 self.stack.push64(value)?;
             }
-
-            // Function related instructions
             Instruction::Call { func } => {
                 // Save the ip onto the stack
                 self.stack.push64(
@@ -834,6 +832,18 @@ impl Interpreter {
                     Register::INSTRUCTION_POINTER,
                     u64::from_be_bytes(*self.stack.pop64()?),
                 );
+            }
+            Instruction::Write8 { reg, value } => {
+                self.registers.set_register8(reg, value);
+            }
+            Instruction::Write16 { reg, value } => {
+                self.registers.set_register16(reg, value);
+            }
+            Instruction::Write32 { reg, value } => {
+                self.registers.set_register32(reg, value);
+            }
+            Instruction::Write64 { reg, value } => {
+                self.registers.set_register64(reg, value);
             }
             Instruction::Syscall { .. } => todo!(),
         };
