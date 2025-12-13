@@ -18,7 +18,7 @@ use hash_codegen::{
 };
 use hash_ir::IrCtx;
 use hash_pipeline::settings::CompilerSettings;
-use hash_vm::bytecode_builder::BytecodeBuilder;
+use hash_vm::builder::BytecodeBuilder;
 
 use crate::ctx::Ctx;
 

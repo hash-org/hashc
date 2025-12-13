@@ -1,5 +1,4 @@
-//! Hash Compiler VM bytecode/instruction set.
-use crate::register::Register;
+use super::{op::Operand, register::Register};
 
 /// The VM instruction set.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -354,6 +353,26 @@ pub enum Instruction {
         l1: Register,
         l2: Register,
     },
+    /// Write an 8bit literal value to a memory address.
+    Write8 {
+        reg: Register,
+        value: u8,
+    },
+    /// Write a 16bit literal value to a memory address.
+    Write16 {
+        reg: Register,
+        value: u16,
+    },
+    /// Write a 32bit literal value to a memory address.
+    Write32 {
+        reg: Register,
+        value: u32,
+    },
+    /// Write a 64bit literal value to a memory address.
+    Write64 {
+        reg: Register,
+        value: u64,
+    },
     /// Call a function at a given address
     Call {
         func: Register,
@@ -371,25 +390,25 @@ pub enum Instruction {
     Return,
     /// Unconditional jump
     Jmp {
-        location: Register,
+        location: Operand,
     },
     /// Jump if the comparison value yields a '> zero', or in other words the
     /// right is greater than left
     JmpPos {
         l1: Register,
-        location: Register,
+        location: Operand,
     },
     /// Jump if the comparison value yields a '< zero', or in other words the
     /// left is greater than right
     JmpNeg {
         l1: Register,
-        location: Register,
+        location: Operand,
     },
     /// Jump if the comparison yields a 'zero', or in other words the left and
     /// right are equal
     JmpZero {
         l1: Register,
-        location: Register,
+        location: Operand,
     },
     /// Compare both values and store the result in `l1`. This will return
     /// either a one, zero or negative one.

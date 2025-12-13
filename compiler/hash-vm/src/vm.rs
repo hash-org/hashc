@@ -3,9 +3,11 @@
 use std::cell::Cell;
 
 use crate::{
-    bytecode::Instruction,
+    bytecode::{
+        Instruction,
+        register::{Register, RegisterSet},
+    },
     error::RuntimeError,
-    register::{Register, RegisterSet},
     stack::Stack,
 };
 
@@ -58,6 +60,11 @@ impl Interpreter {
             registers: RegisterSet::default(),
             flags: InterpreterFlags::default(),
         }
+    }
+
+    /// Get a reference to the current program space.
+    pub fn program(&self) -> &[Instruction] {
+        &self.instructions
     }
 
     fn run_next_instruction(&mut self) -> Result<(), RuntimeError> {
@@ -704,10 +711,8 @@ impl Interpreter {
                 self.registers.set_register64(dest, value);
             }
             Instruction::Jmp { location } => {
-                // @@Correctness: is this the correct conversion??
-                let value = self.registers.get_register64(location).try_into().unwrap();
-
                 // Arbitrarily jump to the specified location in the register
+                let value = location.as_literal_usize(&self.registers);
                 self.set_instruction_pointer(value);
             }
             Instruction::JmpPos { l1, location } => {
@@ -716,7 +721,7 @@ impl Interpreter {
                 // Arbitrarily jump to the specified location in the register if the comparison
                 // value is less than zero or in other words, negative...
                 if r1 > 0 {
-                    let value = self.registers.get_register64(location).try_into().unwrap();
+                    let value = location.as_literal_usize(&self.registers);
                     self.set_instruction_pointer(value);
                 }
             }
@@ -726,7 +731,7 @@ impl Interpreter {
                 // Arbitrarily jump to the specified location in the register if the comparison
                 // value is less than zero or in other words, negative...
                 if r1 < 0 {
-                    let value = self.registers.get_register64(location).try_into().unwrap();
+                    let value = location.as_literal_usize(&self.registers);
                     self.set_instruction_pointer(value);
                 }
             }
@@ -736,7 +741,7 @@ impl Interpreter {
                 // Arbitrarily jump to the specified location in the register if the comparison
                 // value is less than zero or in other words, negative...
                 if r1 == 0 {
-                    let value = self.registers.get_register64(location).try_into().unwrap();
+                    let value = location.as_literal_usize(&self.registers);
                     self.set_instruction_pointer(value);
                 }
             }
@@ -788,8 +793,6 @@ impl Interpreter {
                 let value = self.registers.get_register_8b(l1);
                 self.stack.push64(value)?;
             }
-
-            // Function related instructions
             Instruction::Call { func } => {
                 // Save the ip onto the stack
                 self.stack.push64(
@@ -830,6 +833,18 @@ impl Interpreter {
                     u64::from_be_bytes(*self.stack.pop64()?),
                 );
             }
+            Instruction::Write8 { reg, value } => {
+                self.registers.set_register8(reg, value);
+            }
+            Instruction::Write16 { reg, value } => {
+                self.registers.set_register16(reg, value);
+            }
+            Instruction::Write32 { reg, value } => {
+                self.registers.set_register32(reg, value);
+            }
+            Instruction::Write64 { reg, value } => {
+                self.registers.set_register64(reg, value);
+            }
             Instruction::Syscall { .. } => todo!(),
         };
 
@@ -859,7 +874,7 @@ impl Interpreter {
     }
 
     pub fn run(&mut self) -> Result<(), RuntimeError> {
-        let ip = self.get_instruction_pointer();
+        let mut ip = self.get_instruction_pointer();
 
         while ip < self.instructions.len() {
             // Ok, now we need to run the current instruction, so we pass it into the
@@ -875,7 +890,8 @@ impl Interpreter {
                 return Ok(());
             }
 
-            self.set_instruction_pointer(ip + 1);
+            ip += 1;
+            self.set_instruction_pointer(ip);
         }
 
         Ok(())
