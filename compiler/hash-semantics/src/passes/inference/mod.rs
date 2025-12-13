@@ -36,7 +36,8 @@ impl<E: SemanticEnv> InferencePass<'_, E> {
         infer_subject: impl Fn(T) -> TcResult<T>,
         subject_has_holes: impl Fn(T) -> Option<Atom>,
     ) -> TcResult<T> {
-        let subject = self.try_or_add_error(try { infer_subject(orig_subject)? });
+        let subject =
+            self.try_or_add_error(try { infer_subject(orig_subject).map_err(Into::into)? });
 
         // If we have an error, in diagnostics mode, exit.
         if self.has_errors() {

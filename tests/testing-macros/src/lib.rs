@@ -2,7 +2,7 @@
 //! resources on the disk. This file primarily has the `generate_tests` macro
 //! that will read a directory and generate various test cases from the provided
 //! `case.hash` files and names of the directories that contain the cases.
-#![feature(iter_intersperse, try_find, track_path)]
+#![feature(iter_intersperse, try_find, proc_macro_tracked_path)]
 
 extern crate proc_macro;
 
@@ -211,7 +211,7 @@ pub fn generate_tests(input: TokenStream) -> TokenStream {
     // We need to specify that the file that the macro provides should be tracked
     // by `cargo` in order to pickup changes to the tree, or the contents of the
     // directory.
-    proc_macro::tracked_path::path(&input.path);
+    proc_macro::tracked::path(&input.path);
 
     let test_func = input.func;
     let test_path = PathBuf::from(&input.path);
