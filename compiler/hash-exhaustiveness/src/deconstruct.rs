@@ -176,8 +176,10 @@ impl<E: ExhaustivenessEnv> ExhaustivenessChecker<'_, E> {
     fn collect_unreachable_pats(&self, pat: &DeconstructedPat, spans: &mut Vec<PatId>) {
         // We don't look at sub-patterns if we
         // already reported the whole pattern as  unreachable.
-        if !pat.is_reachable() && pat.id.is_some() {
-            spans.push(pat.id.unwrap());
+        if let Some(id) = pat.id
+            && !pat.is_reachable()
+        {
+            spans.push(id);
         } else {
             for p in pat.fields.iter_patterns() {
                 let p = self.get_pat(p);

@@ -216,8 +216,10 @@ impl<'a, T: fmt::Display + 'a> fmt::Display for SequenceDisplay<'a, T> {
 
                 // If we overflowed, and the limit is specified then we will
                 // print the specified number of missing variants
-                if self.options.limit.is_some() && overflow {
-                    let count = self.items.len() - self.options.limit.unwrap();
+                if let Some(limit) = self.options.limit
+                    && overflow
+                {
+                    let count = self.items.len() - limit;
                     write!(f, " {} {count} more", self.options.mode.as_conjunctive())?;
                 }
 
