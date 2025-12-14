@@ -2,6 +2,7 @@
 //! logic.
 pub mod instruction;
 pub mod op;
+pub mod pretty;
 pub mod register;
 
 pub use instruction::*;

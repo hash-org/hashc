@@ -1,5 +1,7 @@
 //! Hash Compiler VM register related logic.
 
+use std::fmt;
+
 /// Register type, we reserve the last 3 [Register] indices (by convention) to
 /// store the stack pointer, instruction pointer and the base pointer.
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
@@ -20,7 +22,14 @@ impl Register {
     }
 }
 
-/// The register set
+impl fmt::Display for Register {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "r{}", self.0)
+    }
+}
+
+/// The available register set within the VM. This stores all of the data that
+/// the registers may hold for a given VM instance.
 #[derive(Debug)]
 pub struct RegisterSet {
     pub registers: [[u8; 8]; 256],
@@ -32,25 +41,6 @@ impl Default for RegisterSet {
     }
 }
 
-///
-/// This is how {get|set}_register{32|16|8} access the entire register. The
-/// functions access the lower X-bytes like so:
-///
-/// Register
-/// XXXXXXXX
-///     ^^^^
-///     get_register32
-///
-/// Register
-/// XXXXXXXX
-///       ^^
-///     get_register16
-///
-/// Register
-/// XXXXXXXX
-///        ^
-///     get_register8
-///       
 impl RegisterSet {
     /// Function to get a [Register] within the [RegisterSet].
     pub fn get_register_8b(&self, register: Register) -> &[u8; 8] {

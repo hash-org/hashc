@@ -1,3 +1,5 @@
+use std::fmt;
+
 use hash_utils::index_vec::Idx;
 
 use super::register::{Register, RegisterSet};
@@ -52,6 +54,12 @@ impl Idx for LabelOffset {
     }
 }
 
+impl fmt::Display for LabelOffset {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.get())
+    }
+}
+
 /// A type that can either be a [Register] or a [LabelOffset].
 ///
 /// This is used in instructions that can take either a register or a label
@@ -97,6 +105,16 @@ impl Operand {
             }
             Operand::Immediate(value) => *value,
             Operand::Label(_) => panic!("Cannot convert label operand to literal usize"),
+        }
+    }
+}
+
+impl fmt::Display for Operand {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Operand::Register(reg) => write!(f, "{}", reg),
+            Operand::Label(label) => write!(f, "${}", label),
+            Operand::Immediate(value) => write!(f, "#{}", value),
         }
     }
 }
