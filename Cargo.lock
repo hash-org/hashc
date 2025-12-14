@@ -1185,6 +1185,7 @@ dependencies = [
  "hash-abi",
  "hash-reporting",
  "hash-source",
+ "hash-storage",
  "hash-utils",
 ]
 
