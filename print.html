@@ -13,21 +13,20 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
 
-        <link rel="icon" href="favicon.svg">
-        <link rel="shortcut icon" href="favicon.png">
-        <link rel="stylesheet" href="css/variables.css">
-        <link rel="stylesheet" href="css/general.css">
-        <link rel="stylesheet" href="css/chrome.css">
-        <link rel="stylesheet" href="css/print.css" media="print">
+        <link rel="icon" href="favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="favicon-8114d1fc.png">
+        <link rel="stylesheet" href="css/variables-8adf115d.css">
+        <link rel="stylesheet" href="css/general-2459343d.css">
+        <link rel="stylesheet" href="css/chrome-ae938929.css">
+        <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
-        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
-        <link rel="stylesheet" href="fonts/fonts.css">
+        <link rel="stylesheet" href="fonts/fonts-9644e21d.css">
 
         <!-- Highlight.js Stylesheets -->
-        <link rel="stylesheet" id="highlight-css" href="highlight.css">
-        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
-        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+        <link rel="stylesheet" id="mdbook-highlight-css" href="highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
 
         <!-- Custom theme stylesheets -->
 
@@ -37,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex.js";
+            window.path_to_searchindex_js = "searchindex-2c1a1e0f.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc.js"></script>
+        <script src="toc-f72fcd5b.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -54,7 +53,7 @@
             </div>
         </div>
     </div>
-    <div id="body-container">
+    <div id="mdbook-body-container">
         <!-- Work around some values being stored in localStorage wrapped in quotes -->
         <script>
             try {
@@ -83,12 +82,12 @@
             html.classList.add("js");
         </script>
 
-        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
         <!-- Hide / unhide sidebar before it is displayed -->
         <script>
             let sidebar = null;
-            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
             if (document.body.clientWidth >= 1080) {
                 try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
                 sidebar = sidebar || 'visible';
@@ -103,39 +102,39 @@
             }
         </script>
 
-        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
             <!-- populated by js -->
             <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
             <noscript>
                 <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
             </noscript>
-            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
                 <div class="sidebar-resize-indicator"></div>
             </div>
         </nav>
 
-        <div id="page-wrapper" class="page-wrapper">
+        <div id="mdbook-page-wrapper" class="page-wrapper">
 
             <div class="page">
-                <div id="menu-bar-hover-placeholder"></div>
-                <div id="menu-bar" class="menu-bar sticky">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
                     <div class="left-buttons">
-                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
-                            <i class="fa fa-bars"></i>
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
                         </label>
-                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
-                            <i class="fa fa-paint-brush"></i>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
                         </button>
-                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
-                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
-                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
-                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
-                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
-                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
-                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
                         </ul>
-                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
-                            <i class="fa fa-search"></i>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
                         </button>
                     </div>
 
@@ -143,41 +142,41 @@
 
                     <div class="right-buttons">
                         <a href="print.html" title="Print this book" aria-label="Print this book">
-                            <i id="print-button" class="fa fa-print"></i>
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
                         </a>
                         <a href="https://github.com/hash-org/hashc" title="Git repository" aria-label="Git repository">
-                            <i id="git-repository-button" class="fa fa-github"></i>
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg></span>
                         </a>
 
                     </div>
                 </div>
 
-                <div id="search-wrapper" class="hidden">
-                    <form id="searchbar-outer" class="searchbar-outer">
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
                         <div class="search-wrapper">
-                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
                             <div class="spinner-wrapper">
-                                <i class="fa fa-spinner fa-spin"></i>
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
                             </div>
                         </div>
                     </form>
-                    <div id="searchresults-outer" class="searchresults-outer hidden">
-                        <div id="searchresults-header" class="searchresults-header"></div>
-                        <ul id="searchresults">
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
                         </ul>
                     </div>
                 </div>
 
                 <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
                 <script>
-                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
-                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
-                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
                         link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
                     });
                 </script>
 
-                <div id="content" class="content">
+                <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="introduction"><a class="header" href="#introduction">Introduction</a></h1>
 <p>This book is dedicated to documenting and teaching the <code>Hash</code> programming language to newcomers.</p>
@@ -185,10 +184,12 @@
 <h2 id="prerequisites-about-the-book"><a class="header" href="#prerequisites-about-the-book">Prerequisites about the book</a></h2>
 <p>Sections which have the 🚧 icon next to the title are likely to change or be re-written in the future
 due to the nature of the early age of the language.</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="language-features"><a class="header" href="#language-features">Language features</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="language-features"><a class="header" href="#language-features">Language features</a></h1>
 <p>This chapter is dedicated to everything you need to know about the <code>Hash</code> language
 to start writing code in it.</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="name-bindings"><a class="header" href="#name-bindings">Name bindings</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="name-bindings"><a class="header" href="#name-bindings">Name bindings</a></h1>
 <h2 id="basics"><a class="header" href="#basics">Basics</a></h2>
 <p>Name bindings are made of three distinct components. The name, the type and the
 value that is assigned to the name.</p>
@@ -256,44 +257,45 @@ name_binding =
   | ( pattern ( ":" type )? "=" expr  ) // Assignment
   | ( pattern ( ":" type )  ) // Declaration
 </code></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="functions"><a class="header" href="#functions">Functions</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="functions"><a class="header" href="#functions">Functions</a></h1>
 <h2 id="overview"><a class="header" href="#overview">Overview</a></h2>
 <p><code>Hash</code> places a lot of emphasis on functions, which are first class citizens.
 Functions can be assigned to name bindings in the same way that any other value is assigned, similar to languages like Python lambdas, JavaScript arrow functions, etc.</p>
 <h2 id="general-syntax-and-notes"><a class="header" href="#general-syntax-and-notes">General syntax and notes</a></h2>
 <p>Functions are defined by being assigned to bindings:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>func := (...args) =&gt; { ...body... };
 
 // With a return type
 func := (...args) -&gt; return_ty =&gt; { ...body... };
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>The return type of a function is inferred from its body by default, but the <code>-&gt;</code> syntax can be used to explicitly declare it.</p>
 <p>Function arguments are comma separated:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>func := (arg0, arg1) =&gt; { ...body... };
 
 // and you can optionally specify types:
 func := (arg0: str, arg1: char) -&gt; u32 =&gt; { ...body... };
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>Function types can be explicitly provided after the <code>:</code> in the declaration, in which case argument names do not have to be specified.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>var: (str, char) -&gt; u32 = (arg0, arg1) =&gt; { ... };
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>Function literals can also specify default arguments, which must come after all required arguments:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>func := (arg0: str, arg1: char = 'c') -&gt; u32 =&gt; { ... };
 
 // The type of the argument is also inferred if provided without a type
 // annotation:
 func := (arg0: str, arg1 = 'c') -&gt; u32 =&gt; { ... };
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>Default arguments do not need to be specified when the function is called:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>func := (a: str, b = 'c', c = 2) -&gt; u32 =&gt; { ... };
 
@@ -303,7 +305,7 @@ func("foobar"); // a = "foobar", b = 'c', c = 2
 func("foobar", 'b', 3);  // a = "foobar", b = 'b', c = 3
 // Or you can provide them as named arguments:
 func("foobar", c = 3);  // a = "foobar", b = 'c', c = 3
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>Named arguments can be used for more context when providing arguments, using the syntax <code>arg_name = arg_value</code>.
 After the first named argument is provided, all following arguments must be named.
 Furthermore, up until but excluding the first named argument, all previous $n$ arguments must be the first $n$ in the function definition.
@@ -330,7 +332,8 @@ function_type = "(" ( function_param "," )* function_param? ")" "-&gt;" type
 <pre><code>function_call_arg = expr | ( ident "=" expr )
 function_call = expr "(" ( function_call_arg "," )* function_call_arg? ")"
 </code></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="primitives"><a class="header" href="#primitives">Primitives</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="primitives"><a class="header" href="#primitives">Primitives</a></h1>
 <p>There are the following primitive types:</p>
 <ul>
 <li><code>u8</code>, <code>u16</code>, <code>u32</code>, <code>u64</code>: unsigned integers</li>
@@ -359,7 +362,7 @@ This is because some systems (which are 32-bit) may not be able to support index
 So, the <code>usize</code> and <code>isize</code> primitives are host-system dependent.</p>
 <h4 id="compile-time"><a class="header" href="#compile-time">Compile-time</a></h4>
 <p>In the future, Hash will support compile-time arbitrary code execution.
-Considering this, the host machine's (on which the code is compiled) <code>usize</code> width might differ from the target machine's (on which the code is executed) <code>usize</code> width.
+Considering this, the host machine’s (on which the code is compiled) <code>usize</code> width might differ from the target machine’s (on which the code is executed) <code>usize</code> width.
 To account for this, any <code>usize</code> which gets calculated at compile time needs to be checked that it fits within the target <code>usize</code>.
 This check will happen at compile time, so there is no possibility of memory corruption or wrong data.</p>
 <h3 id="unlimited-sized-integers"><a class="header" href="#unlimited-sized-integers">Unlimited-sized integers</a></h3>
@@ -401,10 +404,10 @@ some_tuple: (str, u32) = ("string", 12);
 //             type
 
 </code></pre>
-<p>It's worth noting that tuples are fancy syntax for structures and are indexed using numerical indices like <code>0</code>, <code>1</code>, <code>2</code>, etc to access each member explicitly.
+<p>It’s worth noting that tuples are fancy syntax for structures and are indexed using numerical indices like <code>0</code>, <code>1</code>, <code>2</code>, etc to access each member explicitly.
 Although, they are intended to be used mostly for pattern matching, you can access members of tuples like so.
 If this is the case, you should consider using a structural data type which will allow you to do the same thing, and name the fields.
-Read more about patterns <a href="features/patterns.html">here</a>.</p>
+Read more about patterns <a href="#patterns">here</a>.</p>
 <p>Grammar for tuples:</p>
 <pre><code>tuple_literal = ( "(" ( expr "," )* ")" ) | ( "(" ( expr "," )* expr ")" )
 </code></pre>
@@ -467,25 +470,27 @@ The syntax for maps is as follows:</p>
 </ul>
 <pre><code>map_literal = ( "{" ":" "}" ) | ( "{" ( expr ":" expr "," )* ( expr ":" expr )? "}" )
 </code></pre>
-<p><strong>Note</strong>: the grammar for literal types can be found in the <a href="features/./types.html">Types</a> section.</p>
-<div style="break-before: page; page-break-before: always;"></div><h2 id="conditional-statements"><a class="header" href="#conditional-statements">Conditional statements</a></h2>
+<p><strong>Note</strong>: the grammar for literal types can be found in the <a href="#types">Types</a> section.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="-control-flow"><a href="#-control-flow" class="header">🚧 Control flow</a></h1>
+<h2 id="conditional-statements"><a class="header" href="#conditional-statements">Conditional statements</a></h2>
 <p>Conditional statements in the <code>Hash</code> programming language are very similar to other languages such as Python, Javascript, C and Rust. However, there is one subtle <strong>difference</strong>, which is that the statement provided to a conditional statement must always evaluate to an explicit boolean value.</p>
 <h2 id="if-else-statements"><a class="header" href="#if-else-statements">If-else statements</a></h2>
 <p>If statements are very basic constructs in Hash. An example of a basic <code>if-else</code> statement is as follows:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// checking if the value 'a' evaluates to being 'true'
 if a { print("a"); } else { print("b"); }
 
 // using a comparison operator
 if b == 2 { print("b is " + b); } else { print ("b is not " + conv(b)); }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>Obviously, this checks if the evaluation of <code>a</code> returns a boolean value. If it does not
 evaluate to something to be considered as true, then the block expression defined
 at <code>else</code> is executed.</p>
 <p>If you want multiple clauses, you can utilise the <code>else-if</code> syntax to define multiple
 conditional statements. To use the <code>else-if</code> syntax, you do so like this:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>if b == 2 {
      print("b is 2")
@@ -494,47 +499,47 @@ conditional statements. To use the <code>else-if</code> syntax, you do so like t
 } else {
     print("b isn't 2 or 3 ")
 }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>As mentioned in the introduction, a conditional statement must evaluate an explicit boolean value. The <code>if</code> statement syntax will not infer a boolean value from a statement within <code>Hash</code>. This design feature is motivated by the fact that in many languages, common bugs and mistakes occur with the automatic inference of conditional statements.</p>
 <p>An example of an invalid program is:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>a: u8 = 12;
 
 if a { print("a") }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <h3 id="additional-syntax"><a class="header" href="#additional-syntax">Additional syntax</a></h3>
 <p>Furthermore, if you do not want an else statement you can do:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>if a { print("a") }  // if a is true, then execute
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>which is syntactic sugar for:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>if a { print("a") } else {}
-<span class="boring">}</span></code></pre></pre>
-<p>Additionally, since the <code>if</code> statement body's are also equivalent to functional bodies, you
+<span class="boring">}</span></code></pre>
+<p>Additionally, since the <code>if</code> statement body’s are also equivalent to functional bodies, you
 can also specifically return a type as you would normally do within a function body:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>abs: (i64: x) =&gt; i64 = if x &lt; 0 { -x } else { x }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>You can also assign values since <code>if</code> statements are just blocks</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>my_value: i32 = if some_condition == x { 3 } else { 5 };
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>However, you cannot do something like this:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>abs: (i64: x) =&gt; i64 = if x &lt; 0 { -x }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p><strong>Note</strong>: here that you will not get a syntax error if you run this, but you will encounter an error during the interpretation stage of the program because the function may not have any return type since this has no definition
 of what should happen for the <code>else</code> case.</p>
 <h2 id="if-statements-and-enums-"><a class="header" href="#if-statements-and-enums-">If statements and Enums 🚧</a></h2>
 <p>You can destruct enum values within if statements using the <code>if-let</code> syntax, like so:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>enum Result = &lt;T, E&gt; =&gt; {
    Ok(T);
@@ -549,10 +554,10 @@ if let Ok(value) = result  {
 } else let Err(e) = result {
   panic("Failed to get result: " + e);
 }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>Furthermore, for more complicated conditional statements, you can include an expression
 block which is essentially treated as if it was a functional body, like so:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>f: str = "file.txt";
 
@@ -567,19 +572,19 @@ if is_ok(a) {
     // run if is_ok(a) returns true
 }
 
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>The only difference between those two examples is that within the first, a is contained within
 the if statement condition body expression, i.e; the <code>a</code> variable will not be visible to any further
-scope. This has some advantages, specifically when you don't wish to store that particular result
+scope. This has some advantages, specifically when you don’t wish to store that particular result
 from the operation. But if you do, you can always use the second version to utilise the result
 of <code>a</code> within the <code>if</code> statement body or later on in the program.</p>
 <br />
 <h2 id="match-cases"><a class="header" href="#match-cases">Match cases</a></h2>
 <p>Match cases are one step above the simple <code>if-else</code> syntax.  Using a matching case, you can construct more complicated cases in a more readable format than u can with an <code>if-else</code> statement. Additionally, you can destruct Enums into their corresponding values. To use a matching case, you do the following:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
 </span>
-<span class="boring">fn main() {
-</span>a := input&lt;u8&gt;();
+a := input&lt;u8&gt;();
 
 m2 := match a {
   1 =&gt; "one";
@@ -596,31 +601,31 @@ convert: (x: u8) =&gt; str = (x) =&gt; match x {
 }
 
 m := convert(input&lt;u8&gt;());
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>The <code>_</code> case is a special wildcard case that captures any case. This is essentially synonymous with the <code>else</code> clause in many other languages like Python or JavaScript. For conventional purposes, it should be included when creating a <code>match</code> statement where the type value is not reasonably bounded (like an integer). One subtle difference with the <code>match</code> syntax is you must always explicitly define a <code>_</code> case. This language behaviour is designed to enforce that <code>explicit</code> is better than <code>implicit</code>. So, if you know that a program should never hit
 the default case:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>match x {
   1 =&gt; "one";
   2 =&gt; "two";
   _ =&gt; unreachable(); // we know that 'x' should never be 1 or 2.
 }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p><strong>Note</strong>: You do not have to provide a default case if you have defined all the cases for a type (this mainly applies to enums).</p>
 <p>Additionally, because cases are matched incrementally, by doing the following:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>convert: (x: u8) =&gt; str = (x) =&gt; match x {
   _ =&gt; "not one or two";
   1 =&gt; "one";
   2 =&gt; "two";
 }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>The value of <code>m</code> will always evaluate as <code>"not one or two"</code> since the wildcard matches any condition.</p>
 <p>Match statements are also really good for destructing enum types in Hash.
 For example,</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>enum Result = &lt;T, E&gt; =&gt; {
    Ok(T);
@@ -636,10 +641,10 @@ match result {
   Ok(value) =&gt; print("Got '" + conv(value) + "' from operation");
   Err(e)    =&gt; panic("Failed to get result: " + e);
 }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>To specify multiple conditions for a single case within a <code>match</code> statement, you can do so by
 writing the following syntax:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>x: u32 = input&lt;u32&gt;();
 
@@ -648,10 +653,10 @@ match x {
   4 | 5 | {2 | 4} =&gt; print("x is either 4, 5 or 6"); // using bitwise or operator
   _               =&gt; print("x is something else");
 }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>To specify more complex conditional statements like and within the match case, you
 can do so using the <code>match-if</code> syntax, like so:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>x: u32 = input&lt;u32&gt;();
 y: bool = true;
@@ -662,7 +667,7 @@ match x {
   {2 | 4 if y}   =&gt; print("x is 6 and y is true");
   _              =&gt; print("x is something else");
 }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <h1 id="loop-constructs"><a class="header" href="#loop-constructs">Loop constructs</a></h1>
 <p>Hash contains 3 distinct loop control constructs: <code>for</code>, <code>while</code> and <code>loop</code>. Each construct has
 a distinct usage case, but they can often be used interchangeably without hassle and are merely
@@ -680,15 +685,15 @@ remain, <code>continue</code> behaves just like <code>break</code>.</p>
 <p>For loops are special loop control statements that are designed to be used
 with iterators.</p>
 <p>For loops can be defined as:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>for i in range(1, 10) { // range is a built in iterator
     print(i);
 }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>Iterating over lists is also quite simple using the <code>iter</code> function to
 convert the list into an iterator:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>nums: [u32] = [1,2,3,4,5,6,7,8,9,10]; 
 
@@ -701,32 +706,32 @@ for num in nums.iter() {
 for num in iter(nums) {
     print(nums);
 }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <h3 id="iterators"><a class="header" href="#iterators">iterators</a></h3>
 <p>Iterators ship with the standard library, but you can define your own iterators via the Hash generic typing system.</p>
 <p>An iterator <code>I</code> of <code>T</code> it means to have an implementation <code>next&lt;I, T&gt;</code> in scope the current scope.
 So, for the example above, the <code>range</code> function is essentially a <code>RangeIterator</code> of the <code>u8</code>, <code>u16</code>, <code>u32</code>, <code>...</code> types.</p>
-<p>More details about generics are <a href="features/./generics-polymorphism.html">here</a>.</p>
+<p>More details about generics are <a href="features/generics-polymorphism.html">here</a>.</p>
 <h2 id="while-loop"><a class="header" href="#while-loop">While loop</a></h2>
-<h3 id="basics-2"><a class="header" href="#basics-2">Basics</a></h3>
-<p>While loops are identical to 'while' constructs in other languages such as Java, C, JavaScript, etc.
+<h3 id="basics-1-1"><a class="header" href="#basics-1-1">Basics</a></h3>
+<p>While loops are identical to ‘while’ constructs in other languages such as Java, C, JavaScript, etc.
 The loop will check a given conditional expression ( must evaluate to a <code>bool</code>), and if it evaluates
 to <code>true</code>, the loop body is executed, otherwise the interpreter moves on. The loop body can also
 use loop control flow statements like <code>break</code> or <code>continue</code> to prematurely stop looping for a
 given condition.</p>
 <p>While loops can be defined as:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
 </span>
-<span class="boring">fn main() {
-</span>c: u32 = 0;
+c: u32 = 0;
 
 while c &lt; 10 {
     print(i);
 }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>The <code>loop</code> keyword is equivalent of someone writing a <code>while</code> loop that has
 a conditional expression that always evaluate to <code>true</code>; like so,</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>while true {
     // do something
@@ -737,41 +742,41 @@ a conditional expression that always evaluate to <code>true</code>; like so,</p>
 loop {
     // do something
 }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <blockquote>
 <p><strong>Note</strong>: In <code>Hash</code>, you cannot write <code>do-while</code> loops, but if u want to write a loop that behaves
 like a <code>do-while</code> statement, here is a good example using <code>loop</code>:</p>
 </blockquote>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
 </span>
-<span class="boring">fn main() {
-</span>loop {
+loop {
     // do something here, to enable a condition check,
     // and then use if statement, or match case to check
     // if you need to break out of the loop.
 
     if !condition {break}
 }    
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <h3 id="expression-blocks-and-behaviour"><a class="header" href="#expression-blocks-and-behaviour">Expression blocks and behaviour</a></h3>
 <p>Furthermore, The looping condition can also be represented as a block which means it can have any number of expressions
 before the final expression. For example:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>while {c += 1; c &lt; 10} {
     print(i);
 }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>It is worth noting that the looping expression whether block or not must explicitly have the
 <code>boolean</code> return type. For example, the code below will fail typechecking:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>c: u32 = 100;
 
 while c -= 1 {
     ...
 }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>Running the following code snippet produces the following error:</p>
 <pre><code>error[0052]: Failed to Typecheck: Mismatching types.
  --&gt; 3:7 - 3:12
@@ -784,21 +789,21 @@ while c -= 1 {
 </code></pre>
 <h2 id="loop"><a class="header" href="#loop">Loop</a></h2>
 <p>The loop construct is the simplest of the three. The basic syntax for a loop is as follows:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
 </span>
-<span class="boring">fn main() {
-</span>c: u64 = 1;
+c: u64 = 1;
 
 loop {
     print("I looped " + c + " times!");
     c += 1;
 }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>You can also use conditional statements within the loop body (which is equivalent to a function body) like so:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
 </span>
-<span class="boring">fn main() {
-</span>c: u64 = 1;
+c: u64 = 1;
 
 loop {
     if c == 10 { break }
@@ -806,8 +811,8 @@ loop {
     print("I looped " + c + " times!");
     c += 1;
 } // this will loop 10 times, and print all 10 times
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<span class="boring">}</span></code></pre>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>c: u64 = 1;
 
@@ -817,14 +822,20 @@ loop {
 
     print("I loop and I print when I get a  " + c);
 } // this will loop 10 times, and print only when c is even
-<span class="boring">}</span></code></pre></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="operators--symbols"><a class="header" href="#operators--symbols">Operators &amp; Symbols</a></h1>
+<span class="boring">}</span></code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="operators--symbols"><a class="header" href="#operators--symbols">Operators &amp; Symbols</a></h1>
 <p>This section contains all of the syntactic operators that are available within Hash</p>
 <h2 id="general-operators-"><a class="header" href="#general-operators-">General operators 🚧</a></h2>
 <p>Here are the general operators for arithmetic, bitwise assignment operators. This table does not include
 all of the possible operators specified within the grammar. There are more operators that are related to
 a specific group of operations or are used to convey meaning within the language.</p>
-<div class="table-wrapper"><table><thead><tr><th>Operator</th><th>Example</th><th>Description</th><th>Overloadable trait</th></tr></thead><tbody>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Operator</th><th>Example</th><th>Description</th><th>Overloadable trait</th></tr>
+</thead>
+<tbody>
 <tr><td><code>==</code>, <code>!=</code></td><td><code>a == 2</code>, <code>b != 'a'</code></td><td>Equality</td><td><code>eq</code></td></tr>
 <tr><td><code>=</code></td><td><code>a = 2</code></td><td>Assignment</td><td>N/A</td></tr>
 <tr><td><code>!</code></td><td><code>!a</code></td><td>Logical not</td><td><code>not</code></td></tr>
@@ -866,28 +877,35 @@ a specific group of operations or are used to convey meaning within the language
 <tr><td><code>?</code></td><td><code>k&lt;T&gt; where s&lt;T, ?&gt; := ...</code></td><td>Type argument wildcard</td><td>N/A</td></tr>
 <tr><td><code>-&gt;</code></td><td><code>(str) -&gt; usize</code></td><td>Function return type notation</td><td>N/A</td></tr>
 <tr><td><code>=&gt;</code></td><td><code>(a) =&gt; a + 2</code></td><td>Function Body definition</td><td>N/A</td></tr>
-</tbody></table>
+</tbody>
+</table>
 </div>
 <h2 id="comments-"><a class="header" href="#comments-">Comments 🚧</a></h2>
 <p>This table represents the syntax for different types of comments in Hash:</p>
-<div class="table-wrapper"><table><thead><tr><th>Symbol</th><th>Description</th></tr></thead><tbody>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Symbol</th><th>Description</th></tr>
+</thead>
+<tbody>
 <tr><td><code>//...</code></td><td>Line comment</td></tr>
 <tr><td><code>/*...*/</code></td><td>Block comment</td></tr>
 <tr><td><code>///</code></td><td>function doc comment    🚧</td></tr>
 <tr><td><code>//!</code></td><td>module doc comment      🚧</td></tr>
-</tbody></table>
+</tbody>
+</table>
 </div>
 <h1 id="type-signature-assertions"><a class="header" href="#type-signature-assertions">Type Signature Assertions</a></h1>
-<h2 id="basics-3"><a class="header" href="#basics-3">Basics</a></h2>
+<h2 id="basics-2"><a class="header" href="#basics-2">Basics</a></h2>
 <p>As in many other languages, the programmer can specify the type of a variable or
 a literal by using some special syntax. For example, in languages such as typescript,
 you can say that:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>some_value as str
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>which implies that you are asserting that <code>some_value</code> is a string, this is essentially a way to avoid explicitly stating that type of a variable every
-single time and telling the compiler "Trust me <code>some_value</code> is a <code>string</code>".</p>
+single time and telling the compiler “Trust me <code>some_value</code> is a <code>string</code>”.</p>
 <p>The principle is somewhat similar in <code>Hash</code>, but it is more strictly enforced.
 For example, within the statement <code>x := 37;</code>, the type of <code>x</code> can be any of the
 integer types. This might lead to unexpected behaviour in future statements, where
@@ -903,10 +921,10 @@ to be true, like so:</p>
 <p>If you specify a type assertion, the compiler will either attempt to infer this information from the left-hand side of the <code>as</code> operator
 to the right. If the inference results in a different type to the right-hand side, this will raise a typechecking failure.</p>
 <p>For example, if you were to specify the expression:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>"A" as char
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>The compiler will report this error as:</p>
 <pre><code>error[0001]: Types mismatch, got a `str`, but wanted a `char`.
  --&gt; &lt;interactive&gt;:1:8
@@ -926,8 +944,9 @@ be useful to assert to the compiler that a given variable is a certain type.</p>
 <p>Additionally, whilst the language is in an early stage of maturity and some things that are quirky or broken, type
 assertions can come to the rescue and help the compiler to understand your program.</p>
 <p>In general, type assertions should be used when the compiler cannot infer the type of some expression with
-the given information and needs assistance. You shouldn't need to use type assertions often.</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="types"><a class="header" href="#types">Types</a></h1>
+the given information and needs assistance. You shouldn’t need to use type assertions often.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="types"><a class="header" href="#types">Types</a></h1>
 <h2 id="grammar-2"><a class="header" href="#grammar-2">Grammar</a></h2>
 <pre><code>type =
   | tuple_type
@@ -971,21 +990,22 @@ union_type = ( type "|" )+ type
 
 ref_type = "&amp;" ( "raw" )? ( "mut" )? type
 </code></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="struct-types"><a class="header" href="#struct-types">Struct types</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="struct-types"><a class="header" href="#struct-types">Struct types</a></h1>
 <p>In Hash, structs are pre-defined collections of heterogeneous types, similar to C or Rust:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>FloatVector3 := struct(
    x: f32,
    y: f32,
    z: f32,
 );
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>A struct is comprised of a set of fields.
 Each field has a name, a type, and an optional default value.</p>
 <p>Structs can be instantiated with specific values for each of the fields.
 Default values can be omitted, but can also be overridden.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>Dog := struct(
    age: u32 = 42,
@@ -995,10 +1015,10 @@ Default values can be omitted, but can also be overridden.</p>
 d := Dog(name = "Bob");
 
 print(d); // Dog(name = "Bob", age = 42)
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>Structs are nominal types.
-An argument of type <code>Dog</code> can only be fulfilled by an instance of <code>Dog</code>, and you can't pass in a struct that has the same fields but is of a different named type.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+An argument of type <code>Dog</code> can only be fulfilled by an instance of <code>Dog</code>, and you can’t pass in a struct that has the same fields but is of a different named type.</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>dog_name := (dog: Dog) =&gt; dog.name;
 
@@ -1009,39 +1029,39 @@ FakeDog := struct(
 
 print(dog_name(d)); // "Bob"
 print(dog_name(FakeDog(age = 1, name = "Max"))); // Error: Type mismatch: was expecting `Dog`, got `FakeDog`.
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <h1 id="enum-types"><a class="header" href="#enum-types">Enum types</a></h1>
 <p>Hash enums are similar to Rust enums or Haskell data types.
 Each variant of an enum can also hold some data.
 These are also known as <em>algebraic data types</em>, or <em>tagged unions</em>.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>NetworkError := enum(
    NoBytesReceived,
    ConnectionTerminated,
    Unexpected(message: str, code: i32),
 );
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>Enum contents consist of a semicolon-separated list of variant names.
 Each variant can be paired with some data, in the form of a comma-separated list of types.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>err := NetworkError::Unexpected("something went terribly wrong", 32);
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>They can be <code>match</code>ed to discover what they contain:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>handle_error := (error: NetworkError) =&gt; match error {
    NoBytesReceived =&gt; print("No bytes received, stopping");
    ConnectionTerminated =&gt; print("Connection was terminated");
    Unexpected(message, code) =&gt; print("An unexpected error occurred: " + err + " (" + conv(code) + ") ");
 };
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>Like structs, enums are nominal types, rather than structural.
 Each enum member is essentially a struct type.</p>
 <h2 id="generic-types"><a class="header" href="#generic-types">Generic types</a></h2>
 <p>Because Hash supports type functions, structs and enums can be generic over some type parameters:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>LinkedList := &lt;T&gt; =&gt; struct(
    head: Option&lt;&amp;raw T&gt;,
@@ -1052,9 +1072,9 @@ empty_linked_list = &lt;T&gt; =&gt; () -&gt; LinkedList&lt;T&gt; =&gt; {
 };
 
 x := empty_linked_list&lt;i32&gt;(); // x: LinkedList&lt;i32&gt; inferred
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>Notice that <code>struct(...)</code> and <code>enum(...)</code> are expressions, which are bound to names on the left hand side.
-For more information, see <a href="features/./type-functions.html">type functions</a>.</p>
+For more information, see <a href="#type-functions">type functions</a>.</p>
 <h2 id="grammar-3"><a class="header" href="#grammar-3">Grammar</a></h2>
 <p>The grammar for struct definitions is as follows:</p>
 <pre><code>struct_member =
@@ -1071,7 +1091,8 @@ struct_def := "struct" "(" struct_member* ")"
 
 enum_def := "enum" "(" enum_member* ")"
 </code></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="hash-language-modules"><a class="header" href="#hash-language-modules">Hash language modules</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="hash-language-modules"><a class="header" href="#hash-language-modules">Hash language modules</a></h1>
 <p>A module in <code>Hash</code> can contain variable definitions, function definitions, type definitions or include other modules.
 Each <code>.hash</code> source file is a module, and inline modules can also be created using <code>mod</code> blocks.</p>
 <h2 id="importing"><a class="header" href="#importing">Importing</a></h2>
@@ -1087,19 +1108,19 @@ Each <code>.hash</code> source file is a module, and inline modules can also be 
 <p>Modules in hash allow for a source to be split up into smaller code fragments, allowing for better source code organisation and maintenance.</p>
 <p>You can import modules by specifying the path relative to the current path.</p>
 <p>For example, if you wanted to include the modules <code>a</code>, <code>b</code>, and or <code>c</code> within your main file</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// main.hash
 a := import("lib/a");
 b := import("lib/b");
 c := import("lib/sub/c");
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>By doing so, you are placing everything that is defined within each of those modules under
 the namespace.</p>
 <h2 id="exporting"><a class="header" href="#exporting">Exporting</a></h2>
 <p>In order to export items from a module, use the <code>pub</code> keyword.
 For example:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>/// a.hash
 
@@ -1116,19 +1137,19 @@ priv c := 1;
 { a } := import("a.hash"); // Ok
 { b } := import("a.hash"); // Error: b is private
 { c } := import("a.hash"); // Error: c is private.
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <h2 id="referencing-exports"><a class="header" href="#referencing-exports">Referencing exports</a></h2>
 <p>Furthermore, if the <code>a</code> module contained a public structure definition like <code>Point</code>:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// a.hash
 pub Point := struct(
     x: u32,
     y: u32,
 );
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>Within main, you can create a new <code>Point</code> by doing the following</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// main.hash
 a := import("lib/a");
@@ -1140,28 +1161,28 @@ p1 := a::Point(
 
 print(p1.x); // 2
 print(p1.y); // 3
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>From this example, the <code>::</code> item access operator is used to reference any exports from the module.</p>
-<p>Furthermore, what if you wanted to import only a specific definition within a module such as the 'Point' structure from the module <code>a</code>.</p>
+<p>Furthermore, what if you wanted to import only a specific definition within a module such as the ‘Point’ structure from the module <code>a</code>.</p>
 <p>You can do so by destructuring the definitions into using the syntax as
 follows:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>{ Point } := import("lib/a");
 
 p1 := Point(x=2, y=3);
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>In case you have a member of your current module already reserving a name, you
 can rename the exported members to your liking using the <code>as</code> pattern operator:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>{ Point as LibPoint } = import("lib/a");
 
 p1 := LibPoint(x=2, y=3);
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <h2 id="inline-modules"><a class="header" href="#inline-modules">Inline modules</a></h2>
 <p>Other than through <code>.hash</code> files, modules can be created inline using <code>mod</code> blocks:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// a.hash
 bar := 3;
@@ -1173,7 +1194,7 @@ pub nested := mod {
 // b.hash
 a := import("a.hash");
 red := a::nested::Colour::Red;
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>These follow the same conventions as <code>.hash</code> files, and members need to be exported with <code>pub</code> in order to be visible from the outside.
 However, the external module items are always visible from within a <code>mod</code> block, so in the above example, <code>bar</code> can be used from within <code>nested</code>.</p>
 <h2 id="grammar-4"><a class="header" href="#grammar-4">Grammar</a></h2>
@@ -1183,16 +1204,17 @@ However, the external module items are always visible from within a <code>mod</c
 <p>The grammar for <code>mod</code> blocks (which are expressions) is as follows:</p>
 <pre><code>mod_block = "mod" "{" ( expr ";" )* "}"
 </code></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="patterns"><a class="header" href="#patterns">Patterns</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="patterns"><a class="header" href="#patterns">Patterns</a></h1>
 <p>Pattern matching is a very big part of <code>Hash</code> and the productivity of the language.
 Patterns are a declarative form of equality checking, similar to patterns in Rust or Haskell.</p>
-<p>Pattern matching within <code>match</code> statements is more detailed within the <a href="features/./conditionals.html#match-cases">Conditional statements</a> section
+<p>Pattern matching within <code>match</code> statements is more detailed within the <a href="features/conditionals.html#match-cases">Conditional statements</a> section
 of the book.
 This chapter is dedicated to documenting the various kinds of patterns that there are in Hash.</p>
 <h2 id="literal-patterns"><a class="header" href="#literal-patterns">Literal patterns</a></h2>
 <p>Literal patterns are patterns that match a specific value of a primitive type, like a number or a string.
 For example, consider the following snippet of code:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>foo := get_foo(); // foo: i32
 
@@ -1202,12 +1224,12 @@ match foo {
     3 =&gt; print("Got three");
     _ =&gt; print("Got something else");
 }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>On the left-hand side of the match cases there are the literal patterns <code>1</code>, <code>2</code> and <code>3</code>.
 These perform <code>foo == 1</code>, <code>foo == 2</code> and <code>foo == 3</code> in sequence, and the code follows the branch which succeeds first.
-If no branch succeeds, the <code>_</code> branch is followed, which means "match anything".
+If no branch succeeds, the <code>_</code> branch is followed, which means “match anything”.
 Literals can be integer literals for integer types (signed or unsigned), string literals for the <code>str</code> type, or character literals for the <code>char</code> type:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>match my_char {
     'A' =&gt; print("First letter");
@@ -1221,21 +1243,21 @@ match my_str {
     "fizzbuzz" =&gt; print("Multiple of 15");
     _ =&gt; print("Not a multiple of 3 or 5");
 }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <h2 id="binding-patterns"><a class="header" href="#binding-patterns">Binding patterns</a></h2>
 <p>Nested values within the value being pattern matched can be bound to symbols, using binding patterns.
 A binding pattern is any valid Hash identifier:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>match fallible_operation() { // fallible_operation: () -&gt; Result&lt;f32, i32&gt;
     Ok(success) =&gt; print("Got success " + conv(result)); // success: f32
     Err(failure) =&gt; print("Got failure " + conv(failure)); // failure: i32
 }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <h2 id="tuple-patterns"><a class="header" href="#tuple-patterns">Tuple patterns</a></h2>
 <p>Tuple patterns match a tuple type of some given arity, and contain nested patterns.
 They are irrefutable if their inner patterns are irrefutable, so they can be used in declarations.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>Cat := struct(name: str);
 
@@ -1247,13 +1269,13 @@ my_val := (Cat("Bob"), [1, 2, 3]); // my_val: (Cat, [i32])
 
 assert(name == "Bob");
 assert(elements == [1, 2, 3]);
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <h2 id="constructor-patterns"><a class="header" href="#constructor-patterns">Constructor patterns</a></h2>
 <p>Constructor patterns are used to match the members of structs or enum variants.
 A struct is comprised of a single constructor, while an enum might be comprised of multiple constructors.
 Struct constructors are irrefutable if their inner patterns are irrefutable, while enum constructors are irrefutable only if the enum contains a single variant.
 For example:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>Option := &lt;T&gt; =&gt; enum(Some(value: T), None);
 
@@ -1265,9 +1287,9 @@ match my_val {
     // Matching the None constructor
     None =&gt; assert(false);
 }
-<span class="boring">}</span></code></pre></pre>
-<p>The names of the members of a constructor need to be specified if the matching isn't done in order:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<span class="boring">}</span></code></pre>
+<p>The names of the members of a constructor need to be specified if the matching isn’t done in order:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>Dog := struct(name: str, breed: str);
 
@@ -1281,39 +1303,39 @@ Dog(name, breed) = Dog(
     name = "Bob",
     breed = "Husky"
 ) // breed: str, name: str
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <h2 id="list-patterns"><a class="header" href="#list-patterns">List patterns</a></h2>
 <p>A list pattern can match elements at certain positions of a list by using the following syntax:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>match arr {
     [a, b] =&gt; print(conv(a) + " " + conv(b));
     _ =&gt; print("Other"); // Matches everything other than [X, Y] for some X and Y
 }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>The <code>...</code> spread operator can be used to capture or ignore the rest of the elements of the list at some position:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>match arr {
     [a, b, ...] =&gt; print(conv(a) + " " + conv(b));
     _ =&gt; print("Other"); // Only matches [] and [X] for some X
 }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>If you want to match the remaining elements with some pattern, you can specify a pattern after the <code>spread</code> operator like so:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>match arr {
     [a, b, ...rest] =&gt; print(conv(a) + " " + conv(b) + " " + conv(rest));
     [...rest, c] =&gt; print(conv(c)); // Only matches [X] for some X, rest is always []
     _ =&gt; print("Other"); // Only matches []
 }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>One obvious limitation of the <code>spread</code> operator is that you can only use it once in the list pattern.
 For example, the following pattern will be reported as an error by the compiler:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>[..., a, ...] := arr;
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <pre><code>error: Failed to typecheck:
  --&gt; 1:6 - 1:9, 1:15 - 1:18
   |
@@ -1326,7 +1348,7 @@ For example, the following pattern will be reported as an error by the compiler:
 <p>Module patterns are used to match members of a module.
 They are used when importing symbols from other modules.
 They follow a simple syntax:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// imports only a and b from the module
 {a, b} := import("./my_lib");
@@ -1338,33 +1360,33 @@ They follow a simple syntax:</p>
 {Cat as NestedCat} := mod {
     pub Cat := struct(name: str, age: i32);
 };
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>You do not need to list all the members of a module in the pattern; the members which are not listed will be ignored.
-To read more about modules, you can click <a href="features/./modules.html">here</a>.</p>
+To read more about modules, you can click <a href="#hash-language-modules">here</a>.</p>
 <h2 id="or-patterns"><a class="header" href="#or-patterns">Or-patterns</a></h2>
 <p>Or-patterns are specified using the <code>|</code> pattern operator, and allow one to match multiple different patterns, and use the one which succeeds.
 For example:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>symmetric_result: Result&lt;str, str&gt; := Ok("bilbobaggins");
 
 (Ok(inner) | Err(inner)) := symmetric_result; // inner: str
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>The pattern above is irrefutable because it matches all variants of the <code>Result</code> enum.
 Furthermore, each branch has the binding <code>inner</code>, which always has the type <code>str</code>, and so is a valid pattern.
 The same name binding can appear in multiple branches of an or-pattern, given that it is bound in every branch, and always to the same type.
 Another use-case of or-patterns is to collapse match cases:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>match color {
     Red | Blue | Green =&gt; print("Primary additive");
     Cyan | Magenta | Yellow =&gt; print("Primary subtractive");
     _ =&gt; print("Unimportant color");
 }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <h2 id="conditional-patterns"><a class="header" href="#conditional-patterns">Conditional patterns</a></h2>
 <p>Conditional patterns allow one to specify further arbitrary boolean conditions to a pattern for it to match:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>match my_result {
     Ok(inner) if inner &gt; threshold * 2.0 =&gt; {
@@ -1381,19 +1403,19 @@ Another use-case of or-patterns is to collapse match cases:</p>
         auto_destruct();
     };
 }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>They are specified using the <code>if</code> keyword after a pattern.
 Conditional patterns are always refutable, at least as far as the current version of the language is concerned.
 With more advanced type refinement and literal types, this restriction can be lifted sometimes.</p>
 <h2 id="pattern-grouping"><a class="header" href="#pattern-grouping">Pattern grouping</a></h2>
 <p>Patterns can be grouped using parentheses <code>()</code>.
 This is necessary in declarations for example, if one wants to specify a conditional pattern:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// get_value: () -&gt; bool;
 true | false := get_value(); // Error: bitwise-or not implemented between `bool` and `void`
 (true | false) := get_value(); // Ok
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <h2 id="grammar-5"><a class="header" href="#grammar-5">Grammar</a></h2>
 <p>The grammar for patterns is as follows:</p>
 <pre><code>pattern = 
@@ -1430,7 +1452,8 @@ list_pattern_member = pattern | ( "..." identifier? )
 
 list_pattern = "[" ( list_pattern_member "," )* list_pattern_member? "]"
 </code></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="traits-and-implementations"><a class="header" href="#traits-and-implementations">Traits and implementations</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="traits-and-implementations"><a class="header" href="#traits-and-implementations">Traits and implementations</a></h1>
 <h2 id="traits"><a class="header" href="#traits">Traits</a></h2>
 <p>Hash supports compile-time polymorphism through traits.
 Traits are a core mechanism in Hash; they allow for different implementations of the same set of operations, for different types.
@@ -1457,7 +1480,7 @@ Dog ~= Printable {
 <p>The <code>~=</code> operator is the combination of <code>~</code> and <code>=</code> operators, and it is equivalent to</p>
 <pre><code class="language-rs">Dog = Dog ~ Printable { ... };
 </code></pre>
-<p>The <code>~</code> operator means "attach", and it is used to attach implementations of traits to structs and enums.</p>
+<p>The <code>~</code> operator means “attach”, and it is used to attach implementations of traits to structs and enums.</p>
 <p>Trait implementations can be created without having to attach them to a specific type:</p>
 <pre><code class="language-rs">DogPrintable := Printable {
   Self = Dog, // Self can no longer be inferred, it needs to be explicitly specified.
@@ -1556,7 +1579,8 @@ print(Vector3(1, 2, 3).cross(Vector3(4, 5, 6)));
 <p>The grammar for standalone <code>impl</code> blocks is as follows:</p>
 <pre><code>impl_block = "impl" "{" ( expr ";" )* "}"
 </code></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="type-functions"><a class="header" href="#type-functions">Type functions</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="type-functions"><a class="header" href="#type-functions">Type functions</a></h1>
 <p>Hash supports functions both at the value level and at the type level.
 Type-level functions correspond to generics in other languages.
 They are declared using angular brackets (<code>&lt;</code> and <code>&gt;</code>) rather than parentheses, and all parameters are types.
@@ -1581,7 +1605,7 @@ For example,</p>
 <p>In order to evaluate type functions, type arguments can be specified in angle brackets:</p>
 <pre><code class="language-rs">my_result: Result&lt;i32, str&gt; = Ok(3);
 </code></pre>
-<p>When calling functions or instantiating enums/structs, type arguments can be inferred so that you don't have to specify them manually:</p>
+<p>When calling functions or instantiating enums/structs, type arguments can be inferred so that you don’t have to specify them manually:</p>
 <pre><code class="language-rs">RefCounted := &lt;Inner: Sized&gt; =&gt; struct(
   ptr: &amp;raw Inner,
   references: usize
@@ -1634,7 +1658,7 @@ repo := make_repository&lt;
   Delete = DogDelete
 &gt;();
 </code></pre>
-<p>Finally, type-level function parameters can be given default arguments, which will be used if the arguments cannot be inferred from context and aren't specified explicitly:</p>
+<p>Finally, type-level function parameters can be given default arguments, which will be used if the arguments cannot be inferred from context and aren’t specified explicitly:</p>
 <pre><code class="language-rs">Vec := &lt;T, Allocator: Alloc = GlobalAllocator&gt; =&gt; struct(
   data: RawRefInAllocator&lt;T, Allocator&gt;,
   length: usize,
@@ -1647,36 +1671,38 @@ x := make_vec&lt;str&gt;(); // `Allocator = GlobalAllocator` inferred
 y := make_vec_with_alloc&lt;str, _&gt;(slab_allocator); // `Allocator = SlabAllocator` inferred
 </code></pre>
 <h2 id="grammar-7"><a class="header" href="#grammar-7">Grammar</a></h2>
-<p>The grammar for type function definitions and type function types can be found in the <a href="features/./types.html">Types</a> section.</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="memory"><a class="header" href="#memory">Memory</a></h1>
+<p>The grammar for type function definitions and type function types can be found in the <a href="#types">Types</a> section.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="memory"><a class="header" href="#memory">Memory</a></h1>
 <p>Still under construction.</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="macros"><a class="header" href="#macros">Macros</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="macros"><a class="header" href="#macros">Macros</a></h1>
 <p>This section describes the syntax for macros in Hash. Macros are a way to write code that writes other code. There are two kind of macro invocations: one macro works on AST items, and the other works on
 tokens.</p>
 <h2 id="ast-macros"><a class="header" href="#ast-macros">AST macros</a></h2>
 <p>AST-level macros are written with the syntax <code>#macro_name &lt;subject&gt;</code>
 or <code>#[macro_name(macro_arg)] &lt;subject&gt;</code>. The first form is a used as a shorthand
-for macros that don't have any additional arguments to the macro itself.</p>
+for macros that don’t have any additional arguments to the macro itself.</p>
 <p>For example, the <code>#dump_ast</code> macro will accept any AST item as the subject and print the parsed AST to the console.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>#dump_ast main := () =&gt; {
     println("Hello, world!");
 }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>An example of an AST macro being used to set some attributes on a function:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>#[attr(foreign(c), no_mangle, link_name = "jpeg_read_header")]
 jpeg_read_header := (&amp;raw cinfo, bool require_image) -&gt; i32;
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <h2 id="token-macros"><a class="header" href="#token-macros">Token macros</a></h2>
 <p>Token macros follow a similar syntax to AST macros, but instead of working on AST items, they work on tokens. The syntax for token macros is <code>@macro_name &lt;subject&gt;</code> or <code>@[macro_name(macro_arg)] &lt;subject&gt;</code>. The first form is a used as a shorthand for token macros that have no arguments. However, one significant difference between token macros and AST macros is that the token macro only accepts a token tree
 as the subject. A token tree is a sequence of tokens that are
 enclosed in a pair of delimiters. Token trees are either <code>[...]</code>, <code>{...}</code> or <code>(...)</code>. It is then up to the macro to define various
 rules for accepting the token tree:</p>
 <p>An example of using <code>min</code> and <code>max</code> macros:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>main := () =&gt; {
     min := @min {1 + 2, 3 * 4, 7 - 6 + 1 };
@@ -1688,7 +1714,7 @@ rules for accepting the token tree:</p>
         println("min and max are not equal")
     }
 }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>Another example of macro with a token tree for HTML:</p>
 <pre><code class="language-html">welcome := () =&gt; {
     @[xml(variant=html)] {
@@ -1704,7 +1730,7 @@ rules for accepting the token tree:</p>
 }
 </code></pre>
 <h2 id="defining-a-macro-"><a class="header" href="#defining-a-macro-">Defining a macro 🚧</a></h2>
-<p>This section hasn't been defined yet, and is still a work in progress.</p>
+<p>This section hasn’t been defined yet, and is still a work in progress.</p>
 <h2 id="macro-rules-"><a class="header" href="#macro-rules-">Macro Rules 🚧</a></h2>
 <h3 id="macro-invocation-locations"><a class="header" href="#macro-invocation-locations">Macro invocation locations</a></h3>
 <p>Both styles of macro invocations can appear in the following positions:</p>
@@ -1721,7 +1747,7 @@ rules for accepting the token tree:</p>
 </ul>
 <p>Here is an example in code of all of the possible positions
 where a macro invocation can appear:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span>#![module_attributes]
 
 <span class="boring">fn main() {
@@ -1747,7 +1773,7 @@ bing := (#param x: i32) -&gt; #ty i32 =&gt; {
         #dump_ast (#dump_ast _) =&gt; bing(x - 1) + bing(x - 2),
     }
 }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <h3 id="grammar-8"><a class="header" href="#grammar-8">Grammar</a></h3>
 <p>Formally, the macro syntax invocation can be written as follows:</p>
 <pre><code class="language-bnf">token_macro_invocation ::= "@" ( macro_name | macro_args ) token_tree;
@@ -1776,7 +1802,8 @@ macro_invocation ::= macro_name ( "("  ∅ | expr ("," expr )* ","?  ")" )?;
 
 macro_name ::= access_name;
 </code></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="standard-library"><a class="header" href="#standard-library">Standard library</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="standard-library"><a class="header" href="#standard-library">Standard library</a></h1>
 <h2 id="current-modules"><a class="header" href="#current-modules">Current modules</a></h2>
 <p>The standard library included the following modules:</p>
 <ul>
@@ -1792,16 +1819,18 @@ macro_name ::= access_name;
 <li><code>sys</code>: System information about the host OS</li>
 <li><code>path</code>: Path utilities</li>
 </ul>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="interpreter"><a class="header" href="#interpreter">Interpreter</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="interpreter"><a class="header" href="#interpreter">Interpreter</a></h1>
 <p>This chapter is dedicated to documenting the current interpreter implementation, future plans and a
 very basic manual for how to use the interpreter (via commandline arguments).</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="interpretor-command-line-arguments"><a class="header" href="#interpretor-command-line-arguments">Interpretor command-line arguments</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="interpretor-command-line-arguments"><a class="header" href="#interpretor-command-line-arguments">Interpretor command-line arguments</a></h1>
 <p>The <code>Hash</code> interpreter has a number of options that you can enable when running an instance of
 a VM. This page documents options and configurations that you can change when running a <code>Hash</code>
 interpreter.</p>
 <h1 id="general-overview"><a class="header" href="#general-overview">General overview</a></h1>
 <h2 id="-e---execute-execute-a-command"><a class="header" href="#-e---execute-execute-a-command"><code>-e</code>, <code>--execute</code>: Execute a command</a></h2>
-<p>Set the mode of the interpreter to 'execute' mode implying to immediately run the provided script rather than launching as an interactive mode.</p>
+<p>Set the mode of the interpreter to ‘execute’ mode implying to immediately run the provided script rather than launching as an interactive mode.</p>
 <p>For example:</p>
 <pre><code>$ hash -e examples/compute_pi.hash
 3.1415926535897
@@ -1825,10 +1854,11 @@ what it is doing at a given moment.</p>
 <p>This mode tells the compiler to finish at the IR stage and not produce any other kind of output.</p>
 <h3 id="-v--whilst-generating-ir-output-a-visual-representation-of-the-ir"><a class="header" href="#-v--whilst-generating-ir-output-a-visual-representation-of-the-ir"><code>-v</code> : Whilst generating IR, output a visual representation of the IR.</a></h3>
 <h3 id="-d--run-in-debug-mode-1"><a class="header" href="#-d--run-in-debug-mode-1"><code>-d</code> : Run in debug mode.</a></h3>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="compiler-backends"><a class="header" href="#compiler-backends">Compiler backends</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="compiler-backends"><a class="header" href="#compiler-backends">Compiler backends</a></h1>
 <h2 id="current-backend"><a class="header" href="#current-backend">Current backend</a></h2>
 <p>The current backend uses a Bytecode representation of the program which will run in a Virtual
-machine that implements garbage collection. This is similar to Python's approach to running
+machine that implements garbage collection. This is similar to Python’s approach to running
 programs, but however as we all know, Python is incredibly terrible for performant code
 (unless using C bindings).</p>
 <p>We want to move away from using a Virtual machine as the main backend and actually provide
@@ -1843,22 +1873,32 @@ folding expressions.</li>
 </ul>
 <h2 id="planned-backends"><a class="header" href="#planned-backends">Planned backends</a></h2>
 <p>Here are the currently planned backends, that will be worked on and stabilised some time in the future:</p>
-<div class="table-wrapper"><table><thead><tr><th>Name</th><th>Description</th><th>Target platform</th><th>Status</th></tr></thead><tbody>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Name</th><th>Description</th><th>Target platform</th><th>Status</th></tr>
+</thead>
+<tbody>
 <tr><td><code>x86_64_native</code></td><td>A native backend for generating executables and performing optimisations ourselves.</td><td><code>x86_64</code></td><td>❌</td></tr>
 <tr><td><code>x86_64_llvm</code></td><td>An backend powered by the might of LLVM backend.</td><td><code>x86_64</code></td><td>❌</td></tr>
 <tr><td><code>vm</code></td><td>Virtual machine backend able to run bytecode compiled programs.</td><td><code>any</code></td><td>✅</td></tr>
 <tr><td><code>elf64</code></td><td>Backend for generating standalone ELFs for un-named host operating systems.</td><td><code>i386</code></td><td>❌</td></tr>
 <tr><td><code>wasm</code></td><td>WebAssembly backend, convert hash programs into WebAssembly executables</td><td><code>browser/any</code></td><td>❌</td></tr>
 <tr><td><code>js</code></td><td>JS backend, generate TS/JavaScript code from the provided program.</td><td><code>browser/any</code></td><td>❌</td></tr>
-</tbody></table>
-</div><div style="break-before: page; page-break-before: always;"></div><h1 id="advanced-concepts"><a class="header" href="#advanced-concepts">Advanced Concepts</a></h1>
+</tbody>
+</table>
+</div>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="advanced-concepts"><a class="header" href="#advanced-concepts">Advanced Concepts</a></h1>
 <p>This chapter of the book is dedicated to documenting advanced concepts for developers and contributors.</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="compiler-internals"><a class="header" href="#compiler-internals">Compiler internals</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="compiler-internals"><a class="header" href="#compiler-internals">Compiler internals</a></h1>
 <p>This chapter is dedicated to documenting some core internal features of the compiler which
 are note worthy and should be examined by individuals who are interested in more than using
-the language but contributing to it's development.</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="loop-transpilation"><a class="header" href="#loop-transpilation">Loop transpilation</a></h1>
-<p>As mentioned at the start of the <a href="advanced/./../basics/loops.html">loops</a> section in the <a href="advanced/./../basics/intro.html">basics</a> chapter, the <code>loop</code> control flow keyword
+the language but contributing to it’s development.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="loop-transpilation"><a class="header" href="#loop-transpilation">Loop transpilation</a></h1>
+<p>As mentioned at the start of the <a href="basics/loops.html">loops</a> section in the <a href="basics/intro.html">basics</a> chapter, the <code>loop</code> control flow keyword
 is the most universal control flow since to you can use <code>loop</code> to represent
 both the <code>for</code> and <code>while</code> loops.</p>
 <h3 id="for-loop-transpilation"><a class="header" href="#for-loop-transpilation">for loop transpilation</a></h3>
@@ -1882,7 +1922,7 @@ loop {
 }
 </code></pre>
 <p>An example of the transpilation process:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>i := [1,2,3,5].into_iter();
 
@@ -1900,7 +1940,7 @@ loop {
     None =&gt; break;
   }
 }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <h3 id="while-loop-internal-representation"><a class="header" href="#while-loop-internal-representation">While loop internal representation</a></h3>
 <p>In general, a while loop transpilation process occurs by transferring the looping
 condition into a match block, which compares a boolean condition. If the boolean
@@ -1922,7 +1962,7 @@ loop {
 <p>An example of a transpilation:</p>
 <p>And the <code>while</code> loop can be written using the <code>loop</code> directive
 like so:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>c := 0;
 
@@ -1939,8 +1979,9 @@ c := 0;
 while c &lt; 5 {
     c+=1;
 }
-<span class="boring">}</span></code></pre></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="if-statement-transpilation"><a class="header" href="#if-statement-transpilation">If Statement transpilation</a></h1>
+<span class="boring">}</span></code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="if-statement-transpilation"><a class="header" href="#if-statement-transpilation">If Statement transpilation</a></h1>
 <p>As mentioned at the start of the conditionals section in the basics chapter, if statements can be
 represented as <code>match</code> statements. This is especially advised when you have many <code>if</code> branched and
 more complicated branch conditions.</p>
@@ -1967,7 +2008,7 @@ match true {
 }
 </code></pre>
 <p>For example, the following <code>if</code> statement will be converted as follows:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>if conditionA {
   print("conditionA")
@@ -1984,16 +2025,16 @@ match true {
   _ if conditionB =&gt; { print("conditionB") };
   _ =&gt; { print("Neither") };
 }
-<span class="boring">}</span></code></pre></pre>
+<span class="boring">}</span></code></pre>
 <p>However, this representation is not entirely accurate because the compiler will optimise out some components
 out of the transpiled version. Redundant statements such as <code>match true { ... }</code> will undergo constant folding
 to produce more optimal AST representations of the program.</p>
-<h2 id="missing-else-case"><a class="header" href="#missing-else-case">Missing 'else' case</a></h2>
+<h2 id="missing-else-case"><a class="header" href="#missing-else-case">Missing ‘else’ case</a></h2>
 <p>If the <code>if</code> statement lacks an <code>else</code> clause or a default case branch, the compiler will insert one automatically
 to avoid issues with pattern exhaustiveness. This behaviour is designed to mimic the control flow of classic <code>if</code>
 statements because the <code>else</code> branch will have an assigned empty expression block.</p>
 <p>From the above example, but without the <code>else</code> branch:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>if conditionA {
   print("conditionA")
@@ -2008,10 +2049,12 @@ match true {
   _ if conditionB =&gt; { print("conditionB") };
   _ =&gt; { };
 }
-<span class="boring">}</span></code></pre></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="type-inference"><a class="header" href="#type-inference">Type inference</a></h1>
+<span class="boring">}</span></code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="type-inference"><a class="header" href="#type-inference">Type inference</a></h1>
 <p>🚧 Still under construction! 🚧</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="future-features"><a class="header" href="#future-features">Future features</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="future-features"><a class="header" href="#future-features">Future features</a></h1>
 <p>This page is dedicated to documenting future planned features within the language.</p>
 
                     </main>
@@ -2031,6 +2074,11 @@ match true {
 
         </div>
 
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
 
 
 
@@ -2039,13 +2087,13 @@ match true {
         </script>
 
 
-        <script src="elasticlunr.min.js"></script>
-        <script src="mark.min.js"></script>
-        <script src="searcher.js"></script>
+        <script src="elasticlunr-ef4e11c1.min.js"></script>
+        <script src="mark-09e88c2c.min.js"></script>
+        <script src="searcher-c2a407aa.js"></script>
 
-        <script src="clipboard.min.js"></script>
-        <script src="highlight.js"></script>
-        <script src="book.js"></script>
+        <script src="clipboard-1626706a.min.js"></script>
+        <script src="highlight-abc7f01d.js"></script>
+        <script src="book-a0b12cfe.js"></script>
 
         <!-- Custom JS scripts -->
 
