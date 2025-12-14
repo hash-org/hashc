@@ -1,10 +1,19 @@
 [book]
 authors = ["The Hash Programming Language authors"]
 language = "en"
-multilingual = false
 src = "src"
 title = "The Hash Programming Language"
 
+[build]
+build-dir = "book"
+create-missing = true
+extra-watch-dirs = []
+
 [output.html]
+default-theme = "light"
+preferred-dark-theme = "navy"
 git-repository-url = "https://github.com/hash-org/hashc"
-git-repository-icon = "fa-github"
+edit-url-template = "https://github.com/hash-org/hashc/edit/main/docs/{path}"
+site-url = "/hashc/"
+cname = ""
+smart-punctuation = true
