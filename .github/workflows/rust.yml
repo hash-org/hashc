@@ -3,40 +3,32 @@ name: Rust
 on:
   push:
     branches: [main]
+    paths:
+      - "**.rs"
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - ".github/workflows/rust.yml"
+      - "rust-toolchain.toml"
   pull_request:
     branches: [main]
+    paths:
+      - "**.rs"
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - ".github/workflows/rust.yml"
+      - "rust-toolchain.toml"
 
 env:
   CARGO_TERM_COLOR: always
-  # Link against libc++ which is required when LLVM is built with libc++
-  RUSTFLAGS: "-C link-arg=-lc++ -C link-arg=-lc++abi"
 
 jobs:
-  build_and_test:
-    runs-on: ["${{ matrix.distro }}"]
-    name: Build on ${{ matrix.distro }} ${{ matrix.arch }}
-
-    strategy:
-      matrix:
-        include:
-          - arch: x64
-            distro: ubuntu-latest
+  # Fast checks that don't require LLVM (run first for quick feedback)
+  format_and_lint:
+    runs-on: ubuntu-latest
+    name: Format and Clippy (quick check)
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
-
-      - name: Cache LLVM
-        id: cache-llvm
-        uses: actions/cache@v4
-        with:
-          path: ./llvm
-          key: llvm-20
-
-      - name: Install LLVM
-        uses: KyleMayes/install-llvm-action@v2.0.8
-        with:
-          version: "20.1.8"
-          cached: ${{ steps.cache-llvm.outputs.cache-hit }}
 
       - name: Install Rust nightly
         run: |
@@ -47,8 +39,97 @@ jobs:
 
       - name: Dependency caching
         uses: Swatinem/rust-cache@v2
+        with:
+          # Use separate cache for quick checks
+          shared-key: "format-lint"
 
-      - name: LLVM location
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run clippy (without LLVM features)
+        # This runs clippy without building LLVM-dependent code for fast feedback
+        # Full clippy with LLVM runs in the test job
+        run: cargo clippy --all --no-deps -- -D warnings
+        continue-on-error: true
+
+  # Full build and test matrix across platforms
+  build_and_test:
+    runs-on: ${{ matrix.os }}
+    name: Test on ${{ matrix.os }} (${{ matrix.arch }})
+    # Only run tests after formatting passes
+    needs: format_and_lint
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux x64
+          - os: ubuntu-latest
+            arch: x64
+            target: x86_64-unknown-linux-gnu
+            rustflags: "-C link-arg=-lc++ -C link-arg=-lc++abi"
+
+          # Linux ARM64
+          - os: ubuntu-latest-arm64
+            arch: arm64
+            target: aarch64-unknown-linux-gnu
+            rustflags: "-C link-arg=-lc++ -C link-arg=-lc++abi"
+
+          # macOS x64 (Intel)
+          - os: macos-13
+            arch: x64
+            target: x86_64-apple-darwin
+            rustflags: "-C link-arg=-lc++"
+
+          # macOS ARM64 (Apple Silicon)
+          - os: macos-latest
+            arch: arm64
+            target: aarch64-apple-darwin
+            rustflags: "-C link-arg=-lc++"
+
+    env:
+      RUSTFLAGS: ${{ matrix.rustflags }}
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Cache LLVM (Linux)
+        if: runner.os == 'Linux'
+        id: cache-llvm
+        uses: actions/cache@v4
+        with:
+          path: ./llvm
+          key: llvm-20-${{ matrix.os }}-${{ matrix.arch }}
+
+      - name: Install LLVM (Linux)
+        if: runner.os == 'Linux'
+        uses: KyleMayes/install-llvm-action@v2.0.8
+        with:
+          version: "20.1.8"
+          cached: ${{ steps.cache-llvm.outputs.cache-hit }}
+
+      - name: Install LLVM (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install llvm@20
+          echo "LLVM_PATH=$(brew --prefix llvm@20)" >> $GITHUB_ENV
+
+      - name: Install Rust nightly
+        run: |
+          rustup toolchain install nightly
+          rustup component add clippy --toolchain nightly
+          rustup default nightly
+          rustup target add ${{ matrix.target }}
+
+      - name: Dependency caching
+        uses: Swatinem/rust-cache@v2
+        with:
+          # Separate cache per platform
+          shared-key: ${{ matrix.os }}-${{ matrix.arch }}
+
+      - name: Install dependencies (Ubuntu)
+        if: runner.os == 'Linux'
         # @@Dumbness: we need to install `libtinfo5` because of:
         # - https://github.com/hash-org/hashc/actions/runs/9634436024/job/26570084536
         run: |
@@ -57,14 +138,14 @@ jobs:
           # Install libc++ which is required when LLVM is built with libc++
           sudo apt-get update
           sudo apt-get install -y libc++-dev libc++abi-dev
-          echo $LLVM_PATH
+
+      - name: Verify LLVM installation
+        run: |
+          echo "LLVM_PATH: $LLVM_PATH"
           $LLVM_PATH/bin/llvm-config --version
 
       - name: Run tests
-        run: "LLVM_SYS_201_PREFIX=$LLVM_PATH cargo test --all --verbose"
+        run: LLVM_SYS_201_PREFIX=$LLVM_PATH cargo test --all --verbose
 
-      - name: Run clippy
-        run: "LLVM_SYS_201_PREFIX=$LLVM_PATH cargo clippy --all -- -D warnings"
-
-      - name: Check formatting
-        run: "cargo fmt --all -- --check"
+      - name: Run clippy (full check with LLVM)
+        run: LLVM_SYS_201_PREFIX=$LLVM_PATH cargo clippy --all -- -D warnings
