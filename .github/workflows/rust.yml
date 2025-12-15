@@ -109,10 +109,6 @@ jobs:
           version: "20.1.8"
           cached: ${{ steps.cache-llvm.outputs.cache-hit }}
 
-      - name: Set LLVM_PATH (Linux)
-        if: runner.os == 'Linux'
-        run: echo "LLVM_PATH is already set by install-llvm-action: $LLVM_PATH"
-
       - name: Install LLVM (macOS)
         if: runner.os == 'macOS'
         run: |
