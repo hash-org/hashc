@@ -1,6 +1,6 @@
-error: expected a name here
- --> $DIR/triple_colon_in_access_name.hash:3:7
+error: expected field name access or a method call
+ --> $DIR/triple_colon_in_access_name.hash:3:5
 2 |   
-3 |   a::b:::c<int>();
-  |         ^ 
+3 |   a.b.:c<int>();
+  |       ^ 
   = help: expected a `identifier`

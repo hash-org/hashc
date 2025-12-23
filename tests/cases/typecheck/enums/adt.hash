@@ -5,7 +5,7 @@ Vote := enum(Left(usize), Right(usize), Abstain);
 ensure := <T> => (t: T) => {};
 
 main := () => {
-  ensure<Vote>(Vote::Left(1usize));
-  ensure<Vote>(Vote::Abstain);
-  ensure<(usize) -> Vote>((x: usize) => Vote::Left(x));
+  ensure<Vote>(Vote.Left(1usize));
+  ensure<Vote>(Vote.Abstain);
+  ensure<(usize) -> Vote>((x: usize) => Vote.Left(x));
 };
