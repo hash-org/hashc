@@ -251,10 +251,10 @@ impl<'a, 'b, V: CodeGenObject> PlaceRef<V> {
             // This must be a struct..
             _ => {
                 let ty = builder.backend_ty_from_info(self.info);
-                builder.structural_get_element_pointer(
+                builder.bounded_get_element_pointer(
                     ty,
                     self.value,
-                    builder.backend_field_index(self.info, field),
+                    &[builder.const_usize(field_offset.bytes())],
                 )
             }
         };
