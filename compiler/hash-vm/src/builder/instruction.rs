@@ -56,6 +56,11 @@ macro_rules! __parse_operand {
     ([$lit:literal]) => {
         $crate::bytecode::register::Register::new($lit)
     };
+
+    // Parse the Stack Pointer register
+    (SP) => {
+        $crate::bytecode::register::Register::STACK_POINTER
+    };
 }
 
 /// Helper macro to parse operand values (for Operand enum).
@@ -218,6 +223,13 @@ macro_rules! __inst_impl {
     ($vec:ident; add64  r[$r1:expr], r[$r2:expr]; $($rest:tt)*) => {
         $vec.push($crate::bytecode::Instruction::Add64 {
             l1: $crate::__parse_operand!(r [$r1]),
+            l2: $crate::__parse_operand!(r [$r2])
+        });
+        $crate::__inst_impl!($vec; $($rest)*);
+    };
+    ($vec:ident; add64  $r1:tt, r[$r2:expr]; $($rest:tt)*) => {
+        $vec.push($crate::bytecode::Instruction::Add64 {
+            l1: $crate::__parse_operand!($r1),
             l2: $crate::__parse_operand!(r [$r2])
         });
         $crate::__inst_impl!($vec; $($rest)*);
