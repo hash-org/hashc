@@ -10,10 +10,7 @@ use hash_codegen::{
     target::{HasTarget, Target},
     traits::{BackendTypes, HasCtxMethods},
 };
-use hash_ir::{
-    IrCtx,
-    ty::{InstanceId, ReprTyId, VariantIdx},
-};
+use hash_ir::{IrCtx, ty::InstanceId};
 use hash_pipeline::settings::CompilerSettings;
 use hash_source::constant::AllocId;
 use hash_utils::fxhash::FxHashMap;
@@ -23,8 +20,6 @@ use llvm::{
     types::{AnyTypeEnum, BasicTypeEnum},
     values::FunctionValue,
 };
-
-use crate::translation::ty::TyMemoryRemap;
 
 /// The [CodeGenCtx] is used a context for converting Hash IR into LLVM IR. It
 /// stores references to all of the required information about the IR, as well
@@ -62,12 +57,6 @@ pub struct CodeGenCtx<'b, 'm> {
     /// A mapping between [InstanceId]s to [FunctionValue]s in order
     /// to avoid re-generating declaring instance references.
     pub(crate) instances: RefCell<FxHashMap<InstanceId, llvm::values::FunctionValue<'m>>>,
-
-    /// A collection of [TyMemoryRemap]s that have occurred for
-    /// all of the types that have been translated. Additionally, this is used
-    /// as a cache to avoid re-lowering [ReprTyId]s into the equivalent
-    /// LLVM types.
-    pub(crate) ty_remaps: RefCell<FxHashMap<(ReprTyId, Option<VariantIdx>), TyMemoryRemap<'m>>>,
 
     /// A map which stores the created [AnyValueEnum]s for the constant
     /// strings [InternedStr] that have been created.
@@ -111,7 +100,6 @@ impl<'b, 'm> CodeGenCtx<'b, 'm> {
             symbol_counter: Cell::new(0),
             size_ty,
             instances: RefCell::new(FxHashMap::default()),
-            ty_remaps: RefCell::new(FxHashMap::default()),
             str_consts: RefCell::new(FxHashMap::default()),
             global_consts: RefCell::new(FxHashMap::default()),
             intrinsics: RefCell::new(FxHashMap::default()),
