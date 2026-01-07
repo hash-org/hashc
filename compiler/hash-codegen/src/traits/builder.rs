@@ -4,7 +4,7 @@
 //! from Hash IR.
 
 use hash_abi::FnAbiId;
-use hash_ir::ty::ReprTyId;
+use hash_ir::ty::{InstanceId, ReprTyId};
 use hash_storage::store::statics::StoreId;
 use hash_target::{
     abi::{AbiRepresentation, Scalar, ValidScalarRange},
@@ -33,10 +33,10 @@ pub trait BlockBuilderMethods<'a, 'b>:
     + IntrinsicBuilderMethods<'b>
     + DebugInfoBuilderMethods
 {
-    /// Get the current context
+    /// Get the current context.
     fn ctx(&self) -> &Self::CodegenCtx;
 
-    /// Function to build the given `BasicBlock` into the backend equivalent.
+    /// Build the given `BasicBlock` into the backend equivalent.
     fn build(ctx: &'a Self::CodegenCtx, block: Self::BasicBlock) -> Self;
 
     /// Add a block to the current function.
@@ -46,6 +46,7 @@ pub trait BlockBuilderMethods<'a, 'b>:
         name: &str,
     ) -> Self::BasicBlock;
 
+    /// Append a sibling block to the current function.
     fn append_sibling_block(&mut self, name: &str) -> Self::BasicBlock;
 
     /// Create a new basic block within the current function.

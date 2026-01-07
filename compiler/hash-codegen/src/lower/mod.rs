@@ -143,9 +143,7 @@ pub fn codegen_body<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
     // @@Todo: compute debug info about each local
 
     let func = ctx.get_fn(instance);
-
     let abis = ctx.cg_ctx().abis();
-
     let fn_abi = abis.create_fn_abi_from_instance(ctx, instance);
     let is_return_indirect = abis.map_fast(fn_abi, |abi| abi.ret_abi.is_indirect());
 
