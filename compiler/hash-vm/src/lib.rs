@@ -3,6 +3,7 @@
 
 mod heap;
 mod stack;
+mod state;
 
 pub mod builder;
 pub mod bytecode;
