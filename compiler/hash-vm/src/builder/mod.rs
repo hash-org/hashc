@@ -29,11 +29,17 @@ pub struct FunctionCtx {
     pub offset: usize,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct BytecodeBuilder {
     /// The entire bytecode program, this contains all of the
     /// functions and their instructions.
     pub instructions: Vec<Instruction>,
+
+    /// Current function that is being built.
+    ///
+    /// N.B. We would need to store this somewhere differently if we wanted to
+    /// make this thread-safe.
+    current_function: Cell<Option<InstanceId>>,
 
     /// The function context store, this is used to store the function contexts.
     function_ctxs: RefCell<HashMap<InstanceId, FunctionBuilder>>,
@@ -45,6 +51,7 @@ impl BytecodeBuilder {
         Self {
             instructions: Vec::new(),
             function_ctxs: RefCell::new(HashMap::new()),
+            current_function: Cell::new(None),
         }
     }
 
@@ -54,6 +61,7 @@ impl BytecodeBuilder {
     /// as the current function.
     pub fn new_function(&self, fn_builder: FunctionBuilder) {
         let FunctionBuilder { instance, .. } = fn_builder;
+        self.current_function.set(Some(instance));
         self.function_ctxs.borrow_mut().insert(instance, fn_builder);
     }
 
@@ -100,5 +108,20 @@ impl BytecodeBuilder {
         let fn_builder = function_ctxs.get_mut(&instance).unwrap();
         f(fn_builder)
     }
+
+    /// Call a closure with the current function builder.
+    ///
+    /// This is useful for modifying the current function builder
+    /// without having to pass around the instance ID.
+    ///
+    /// ##Note: This assumes that there is a current function set.
+    pub fn with_current_mut<F, T>(&self, f: F) -> T
+    where
+        F: FnOnce(&mut FunctionBuilder) -> T,
+    {
+        let instance = self.current_function.get().expect("there must be a current function");
+        let mut function_ctxs = self.function_ctxs.borrow_mut();
+        let fn_builder = function_ctxs.get_mut(&instance).unwrap();
+        f(fn_builder)
     }
 }

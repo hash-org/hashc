@@ -1184,6 +1184,7 @@ version = "0.1.0"
 dependencies = [
  "hash-abi",
  "hash-reporting",
+ "hash-repr",
  "hash-source",
  "hash-storage",
  "hash-utils",
