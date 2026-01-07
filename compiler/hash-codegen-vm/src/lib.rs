@@ -16,6 +16,7 @@ use hash_pipeline::{interface::CompilerResult, settings::CompilerSettings, works
 use hash_source::SourceMapUtils;
 use hash_storage::store::statics::StoreId;
 use hash_utils::profiling::{HasMutMetrics, StageMetrics};
+use hash_vm::builder::FunctionBuilder;
 
 use crate::{ctx::Ctx, translation::VMBuilder};
 
@@ -73,8 +74,11 @@ impl<'b> VMBackend<'b> {
                 continue;
             }
 
-            // Get the instance of the function.
+            // Create a new `FunctionBuilder` and register it to the given
+            // instance.
             let instance = body.metadata().ty().borrow().as_instance();
+            let fn_builder = FunctionBuilder::new(instance);
+            ctx.builder.new_function(fn_builder);
 
             // @@ErrorHandling: we should be able to handle the error here
             codegen_body::<VMBuilder>(instance, body, ctx).unwrap();

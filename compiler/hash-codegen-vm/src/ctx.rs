@@ -26,6 +26,9 @@ pub struct Ctx<'a> {
 
     /// Store for all of the information about type [Layout]s.
     pub layouts: &'a LayoutStorage,
+
+    /// The bytecode builder that is being used to build the bytecode.
+    pub builder: builder::BytecodeBuilder,
 }
 
 impl Ctx<'_> {
@@ -36,7 +39,7 @@ impl Ctx<'_> {
         codegen_ctx: &'a CodeGenStorage,
         layouts: &'a LayoutStorage,
     ) -> Ctx<'a> {
-        Ctx { settings, ir_ctx, codegen_ctx, layouts }
+        Ctx { settings, ir_ctx, codegen_ctx, layouts, builder: builder::BytecodeBuilder::new() }
     }
 }
 
