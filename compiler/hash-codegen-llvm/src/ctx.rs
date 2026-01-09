@@ -10,7 +10,10 @@ use hash_codegen::{
     target::{HasTarget, Target},
     traits::{BackendTypes, HasCtxMethods},
 };
-use hash_ir::{IrCtx, ty::InstanceId};
+use hash_ir::{
+    IrCtx,
+    ty::ReprTyId,
+};
 use hash_pipeline::settings::CompilerSettings;
 use hash_source::constant::AllocId;
 use hash_utils::fxhash::FxHashMap;
@@ -54,9 +57,9 @@ pub struct CodeGenCtx<'b, 'm> {
     /// of pointers and pointer offsets.
     pub size_ty: llvm::types::IntType<'m>,
 
-    /// A mapping between [InstanceId]s to [FunctionValue]s in order
+    /// A mapping between [ReprTyId]s to [FunctionValue]s in order
     /// to avoid re-generating declaring instance references.
-    pub(crate) instances: RefCell<FxHashMap<InstanceId, llvm::values::FunctionValue<'m>>>,
+    pub(crate) instances: RefCell<FxHashMap<ReprTyId, llvm::values::FunctionValue<'m>>>,
 
     /// A map which stores the created [AnyValueEnum]s for the constant
     /// strings [InternedStr] that have been created.

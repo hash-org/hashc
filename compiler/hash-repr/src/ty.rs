@@ -89,7 +89,6 @@ pub struct FnTy {
 
     /// The function return type.
     pub return_ty: ReprTyId,
-
     // @@Todo: do we need to keep around an AstNodeId for the attributes?
 }
 

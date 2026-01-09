@@ -257,13 +257,15 @@ impl<'b, 'm> LLVMBackend<'b> {
             codegen_body::<LLVMBuilder>(body, ctx).unwrap();
 
             // Check if we should dump the generated LLVM IR
-            let instance = body.metadata().ty().borrow().as_instance();
+            let ty = body.metadata().ty();
+            let instance = ty.borrow().as_instance();
+
             if instance.borrow().has_attr(attrs::DUMP_LLVM_IR) {
-                // @@Messaging
+                // @@Messaging§
                 log::info!(
                     "LLVM IR for function {}\n{}",
                     body.meta.name(),
-                    ctx.get_fn(instance).print_to_string().to_string()
+                    ctx.get_fn(ty).print_to_string().to_string()
                 );
             }
         }

@@ -4,7 +4,7 @@
 //! from Hash IR.
 
 use hash_abi::FnAbiId;
-use hash_ir::ty::{InstanceId, ReprTyId};
+use hash_ir::ty::ReprTyId;
 use hash_storage::store::statics::StoreId;
 use hash_target::{
     abi::{AbiRepresentation, Scalar, ValidScalarRange},

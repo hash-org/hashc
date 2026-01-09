@@ -280,11 +280,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             };
         }
 
-        let fn_ptr = match (instance, func) {
-            (Some(instance), None) => builder.get_fn_ptr(instance),
-            (_, Some(func)) => func,
-            _ => unreachable!(),
-        };
+        let fn_ptr = if let Some(fn_ptr) = func { fn_ptr } else { builder.get_fn_ptr(ty) };
 
         // Finally, generate the code for the function call and
         // cleanup

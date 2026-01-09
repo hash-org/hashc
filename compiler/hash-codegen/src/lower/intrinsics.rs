@@ -23,7 +23,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         item: LangItem,
     ) -> (ReprTyId, Builder::Value) {
         let item = self.ctx.ir_ctx().lang_items().get(item).unwrap();
-        (item.ty, builder.get_fn_ptr(item.instance))
+        (item.ty, builder.get_fn_ptr(item.ty))
     }
 
     /// Function that handles generating code for the defined language

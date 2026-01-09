@@ -3,7 +3,7 @@
 //! and to be able to call functions from other languages, but to also provide
 //! information to code generation backends about how values are represented.
 
-use hash_ir::ty::{InstanceId, ReprTyId};
+use hash_ir::ty::ReprTyId;
 use hash_repr::{LayoutId, TyInfo};
 use hash_storage::{new_store_key, store::statics::StoreId};
 use hash_target::{
