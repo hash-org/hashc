@@ -204,10 +204,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 
         // compute the function pointer value and the ABI
         let abis = self.ctx.cg_ctx().abis();
-        let fn_abi = match instance {
-            Some(instance) => abis.create_fn_abi_from_instance(builder, instance),
-            None => abis.create_fn_abi_from_ty(builder, ty.borrow().as_fn()),
-        };
+        let fn_abi = abis.create_fn_abi_from_ty(builder, ty);
         let ret_abi = abis.map_fast(fn_abi, |abi| abi.ret_abi);
 
         // If the return ABI pass mode is "indirect", then this means that
@@ -639,8 +636,8 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         let args: [Builder::Value; 2] = (bytes, len).into();
 
         // Get the `panic` lang item.
-        let (instance, fn_ptr) = self.resolve_lang_item(builder, LangItem::Panic);
-        let abi = self.ctx.cg_ctx().abis().create_fn_abi_from_instance(builder, instance);
+        let (ty, fn_ptr) = self.resolve_lang_item(builder, LangItem::Panic);
+        let abi = self.ctx.cg_ctx().abis().create_fn_abi_from_ty(builder, ty);
 
         // Finally we emit this as a call to panic...
         self.codegen_fn_call(builder, abi, fn_ptr, &args, &[], None, false)

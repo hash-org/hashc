@@ -223,7 +223,8 @@ impl<'b, 'm> LLVMBackend<'b> {
             }
 
             // Get the instance of the function.
-            let instance = body.metadata().ty().borrow().as_instance();
+            let ty = body.metadata().ty();
+            let instance = ty.borrow().as_instance();
 
             // So, we create the mangled symbol name, and then call `predefine()` which
             // should create the function ABI from the instance, with the correct
@@ -231,7 +232,7 @@ impl<'b, 'm> LLVMBackend<'b> {
             let symbol_name = compute_symbol_name(instance);
 
             let abis = self.codegen_storage.abis();
-            let abi = abis.create_fn_abi_from_instance(ctx, instance);
+            let abi = abis.create_fn_abi_from_ty(ctx, ty);
 
             abis.map_fast(abi, |abi| {
                 ctx.predefine_fn(instance, symbol_name.as_str(), abi);
@@ -252,13 +253,11 @@ impl<'b, 'm> LLVMBackend<'b> {
                 continue;
             }
 
-            // Get the instance of the function.
-            let instance = body.metadata().ty().borrow().as_instance();
-
             // @@ErrorHandling: we should be able to handle the error here
-            codegen_body::<LLVMBuilder>(instance, body, ctx).unwrap();
+            codegen_body::<LLVMBuilder>(body, ctx).unwrap();
 
             // Check if we should dump the generated LLVM IR
+            let instance = body.metadata().ty().borrow().as_instance();
             if instance.borrow().has_attr(attrs::DUMP_LLVM_IR) {
                 // @@Messaging
                 log::info!(

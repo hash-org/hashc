@@ -2,7 +2,7 @@
 //! code and resolving references to intrinsic function calls.
 
 use hash_abi::ArgAbi;
-use hash_ir::{intrinsics::Intrinsic, lang_items::LangItem, ty::InstanceId};
+use hash_ir::{intrinsics::Intrinsic, lang_items::LangItem, ty::ReprTyId};
 use hash_repr::TyInfo;
 use hash_target::abi;
 
@@ -21,9 +21,9 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
         &mut self,
         builder: &Builder,
         item: LangItem,
-    ) -> (InstanceId, Builder::Value) {
-        let instance = self.ctx.ir_ctx().lang_items().get(item).unwrap();
-        (instance, builder.get_fn_ptr(instance))
+    ) -> (ReprTyId, Builder::Value) {
+        let item = self.ctx.ir_ctx().lang_items().get(item).unwrap();
+        (item.ty, builder.get_fn_ptr(item.instance))
     }
 
     /// Function that handles generating code for the defined language

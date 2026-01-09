@@ -4,8 +4,8 @@
 use std::cell::RefCell;
 
 use hash_abi::{ArgAbi, CallingConvention, FnAbi, FnAbiId};
-use hash_ir::ty::{FnTy, InstanceId};
-use hash_storage::store::{DefaultStore, Store, StoreInternalData};
+use hash_ir::ty::{FnTy, InstanceId, ReprTy, ReprTyId};
+use hash_storage::store::{DefaultStore, Store, StoreInternalData, statics::StoreId};
 use hash_utils::fxhash::FxHashMap;
 
 use super::{BackendTypes, HasCtxMethods, layout::LayoutMethods};
@@ -72,7 +72,12 @@ impl FnAbiStore {
 
     /// Create (or re-use) a [FnAbi] of the [InstanceId]. This function returns
     /// the [FnAbiId] of the [FnAbi] that was created.
-    pub fn create_fn_abi_from_instance<'b, Ctx>(&self, ctx: &Ctx, instance: InstanceId) -> FnAbiId
+    pub fn create_fn_abi_from_instance<'b, Ctx>(
+        &self,
+        ctx: &Ctx,
+        ty: ReprTyId,
+        instance: InstanceId,
+    ) -> FnAbiId
     where
         Ctx: HasCtxMethods<'b> + LayoutMethods<'b>,
     {
@@ -83,7 +88,7 @@ impl FnAbiStore {
         // Create the ABI if it does not exist.
         let abi = self.store.create(
             // @@Todo: Emit a fatal error if the function ABI cannot be computed.
-            compute_fn_abi_from_instance(ctx, instance).unwrap(),
+            compute_fn_abi_from_instance(ctx, ty, instance).unwrap(),
         );
 
         // Add a mapping from the instance to the ABI.
@@ -93,18 +98,25 @@ impl FnAbiStore {
 
     /// Compute the [FnAbi] of a given [FnTy] assuming that it is the standard
     /// calling convention of the target.
-    pub fn create_fn_abi_from_ty<'b, Ctx>(&self, ctx: &Ctx, func_ty: FnTy) -> FnAbiId
+    pub fn create_fn_abi_from_ty<'b, Ctx>(&self, ctx: &Ctx, ty: ReprTyId) -> FnAbiId
     where
         Ctx: HasCtxMethods<'b> + LayoutMethods<'b>,
     {
-        let FnTy { params, return_ty } = func_ty;
+        let ty_info = ty.value();
+        let FnTy { params, return_ty } = match ty_info {
+            ReprTy::FnDef { instance } => {
+                return self.create_fn_abi_from_instance(ctx, ty, instance);
+            }
+            ReprTy::Fn(func) => func,
+            _ => unreachable!(),
+        };
 
         // @@Todo: do we need to configure it based on any func attrs?
         let calling_convention = CallingConvention::C;
 
         self.store.create(
             // @@Todo: Emit a fatal error if the function ABI cannot be computed.
-            compute_fn_abi(ctx, params, return_ty, calling_convention).unwrap(),
+            compute_fn_abi(ctx, ty, params, return_ty, calling_convention).unwrap(),
         )
     }
 
@@ -118,16 +130,5 @@ impl FnAbiStore {
     /// been created.
     pub fn get_fn_abi(&self, instance: InstanceId) -> FnAbiId {
         self.try_get_fn_abi(instance).unwrap()
-    }
-
-    /// Get or create the ABI of the [InstanceId], and then map over the ABI.
-    pub fn with_fn_abi<'b, F, R, Ctx>(&self, ctx: &mut Ctx, instance: InstanceId, f: F) -> R
-    where
-        F: FnOnce(&FnAbi, &mut Ctx) -> R,
-        Ctx: HasCtxMethods<'b> + LayoutMethods<'b>,
-    {
-        // Get or create the ABI, and then map over it.
-        let abi = self.create_fn_abi_from_instance(ctx, instance);
-        self.store.map_fast(abi, |abi| f(abi, ctx))
     }
 }

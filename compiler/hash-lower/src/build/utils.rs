@@ -87,8 +87,9 @@ impl BodyBuilder<'_> {
         }
     }
 
-    pub(crate) fn get_lang_item(&self, name: LangItem) -> ReprTyId {
-        self.ctx.lcx.lang_items().get_ty(name).expect("lang item not found or not defined")
+    pub(crate) fn get_lang_item_ty(&self, name: LangItem) -> ReprTyId {
+        let item = self.ctx.lcx.lang_items().get(name).expect("lang item not found or not defined");
+        item.ty
     }
 
     /// Create a new [RValue] that represents a pointer with metadata, this uses
