@@ -2,7 +2,7 @@ use hash_codegen::traits::builder::BlockBuilderMethods;
 
 use crate::translation::VMBuilder;
 
-impl<'a, 'b> BlockBuilderMethods<'a, 'b> for VMBuilder<'b> {
+impl<'a, 'b> BlockBuilderMethods<'a, 'b> for VMBuilder<'a, 'b> {
     fn ctx(&self) -> &Self::CodegenCtx {
         todo!()
     }

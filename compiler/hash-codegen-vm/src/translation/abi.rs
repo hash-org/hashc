@@ -4,7 +4,7 @@ use hash_codegen::{abi::ArgAbi, lower::place::PlaceRef, traits::abi::AbiBuilderM
 
 use crate::translation::VMBuilder;
 
-impl<'b> AbiBuilderMethods<'b> for VMBuilder<'b> {
+impl<'b> AbiBuilderMethods<'b> for VMBuilder<'_, 'b> {
     fn get_param(&mut self, _index: usize) -> Self::Value {
         unimplemented!()
     }
