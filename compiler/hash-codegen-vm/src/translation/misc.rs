@@ -3,8 +3,8 @@ use hash_codegen::traits::misc::MiscBuilderMethods;
 use crate::ctx::Ctx;
 
 impl<'b> MiscBuilderMethods<'b> for Ctx<'b> {
-    fn get_fn(&self, _instance: hash_ir::ty::InstanceId) -> Self::Function {
-        todo!()
+    fn get_fn(&self, instance: hash_ir::ty::InstanceId) -> Self::Function {
+        instance
     }
 
     fn get_fn_ptr(&self, _instance: hash_ir::ty::InstanceId) -> Self::Value {

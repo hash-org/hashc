@@ -6,7 +6,11 @@ use hash_codegen::{
     target::{HasTarget, Target},
     traits::{BackendTypes, HasCtxMethods},
 };
-use hash_ir::IrCtx;
+use hash_ir::{
+    IrCtx,
+    ir::Const,
+    ty::{InstanceId, ReprTyId},
+};
 use hash_pipeline::settings::CompilerSettings;
 
 /// The [Ctx] is used a context for converting Hash IR into bytecode. It
@@ -45,10 +49,10 @@ impl Ctx<'_> {
 
 /// Specification for `BackedTypes` for the [Ctx].
 impl<'m> BackendTypes for Ctx<'m> {
-    type Value = ();
-    type Function = ();
-    type Type = ();
     type BasicBlock = ();
+    type Value = Const;
+    type Function = InstanceId;
+    type Type = ReprTyId;
     type DebugInfoScope = ();
     type DebugInfoLocation = ();
     type DebugInfoVariable = ();

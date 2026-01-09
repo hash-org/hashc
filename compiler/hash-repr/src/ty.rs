@@ -89,6 +89,7 @@ pub struct FnTy {
 
     /// The function return type.
     pub return_ty: ReprTyId,
+
     // @@Todo: do we need to keep around an AstNodeId for the attributes?
 }
 
@@ -314,6 +315,14 @@ impl ReprTy {
     /// Check if the [ReprTy] is a floating point type.
     pub fn is_float(&self) -> bool {
         matches!(self, Self::Float(_))
+    }
+
+    /// Assert that the type is a floating point one.
+    pub fn as_float(&self) -> FloatTy {
+        match self {
+            Self::Float(ty) => *ty,
+            _ => unreachable!(), // @@Todo: handle big floats?
+        }
     }
 
     /// Check if the [ReprTy] is a signed integral type.
