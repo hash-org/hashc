@@ -8,11 +8,8 @@ use crate::{
         register::{Register, RegisterSet},
     },
     error::RuntimeError,
-    stack::Stack,
-    state::VMState,
+    memory::{HasMemoryAccess, Memory},
 };
-
-const DEFAULT_STACK_SIZE: usize = 10_000;
 
 /// Interpreter flags represent generated context from the current
 /// execution. This flags store information about the last executed
@@ -31,33 +28,25 @@ pub struct InterpreterFlags {
 /// registers, etc.
 #[derive(Debug)]
 pub struct Interpreter {
-    /// The Interpreter stack holds the current execution context of the
-    /// function. This is very similar to the way that the x86 architecture
-    /// handles the flag.
-    stack: Stack,
+    /// The memory space of the VM.
+    memory: Memory,
+
+    /// A vector of [Instruction]s representing the program that it will run.
+    instructions: Vec<Instruction>,
+
+    /// The [Register]s available to the interpreter at any time.
+    registers: RegisterSet,
 
     /// Interpreter flags represent the result of some operation that has
     /// occurred
     flags: InterpreterFlags,
-
-    /// A vector of [Instruction]s representing the program that it will run
-    instructions: Vec<Instruction>,
-
-    /// We have 256 [Register]s available to the interpreter at any time
-    registers: RegisterSet,
-}
-
-impl Default for Interpreter {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 impl Interpreter {
     #[must_use]
-    pub fn new() -> Self {
+    pub fn new(memory: Memory) -> Self {
         Self {
-            stack: Stack::new(DEFAULT_STACK_SIZE),
+            memory,
             instructions: Vec::new(),
             registers: RegisterSet::default(),
             flags: InterpreterFlags::default(),
@@ -762,60 +751,60 @@ impl Interpreter {
             }
             Instruction::Pop8 { l1 } => {
                 // Pop the top byte on top of the stack and put it into the register
-                let value = self.stack.pop8(&self.state())?;
+                let value = self.memory.read8(sp)?;
                 self.registers.set_register_b(l1, value);
                 self.set_stack_pointer(sp - 1);
             }
             Instruction::Pop16 { l1 } => {
                 // Pop the top two bytes on top of the stack and put it into the register
-                let value = self.stack.pop16(&self.state())?;
+                let value = self.memory.read16(sp)?;
                 self.registers.set_register_2b(l1, value);
                 self.set_stack_pointer(sp - 2);
             }
             Instruction::Pop32 { l1 } => {
                 // Pop the top four bytes on top of the stack and put it into the register
-                let value = self.stack.pop32(&self.state())?;
+                let value = self.memory.read32(sp)?;
                 self.registers.set_register_4b(l1, value);
                 self.set_stack_pointer(sp - 4);
             }
             Instruction::Pop64 { l1 } => {
                 // Pop the top four bytes on top of the stack and put it into the register
-                let value = self.stack.pop64(&self.state())?;
+                let value = self.memory.read64(sp)?;
                 self.registers.set_register_8b(l1, value);
                 self.set_stack_pointer(sp - 8);
             }
             Instruction::Push8 { l1 } => {
                 let value = self.registers.get_register_b(l1);
-                self.stack.push8(value, &self.state())?;
+                self.memory.write8(sp, value)?;
                 self.set_stack_pointer(sp + 1);
             }
             Instruction::Push16 { l1 } => {
                 let value = self.registers.get_register_2b(l1);
-                self.stack.push16(value, &self.state())?;
+                self.memory.write16(sp, value)?;
                 self.set_stack_pointer(sp + 2);
             }
             Instruction::Push32 { l1 } => {
                 let value = self.registers.get_register_4b(l1);
-                self.stack.push32(value, &self.state())?;
+                self.memory.write32(sp, value)?;
                 self.set_stack_pointer(sp + 4);
             }
             Instruction::Push64 { l1 } => {
                 let value = self.registers.get_register_8b(l1);
-                self.stack.push64(value, &self.state())?;
+                self.memory.write64(sp, value)?;
                 self.set_stack_pointer(sp + 8);
             }
             Instruction::Call { func } => {
                 // Save the ip onto the stack
-                self.stack.push64(
+                self.memory.write64(
+                    sp,
                     &self.registers.get_register64(Register::INSTRUCTION_POINTER).to_be_bytes(),
-                    &self.state(),
                 )?;
                 self.set_stack_pointer(self.get_stack_pointer() + 8);
 
                 // Save the bp onto the stack
-                self.stack.push64(
+                self.memory.write64(
+                    sp,
                     &self.registers.get_register64(Register::BASE_POINTER).to_be_bytes(),
-                    &self.state(),
                 )?;
                 self.set_stack_pointer(sp + 8);
 
@@ -828,7 +817,7 @@ impl Interpreter {
                 // Jump to the function
                 self.registers.set_register64(
                     Register::INSTRUCTION_POINTER,
-                    self.registers.get_register64(func),
+                    self.registers.get_register64(func.as_register()),
                 );
             }
             Instruction::Return => {
@@ -839,18 +828,16 @@ impl Interpreter {
                 );
 
                 // Get the BP from stack and set it
-                let vm_state = self.state();
                 self.registers.set_register64(
                     Register::BASE_POINTER,
-                    u64::from_be_bytes(*self.stack.pop64(&vm_state)?),
+                    u64::from_be_bytes(*self.memory.read64(sp)?),
                 );
                 self.set_stack_pointer(sp - 8);
 
                 // Get the IP from stack and set it
-                let vm_state = self.state();
                 self.registers.set_register64(
                     Register::INSTRUCTION_POINTER,
-                    u64::from_be_bytes(*self.stack.pop64(&vm_state)?),
+                    u64::from_be_bytes(*self.memory.read64(sp)?),
                 );
                 self.set_stack_pointer(sp - 16); // 8 for BP + 8 for IP
             }
@@ -926,15 +913,5 @@ impl Interpreter {
         }
 
         Ok(())
-    }
-
-    /// Gets the current state of the VM.
-    pub fn state(&self) -> VMState {
-        VMState {
-            base_pointer: self.registers.get_register64(Register::BASE_POINTER) as usize,
-            stack_pointer: self.registers.get_register64(Register::STACK_POINTER) as usize,
-            instruction_pointer: self.registers.get_register64(Register::INSTRUCTION_POINTER)
-                as usize,
-        }
     }
 }

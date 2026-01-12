@@ -14,3 +14,6 @@ hash-repr = { workspace = true }
 hash-source = { workspace = true }
 hash-storage = { workspace = true }
 hash-utils = { workspace = true }
+
+
+bitflags = { workspace = true }
