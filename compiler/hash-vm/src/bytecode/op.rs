@@ -87,6 +87,15 @@ impl Operand {
         matches!(self, Operand::Register(_))
     }
 
+    /// Get the register if the operand is a register.
+    pub fn as_register(&self) -> Register {
+        let Operand::Register(reg) = self else {
+            panic!("Operand is not a register");
+        };
+
+        *reg
+    }
+
     /// Check if the operand is a label.
     pub fn is_label(&self) -> bool {
         matches!(self, Operand::Label(_))

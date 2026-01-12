@@ -1,9 +1,12 @@
 //! Hash Compiler VM tests.
-use hash_vm::{builder::BytecodeBuilder, bytecode::register::Register, inst, r, vm::Interpreter};
+use hash_vm::{
+    builder::BytecodeBuilder, bytecode::register::Register, inst, memory::Memory, r,
+    vm::Interpreter,
+};
 
 #[test]
 fn push_two_and_add() {
-    let mut builder = BytecodeBuilder::default();
+    let mut builder = BytecodeBuilder::new();
 
     let r0 = r!(0);
     builder.append(inst! {
@@ -12,7 +15,7 @@ fn push_two_and_add() {
         add16 [0], [1];
     });
 
-    let mut vm = Interpreter::new();
+    let mut vm = Interpreter::new(Memory::default());
 
     // @@Todo: this is definitely not correct, as we'd
     // still need to ensure that we've got all of the right

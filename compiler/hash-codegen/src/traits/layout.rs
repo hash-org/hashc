@@ -16,9 +16,6 @@ pub trait LayoutMethods<'b>: BackendTypes + HasCtxMethods<'b> {
         TyInfo { ty, layout }
     }
 
-    /// Compute the field index from the backend specific type.
-    fn backend_field_index(&self, info: TyInfo, index: usize) -> u64;
-
     /// Check whether the [TyInfo] layout can be represented as an
     /// immediate value.
     fn is_backend_immediate(&self, ty: TyInfo) -> bool;

@@ -74,6 +74,11 @@ impl Const {
         matches!(self.kind, ConstKind::Zero)
     }
 
+    /// Check if the [Const] is an allocation.
+    pub fn is_alloc(&self) -> bool {
+        matches!(self.kind, ConstKind::Alloc { .. })
+    }
+
     /// Get the type of the constant.
     pub fn ty(&self) -> ReprTyId {
         self.ty

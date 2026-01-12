@@ -68,11 +68,17 @@ impl<I> From<RangeInclusive<I>> for Range<I> {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct RangeMap<I, V> {
     /// The store that stores the [Range] which maps a range of keys
     /// to a value.
     store: Vec<(Range<I>, V)>,
+}
+
+impl<I, V> Default for RangeMap<I, V> {
+    fn default() -> Self {
+        Self { store: Vec::new() }
+    }
 }
 
 impl<I: fmt::Display, V: fmt::Display> fmt::Display for RangeMap<I, V> {
@@ -85,7 +91,10 @@ impl<I: fmt::Display, V: fmt::Display> fmt::Display for RangeMap<I, V> {
     }
 }
 
-impl<I: PrimInt + Clone + Copy, V> RangeMap<I, V> {
+impl<I, V> RangeMap<I, V>
+where
+    I: PrimInt + Clone + Copy + std::fmt::Debug,
+{
     /// Create a new empty [RangeMap].
     pub fn new() -> Self {
         Self { store: vec![] }
@@ -99,7 +108,7 @@ impl<I: PrimInt + Clone + Copy, V> RangeMap<I, V> {
 
     /// Create a new [RangeMap] with specified ranges that are assumed
     /// to be in order.
-    pub fn populated(items: Vec<(RangeInclusive<I>, V)>) -> Self {
+    pub fn populated<R: Into<Range<I>>>(items: Vec<(R, V)>) -> Self {
         let map = Self {
             store: items
                 .into_iter()
@@ -145,7 +154,9 @@ impl<I: PrimInt + Clone + Copy, V> RangeMap<I, V> {
 
         for (index, (item, _)) in self.store.iter().enumerate() {
             if overlaps(item, &key) {
-                panic!("keys are not allowed to overlap in a range map")
+                panic!(
+                    "keys are not allowed to overlap in a range map. Key `{key:?}` overlaps with existing key `{item:?}`"
+                );
             }
 
             if key.start > item.end {
@@ -221,6 +232,15 @@ impl<I: PrimInt + Clone + Copy, V> RangeMap<I, V> {
     /// [RangeMap].
     pub fn iter(&self) -> impl Iterator<Item = (&Range<I>, &V)> {
         self.store.iter().map(|(r, v)| (r, v))
+    }
+}
+
+impl<I: PartialOrd + Copy, V> std::iter::IntoIterator for RangeMap<I, V> {
+    type Item = (Range<I>, V);
+    type IntoIter = std::vec::IntoIter<(Range<I>, V)>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.store.into_iter()
     }
 }
 

@@ -5,7 +5,7 @@ use hash_ir::ty::ReprTyId;
 
 use super::VMBuilder;
 
-impl<'b> IntrinsicBuilderMethods<'b> for VMBuilder<'b> {
+impl<'b> IntrinsicBuilderMethods<'b> for VMBuilder<'_, 'b> {
     fn codegen_intrinsic_call(
         &mut self,
         _ty: ReprTyId,

@@ -16,12 +16,13 @@ use std::{
     sync::OnceLock,
 };
 
+use hash_repr::ty::ReprTyId;
 use hash_source::entry_point::EntryPointState;
 use hash_storage::stores;
 use intrinsics::Intrinsics;
 use ir::Body;
 use lang_items::LangItems;
-use ty::{AdtStore, InstanceId, InstanceStore, ReprTyListStore, ReprTyStore};
+use ty::{AdtStore, InstanceStore, ReprTyListStore, ReprTyStore};
 
 /// Storage that is used by the lowering stage. This stores all of the
 /// generated [Body]s and all of the accompanying data for the bodies.
@@ -37,7 +38,7 @@ pub struct IrStorage {
     pub ctx: IrCtx,
 
     /// Holds information about the program entry point.
-    pub entry_point: EntryPointState<InstanceId>,
+    pub entry_point: EntryPointState<ReprTyId>,
 }
 
 impl Default for IrStorage {

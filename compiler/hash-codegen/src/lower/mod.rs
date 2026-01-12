@@ -10,7 +10,6 @@ use hash_abi::{FnAbiId, PassMode};
 use hash_ir::{
     ir::{self, Local},
     traversal,
-    ty::InstanceId,
 };
 use hash_storage::store::Store;
 use hash_utils::index_vec::IndexVec;
@@ -136,17 +135,15 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
 /// 3. Traverse the control flow graph in post-order and generate each block in
 ///    the function.
 pub fn codegen_body<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>>(
-    instance: InstanceId,
     body: &'b ir::Body,
     ctx: &'a Builder::CodegenCtx,
 ) -> Result<(), FnAbiError> {
     // @@Todo: compute debug info about each local
 
-    let func = ctx.get_fn(instance);
-
+    let ty = body.metadata().ty();
+    let func = ctx.get_fn(ty);
     let abis = ctx.cg_ctx().abis();
-
-    let fn_abi = abis.create_fn_abi_from_instance(ctx, instance);
+    let fn_abi = abis.create_fn_abi_from_ty(ctx, ty);
     let is_return_indirect = abis.map_fast(fn_abi, |abi| abi.ret_abi.is_indirect());
 
     // create the starting block, this is needed since we always specify

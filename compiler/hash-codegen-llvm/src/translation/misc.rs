@@ -7,7 +7,7 @@ use hash_codegen::{
     target::HasTarget,
     traits::{HasCtxMethods, misc::MiscBuilderMethods, ty::TypeBuilderMethods},
 };
-use hash_ir::ty::{InstanceHelpers, InstanceId};
+use hash_ir::ty::{InstanceHelpers, InstanceId, ReprTyId};
 use hash_storage::store::{Store, statics::StoreId};
 use inkwell::{
     GlobalVisibility,
@@ -20,19 +20,20 @@ use crate::ctx::CodeGenCtx;
 
 impl<'m> CodeGenCtx<'_, 'm> {
     /// Generate code for a reference to a function or method item. The
-    /// [Instance] specifies the function reference to generate, and any
+    /// [InstanceId] specifies the function reference to generate, and any
     /// attributes that need to be applied to the function. If the function
     /// has already been generated, a reference will be returned from the
     /// cache.
-    pub fn get_fn_or_create_ref(&self, instance: InstanceId) -> FunctionValue<'m> {
+    pub fn get_fn_or_create_ref(&self, ty: ReprTyId) -> FunctionValue<'m> {
         // First check if we have already created the function reference...
-        if let Some(fn_val) = self.instances.borrow().get(&instance) {
+        if let Some(fn_val) = self.instances.borrow().get(&ty) {
             return *fn_val;
         }
 
+        let instance = ty.borrow().as_instance();
         let name = compute_symbol_name(instance);
         let abis = self.cg_ctx().abis();
-        let fn_abi = abis.create_fn_abi_from_instance(self, instance);
+        let fn_abi = abis.create_fn_abi_from_ty(self, ty);
 
         // See if this item has already been declared in the module
         let func = if let Some(func) = self.module.get_function(name.as_str()) {
@@ -55,25 +56,25 @@ impl<'m> CodeGenCtx<'_, 'm> {
 
         // We insert the function into the cache so that we can
         // reference it later on...
-        self.instances.borrow_mut().insert(instance, func);
+        self.instances.borrow_mut().insert(ty, func);
 
         func
     }
 }
 
 impl<'b> MiscBuilderMethods<'b> for CodeGenCtx<'b, '_> {
-    fn get_fn(&self, instance: InstanceId) -> Self::Function {
-        self.get_fn_or_create_ref(instance)
+    fn get_fn(&self, ty: ReprTyId) -> Self::Function {
+        self.get_fn_or_create_ref(ty)
     }
 
-    fn get_fn_ptr(&self, instance: InstanceId) -> Self::Value {
-        self.get_fn_or_create_ref(instance).as_any_value_enum()
+    fn get_fn_ptr(&self, ty: ReprTyId) -> Self::Value {
+        self.get_fn_or_create_ref(ty).as_any_value_enum()
     }
 
-    fn get_fn_addr(&self, instance: InstanceId) -> Self::Value {
+    fn get_fn_addr(&self, ty: ReprTyId) -> Self::Value {
         // @@Inkwell: PointerValue(..).as_any_value_enum() is bugged
         AnyValueEnum::PointerValue(
-            self.get_fn_or_create_ref(instance).as_global_value().as_pointer_value(),
+            self.get_fn_or_create_ref(ty).as_global_value().as_pointer_value(),
         )
     }
 
@@ -117,6 +118,6 @@ impl<'b> MiscBuilderMethods<'b> for CodeGenCtx<'b, '_> {
 
         // We insert the function into the cache so that we can
         // reference it later on...
-        self.instances.borrow_mut().insert(instance, decl);
+        self.instances.borrow_mut().insert(fn_abi.ty, decl);
     }
 }

@@ -316,6 +316,14 @@ impl ReprTy {
         matches!(self, Self::Float(_))
     }
 
+    /// Assert that the type is a floating point one.
+    pub fn as_float(&self) -> FloatTy {
+        match self {
+            Self::Float(ty) => *ty,
+            _ => unreachable!(), // @@Todo: handle big floats?
+        }
+    }
+
     /// Check if the [ReprTy] is a signed integral type.
     pub fn is_signed(&self) -> bool {
         matches!(self, Self::Int(_))

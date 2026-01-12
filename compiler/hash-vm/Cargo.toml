@@ -8,8 +8,12 @@ edition = { workspace = true }
 doctest = false
 
 [dependencies]
-hash-reporting = { workspace = true }
-hash-source = { workspace = true }
-hash-utils = { workspace = true }
 hash-abi = { workspace = true }
+hash-reporting = { workspace = true }
+hash-repr = { workspace = true }
+hash-source = { workspace = true }
 hash-storage = { workspace = true }
+hash-utils = { workspace = true }
+
+
+bitflags = { workspace = true }

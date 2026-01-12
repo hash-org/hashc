@@ -5,15 +5,18 @@
 
 mod func;
 mod instruction;
+mod resolution;
 
-use std::collections::HashMap;
+use std::{
+    cell::{Cell, RefCell},
+    collections::HashMap,
+};
 
 use hash_abi::FnAbiId;
+use hash_repr::ty::InstanceId;
 
-use crate::{
-    builder::func::FunctionBuilder,
-    bytecode::{Instruction, op::Operand},
-};
+pub use self::func::FunctionBuilder;
+use crate::bytecode::Instruction;
 
 #[derive(Debug)]
 pub struct FunctionCtx {
@@ -32,56 +35,37 @@ pub struct BytecodeBuilder {
     /// functions and their instructions.
     pub instructions: Vec<Instruction>,
 
+    /// Current function that is being built.
+    ///
+    /// N.B. We would need to store this somewhere differently if we wanted to
+    /// make this thread-safe.
+    current_function: Cell<Option<InstanceId>>,
+
     /// The function context store, this is used to store the function contexts.
-    function_ctxs: HashMap<FnAbiId, FunctionCtx>,
+    function_ctxs: RefCell<HashMap<InstanceId, FunctionBuilder>>,
 }
 
 impl BytecodeBuilder {
+    /// Create a new [BytecodeBuilder].
     pub fn new() -> Self {
-        Self { instructions: Vec::new(), function_ctxs: HashMap::new() }
-    }
-
-    pub fn absorb(&mut self, func: &FunctionBuilder) -> usize {
-        let FunctionBuilder { body, labels, .. } = func;
-        let offset = self.instructions.len();
-
-        // Reserve space for the function body instructions.
-        self.instructions.reserve(body.len());
-
-        // We need to resolve all of the labels within the function body, i.e. they
-        // should now use the "global" offsets within the entire bytecode
-        // program, rather than the relative offsets within the function body.
-        for mut instruction in body.into_iter().copied() {
-            match &mut instruction {
-                Instruction::Jmp { location, .. }
-                | Instruction::JmpPos { location, .. }
-                | Instruction::JmpNeg { location, .. }
-                | Instruction::JmpZero { location, .. } => {
-                    if let Operand::Label(label) = *location {
-                        // Resolve the label offset to the global instruction offset
-                        let function_label = labels[label].get();
-                        let global_offset = function_label + offset;
-                        *location = Operand::Immediate(global_offset);
-                    }
-                }
-                _ => {}
-            }
-
-            self.instructions.push(instruction);
+        Self {
+            instructions: Vec::new(),
+            function_ctxs: RefCell::new(HashMap::new()),
+            current_function: Cell::new(None),
         }
-
-        offset
     }
 
-    pub fn add_function(&mut self, fn_builder: FunctionBuilder) {
-        // Absorb all of the function instructions into the bytecode builder.
-        let start = self.absorb(&fn_builder);
-
-        let FunctionBuilder { abi, .. } = fn_builder;
-        let ctx = FunctionCtx { abi, offset: start };
-        self.function_ctxs.insert(abi, ctx);
+    /// Add a new function to the bytecode builder.
+    ///
+    /// This will also configure the builder to use the newly added function
+    /// as the current function.
+    pub fn new_function(&self, fn_builder: FunctionBuilder) {
+        let FunctionBuilder { instance, .. } = fn_builder;
+        self.current_function.set(Some(instance));
+        self.function_ctxs.borrow_mut().insert(instance, fn_builder);
     }
 
+    /// Add a single instruction to the bytecode builder.
     pub fn add_instruction(&mut self, instruction: Instruction) {
         self.instructions.push(instruction);
     }
@@ -106,7 +90,38 @@ impl BytecodeBuilder {
         self.instructions.extend(instructions);
     }
 
-    pub fn build(self) -> Vec<Instruction> {
-        self.instructions
+    /// Get a function builder by its ABI.
+    pub fn with_fn_builder<F>(&self, instance: InstanceId, f: F)
+    where
+        F: FnOnce(&FunctionBuilder),
+    {
+        let ctx = self.function_ctxs.borrow();
+        let fn_builder = ctx.get(&instance).unwrap();
+        f(fn_builder)
+    }
+
+    pub fn with_fn_builder_mut<F, T>(&self, instance: InstanceId, f: F) -> T
+    where
+        F: FnOnce(&mut FunctionBuilder) -> T,
+    {
+        let mut function_ctxs = self.function_ctxs.borrow_mut();
+        let fn_builder = function_ctxs.get_mut(&instance).unwrap();
+        f(fn_builder)
+    }
+
+    /// Call a closure with the current function builder.
+    ///
+    /// This is useful for modifying the current function builder
+    /// without having to pass around the instance ID.
+    ///
+    /// ##Note: This assumes that there is a current function set.
+    pub fn with_current_mut<F, T>(&self, f: F) -> T
+    where
+        F: FnOnce(&mut FunctionBuilder) -> T,
+    {
+        let instance = self.current_function.get().expect("there must be a current function");
+        let mut function_ctxs = self.function_ctxs.borrow_mut();
+        let fn_builder = function_ctxs.get_mut(&instance).unwrap();
+        f(fn_builder)
     }
 }

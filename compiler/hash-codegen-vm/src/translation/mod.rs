@@ -18,23 +18,27 @@ use hash_codegen::{
 };
 use hash_ir::IrCtx;
 use hash_pipeline::settings::CompilerSettings;
-use hash_vm::builder::BytecodeBuilder;
 
 use crate::ctx::Ctx;
 
-pub struct VMBuilder<'b> {
-    /// The actual VM bytecode builder
-    pub(crate) _builder: BytecodeBuilder,
-
+/// The [VMBuilder] is the main builder type for generating Hash VM bytecode.
+///
+/// It provides access to the code generation context, target information,
+/// and various utilities needed during the translation process.
+///
+/// The [VMBuilder] implements all of the traits that are required for code
+/// generation to occur. This includes traits for handling ABI methods, type
+/// layouts, and other codegen-related functionality.
+pub struct VMBuilder<'a, 'b> {
     /// The context for the builder.
-    pub(crate) ctx: &'b Ctx<'b>,
+    pub(crate) ctx: &'a Ctx<'b>,
 }
 
-impl<'b> Codegen<'b> for VMBuilder<'b> {
+impl<'b> Codegen<'b> for VMBuilder<'_, 'b> {
     type CodegenCtx = Ctx<'b>;
 }
 
-impl<'b> BackendTypes for VMBuilder<'b> {
+impl<'b> BackendTypes for VMBuilder<'_, 'b> {
     type Value = <Ctx<'b> as BackendTypes>::Value;
     type Function = <Ctx<'b> as BackendTypes>::Function;
     type Type = <Ctx<'b> as BackendTypes>::Type;
@@ -44,7 +48,7 @@ impl<'b> BackendTypes for VMBuilder<'b> {
     type DebugInfoVariable = <Ctx<'b> as BackendTypes>::DebugInfoVariable;
 }
 
-impl<'b> std::ops::Deref for VMBuilder<'b> {
+impl<'a, 'b> std::ops::Deref for VMBuilder<'a, 'b> {
     type Target = Ctx<'b>;
 
     fn deref(&self) -> &Self::Target {
@@ -52,13 +56,13 @@ impl<'b> std::ops::Deref for VMBuilder<'b> {
     }
 }
 
-impl HasTarget for VMBuilder<'_> {
+impl HasTarget for VMBuilder<'_, '_> {
     fn target(&self) -> &Target {
         self.ctx.target()
     }
 }
 
-impl<'b> HasCtxMethods<'b> for VMBuilder<'b> {
+impl<'b> HasCtxMethods<'b> for VMBuilder<'_, 'b> {
     fn settings(&self) -> &CompilerSettings {
         self.ctx.settings()
     }
