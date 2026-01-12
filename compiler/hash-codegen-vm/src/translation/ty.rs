@@ -106,7 +106,7 @@ impl<'b> TypeBuilderMethods<'b> for Ctx<'b> {
     }
 
     /// This method maps a backend type to a [TypeKind].
-    /// 
+    ///
     /// I don't think this is really needed by the VM backend, but we implement
     /// it anyway for completeness.
     fn ty_kind(&self, ty: Self::Type) -> common::TypeKind {

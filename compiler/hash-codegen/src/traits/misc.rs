@@ -10,21 +10,21 @@ use super::BackendTypes;
 
 pub trait MiscBuilderMethods<'b>: BackendTypes {
     /// Get a function reference from an [ty::ReprTyId].
-    /// 
+    ///
     /// ##Note: It is assumed that the passed type is a [ty::ReprTy::FnDef].
     fn get_fn(&self, ty: ty::ReprTyId) -> Self::Function;
 
     /// Get a function pointer from a [ty::ReprTyId] whilst also
     /// applying all of the specified attributes that can appear
     /// on a function definition.
-    /// 
+    ///
     /// ##Note: It is assumed that the passed type is a [ty::ReprTy::FnDef].
     fn get_fn_ptr(&self, ty: ty::ReprTyId) -> Self::Value;
 
     /// Get a function pointer from a [ty::ReprTyId] whilst also
     /// applying all of the specified attributes that can appear
     /// on a function definition.
-    /// 
+    ///
     /// ##Note: It is assumed that the passed type is a [ty::ReprTy::FnDef].
     fn get_fn_addr(&self, ty: ty::ReprTyId) -> Self::Value;
 

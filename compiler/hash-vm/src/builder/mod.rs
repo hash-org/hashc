@@ -29,7 +29,7 @@ pub struct FunctionCtx {
     pub offset: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct BytecodeBuilder {
     /// The entire bytecode program, this contains all of the
     /// functions and their instructions.

@@ -10,10 +10,7 @@ use hash_codegen::{
     target::{HasTarget, Target},
     traits::{BackendTypes, HasCtxMethods},
 };
-use hash_ir::{
-    IrCtx,
-    ty::ReprTyId,
-};
+use hash_ir::{IrCtx, ty::ReprTyId};
 use hash_pipeline::settings::CompilerSettings;
 use hash_source::constant::AllocId;
 use hash_utils::fxhash::FxHashMap;

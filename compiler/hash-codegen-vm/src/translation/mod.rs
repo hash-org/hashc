@@ -22,13 +22,13 @@ use hash_pipeline::settings::CompilerSettings;
 use crate::ctx::Ctx;
 
 /// The [VMBuilder] is the main builder type for generating Hash VM bytecode.
-/// 
+///
 /// It provides access to the code generation context, target information,
 /// and various utilities needed during the translation process.
-/// 
-/// The [VMBuilder] implements all of the traits that are required for code generation
-/// to occur. This includes traits for handling ABI methods, type layouts,
-/// and other codegen-related functionality.
+///
+/// The [VMBuilder] implements all of the traits that are required for code
+/// generation to occur. This includes traits for handling ABI methods, type
+/// layouts, and other codegen-related functionality.
 pub struct VMBuilder<'a, 'b> {
     /// The context for the builder.
     pub(crate) ctx: &'a Ctx<'b>,

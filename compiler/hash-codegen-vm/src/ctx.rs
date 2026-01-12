@@ -12,6 +12,7 @@ use hash_ir::{
     ty::{InstanceId, ReprTyId},
 };
 use hash_pipeline::settings::CompilerSettings;
+use hash_vm::{builder, bytecode::LabelOffset};
 
 /// The [Ctx] is used a context for converting Hash IR into bytecode. It
 /// stores references to all of the required information about the IR, as well
@@ -49,10 +50,10 @@ impl Ctx<'_> {
 
 /// Specification for `BackedTypes` for the [Ctx].
 impl<'m> BackendTypes for Ctx<'m> {
-    type BasicBlock = ();
     type Value = Const;
     type Function = InstanceId;
     type Type = ReprTyId;
+    type BasicBlock = LabelOffset;
     type DebugInfoScope = ();
     type DebugInfoLocation = ();
     type DebugInfoVariable = ();
