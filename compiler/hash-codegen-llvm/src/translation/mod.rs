@@ -37,7 +37,7 @@ pub(crate) const EMPTY_NAME: *const c_char = EMPTY_C_STR.as_ptr();
 /// A [Builder] is defined as being a context that is used to implement
 /// all of the specified builder methods.
 pub struct LLVMBuilder<'a, 'b, 'm> {
-    /// The actual InkWell builder
+    /// The actual Inkwell builder.
     pub(crate) builder: inkwell::builder::Builder<'m>,
 
     /// The context for the builder.

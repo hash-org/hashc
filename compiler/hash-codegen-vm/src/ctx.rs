@@ -6,8 +6,13 @@ use hash_codegen::{
     target::{HasTarget, Target},
     traits::{BackendTypes, HasCtxMethods},
 };
-use hash_ir::IrCtx;
+use hash_ir::{
+    IrCtx,
+    ir::Const,
+    ty::{InstanceId, ReprTyId},
+};
 use hash_pipeline::settings::CompilerSettings;
+use hash_vm::{builder, bytecode::LabelOffset};
 
 /// The [Ctx] is used a context for converting Hash IR into bytecode. It
 /// stores references to all of the required information about the IR, as well
@@ -26,6 +31,9 @@ pub struct Ctx<'a> {
 
     /// Store for all of the information about type [Layout]s.
     pub layouts: &'a LayoutStorage,
+
+    /// The bytecode builder that is being used to build the bytecode.
+    pub builder: builder::BytecodeBuilder,
 }
 
 impl Ctx<'_> {
@@ -36,16 +44,16 @@ impl Ctx<'_> {
         codegen_ctx: &'a CodeGenStorage,
         layouts: &'a LayoutStorage,
     ) -> Ctx<'a> {
-        Ctx { settings, ir_ctx, codegen_ctx, layouts }
+        Ctx { settings, ir_ctx, codegen_ctx, layouts, builder: builder::BytecodeBuilder::new() }
     }
 }
 
 /// Specification for `BackedTypes` for the [Ctx].
 impl<'m> BackendTypes for Ctx<'m> {
-    type Value = ();
-    type Function = ();
-    type Type = ();
-    type BasicBlock = ();
+    type Value = Const;
+    type Function = InstanceId;
+    type Type = ReprTyId;
+    type BasicBlock = LabelOffset;
     type DebugInfoScope = ();
     type DebugInfoLocation = ();
     type DebugInfoVariable = ();

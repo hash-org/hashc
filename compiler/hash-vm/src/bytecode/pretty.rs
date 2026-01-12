@@ -120,16 +120,16 @@ mod tests {
             labels: index_vec![LabelOffset::new(0), LabelOffset::new(4), LabelOffset::new(6),],
             // Instructions matching the test case
             instructions: index_vec![
-                Instruction::Write32 { reg: Register::new(0), value: 10 },
-                Instruction::Write32 { reg: Register::new(1), value: 20 },
+                Instruction::Write32 { op: Operand::Register(Register::new(0)), value: 10 },
+                Instruction::Write32 { op: Operand::Register(Register::new(1)), value: 20 },
                 Instruction::Add32 { l1: Register::new(0), l2: Register::new(1) },
                 Instruction::JmpPos {
                     l1: Register::new(0),
                     location: Operand::Label(LabelOffset::new(2))
                 },
-                Instruction::Write32 { reg: Register::new(0), value: 0 },
+                Instruction::Write32 { op: Operand::Register(Register::new(0)), value: 0 },
                 Instruction::Return,
-                Instruction::Write32 { reg: Register::new(0), value: 1 },
+                Instruction::Write32 { op: Operand::Register(Register::new(0)), value: 1 },
                 Instruction::Return,
             ],
         };

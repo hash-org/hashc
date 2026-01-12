@@ -402,7 +402,7 @@ impl BodyBuilder<'_> {
         rhs: Operand,
         span: AstNodeId,
     ) -> BlockAnd<Place> {
-        let str_eq = self.get_lang_item(LangItem::StrEq);
+        let str_eq = self.get_lang_item_ty(LangItem::StrEq);
         let eq_result = self.temp_place(COMMON_REPR_TYS.bool);
         let eq_block = self.control_flow_graph.start_new_block();
         self.control_flow_graph.terminate(

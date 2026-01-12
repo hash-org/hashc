@@ -34,15 +34,15 @@ impl LangItem {
 #[derive(Debug, Clone, Copy)]
 pub struct LangItemData {
     /// The defined instance that corresponds to the intrinsic.
-    instance: InstanceId,
+    pub instance: InstanceId,
 
     /// The type of the lang item.
-    ty: ReprTyId,
+    pub ty: ReprTyId,
 }
 
 /// This struct is used to map the [Intrinsic] enum to the
 /// associated type that is used to represent the intrinsic.
-#[derive(Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct LangItems {
     /// The intrinsic map.
     items: [Option<LangItemData>; std::mem::variant_count::<LangItem>()],
@@ -62,12 +62,7 @@ impl LangItems {
     }
 
     /// Get the [InstanceId] for the specified intrinsic.
-    pub fn get(&self, item: LangItem) -> Option<InstanceId> {
-        self.items[item as usize].map(|item| item.instance)
-    }
-
-    /// Get the [ReprTyId] for the specified intrinsic.
-    pub fn get_ty(&self, item: LangItem) -> Option<ReprTyId> {
-        self.items[item as usize].map(|item| item.ty)
+    pub fn get(&self, item: LangItem) -> Option<LangItemData> {
+        self.items[item as usize]
     }
 }

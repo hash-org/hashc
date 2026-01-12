@@ -127,8 +127,7 @@ impl<Ctx: LoweringCtxQuery> CompilerStage<Ctx> for IrGen {
                 if let Some(def) = entry_point.def()
                     && def == func
                 {
-                    let instance = body.meta.ty().borrow().as_instance();
-                    data.icx.entry_point.set(instance, entry_point.kind().unwrap());
+                    data.icx.entry_point.set(body.meta.ty(), entry_point.kind().unwrap());
                 }
 
                 // add the body to the lowered bodies

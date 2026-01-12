@@ -429,8 +429,7 @@ impl<'a, 'b, Builder: BlockBuilderMethods<'a, 'b>> FnBuilder<'a, 'b, Builder> {
             // resolving!
             ir::Operand::Const(constant) if constant.is_zero() && constant.ty().is_fn_def() => {
                 let ty = constant.ty();
-                let instance = ty.borrow().as_instance();
-                let value = OperandValue::Immediate(builder.get_fn_addr(instance));
+                let value = OperandValue::Immediate(builder.get_fn_addr(ty));
                 let info = builder.layout_of(ty);
                 OperandRef { value, info }
             }

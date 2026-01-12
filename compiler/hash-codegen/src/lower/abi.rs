@@ -77,6 +77,7 @@ pub enum FnAbiError {
 /// Compute an [FnAbi] from a provided [Instance].
 pub fn compute_fn_abi_from_instance<'b, Ctx: HasCtxMethods<'b> + LayoutMethods<'b>>(
     ctx: &Ctx,
+    ty: ReprTyId,
     instance: InstanceId,
 ) -> Result<FnAbi, FnAbiError> {
     let Instance { params, return_ty, abi, .. } = instance.value();
@@ -85,13 +86,14 @@ pub fn compute_fn_abi_from_instance<'b, Ctx: HasCtxMethods<'b> + LayoutMethods<'
     // to the target.
     let calling_convention = CallingConvention::make_from_abi_and_target(abi, ctx.target());
 
-    compute_fn_abi(ctx, params, return_ty, calling_convention)
+    compute_fn_abi(ctx, ty, params, return_ty, calling_convention)
 }
 
 /// Compute an [FnAbi] from a provided function parameter and return type, with
 /// a given calling convention.
 pub fn compute_fn_abi<'b, Ctx: HasCtxMethods<'b> + LayoutMethods<'b>>(
     ctx: &Ctx,
+    ty: ReprTyId,
     params: ReprTyListId,
     ret_ty: ReprTyId,
     calling_convention: CallingConvention,
@@ -117,6 +119,7 @@ pub fn compute_fn_abi<'b, Ctx: HasCtxMethods<'b> + LayoutMethods<'b>>(
     };
 
     let fn_abi = FnAbi {
+        ty,
         args: params
             .borrow()
             .iter()

@@ -1,22 +1,24 @@
-use hash_codegen::traits::builder::BlockBuilderMethods;
+use hash_codegen::traits::{builder::BlockBuilderMethods, layout::LayoutMethods};
+use hash_ir::{
+    ir::{Const, Scalar},
+    ty::COMMON_REPR_TYS,
+};
+use hash_vm::inst;
 
 use crate::translation::VMBuilder;
 
-impl<'a, 'b> BlockBuilderMethods<'a, 'b> for VMBuilder<'b> {
+impl<'a, 'b> BlockBuilderMethods<'a, 'b> for VMBuilder<'a, 'b> {
     fn ctx(&self) -> &Self::CodegenCtx {
-        todo!()
+        self.ctx
     }
 
-    fn build(_ctx: &'a Self::CodegenCtx, _block: Self::BasicBlock) -> Self {
-        todo!()
+    fn build(ctx: &'a Self::CodegenCtx, _: Self::BasicBlock) -> Self {
+        Self { ctx }
     }
 
-    fn append_block(
-        _ctx: &'a Self::CodegenCtx,
-        _func: Self::Function,
-        _name: &str,
-    ) -> Self::BasicBlock {
-        todo!()
+    fn append_block(ctx: &'a Self::CodegenCtx, func: Self::Function, _: &str) -> Self::BasicBlock {
+        // @@Todo: maybe support labels for debugging purposes.
+        ctx.builder.with_fn_builder_mut(func, |f| f.reserve_block())
     }
 
     fn append_sibling_block(&mut self, _name: &str) -> Self::BasicBlock {
@@ -24,11 +26,11 @@ impl<'a, 'b> BlockBuilderMethods<'a, 'b> for VMBuilder<'b> {
     }
 
     fn basic_block(&self) -> Self::BasicBlock {
-        todo!()
+        self.ctx.builder.with_current_mut(|fb| fb.reserve_block())
     }
 
-    fn switch_to_block(&mut self, _block: Self::BasicBlock) {
-        todo!()
+    fn switch_to_block(&mut self, block: Self::BasicBlock) {
+        self.ctx.builder.with_current_mut(|fb| fb.switch_to_block(block));
     }
 
     fn return_value(&mut self, _value: Self::Value) {
@@ -313,8 +315,8 @@ impl<'a, 'b> BlockBuilderMethods<'a, 'b> for VMBuilder<'b> {
         todo!()
     }
 
-    fn value_from_immediate(&mut self, _v: Self::Value) -> Self::Value {
-        todo!()
+    fn value_from_immediate(&mut self, v: Self::Value) -> Self::Value {
+        v
     }
 
     fn to_immediate_scalar(
@@ -327,10 +329,22 @@ impl<'a, 'b> BlockBuilderMethods<'a, 'b> for VMBuilder<'b> {
 
     fn alloca(
         &mut self,
-        _ty: Self::Type,
-        _alignment: hash_codegen::target::alignment::Alignment,
+        ty: Self::Type,
+        _: hash_codegen::target::alignment::Alignment,
     ) -> Self::Value {
-        todo!()
+        // @@todo: do we need to handle alignment here?
+        let size = self.ctx().layout_of(ty).size().bytes();
+
+        self.builder.with_current_mut(|fb| {
+            fb.append(inst! {
+                add64 SP, r[size];
+            });
+        });
+
+        // we need to know the address before the addition
+        // somehow...
+        let scalar = Scalar::from_uint(0u32, self.layouts.data_layout.pointer_size);
+        Const::scalar(scalar, COMMON_REPR_TYS.raw_ptr)
     }
 
     fn byte_array_alloca(
@@ -391,12 +405,39 @@ impl<'a, 'b> BlockBuilderMethods<'a, 'b> for VMBuilder<'b> {
 
     fn store_with_flags(
         &mut self,
-        _value: Self::Value,
-        _ptr: Self::Value,
+        value: Self::Value,
+        ptr: Self::Value,
         _alignment: hash_codegen::target::alignment::Alignment,
         _flags: hash_codegen::common::MemFlags,
     ) -> Self::Value {
-        todo!()
+        let scalar = value.as_scalar();
+        let size = scalar.size();
+        let bits = scalar.assert_bits(size);
+
+        // get raw address to write to.
+        let dest = ptr.as_scalar().to_target_usize(self.ctx) as usize;
+
+        // Based on the size, we use the right store instruction.
+        self.builder.with_current_mut(|f| {
+            f.append(match size.bytes() {
+                1 => inst! {
+                    write8  #[dest], #[bits as u8];
+                },
+                2 => inst! {
+                    write16 #[dest], #[bits as u16];
+                },
+                4 => inst! {
+                    write32 #[dest], #[bits as u32];
+                },
+                8 => inst! {
+                    write64 #[dest], #[bits as u64];
+                },
+                _ => panic!("Unsupported store size: {}", size.bytes()),
+            });
+        });
+
+        // @@Todo: do we really need to return anything here?
+        value
     }
 
     fn atomic_store(

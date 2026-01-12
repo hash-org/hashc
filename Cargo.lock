@@ -1182,8 +1182,10 @@ dependencies = [
 name = "hash-vm"
 version = "0.1.0"
 dependencies = [
+ "bitflags",
  "hash-abi",
  "hash-reporting",
+ "hash-repr",
  "hash-source",
  "hash-storage",
  "hash-utils",

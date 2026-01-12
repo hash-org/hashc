@@ -251,23 +251,6 @@ impl<'b> TypeBuilderMethods<'b> for CodeGenCtx<'b, '_> {
     }
 }
 
-/// A [TyMemoryRemap] is a type that is used to represent the occurred
-/// memory field re-mapping that occurs when lowering a type to LLVM.
-/// This re-mapping originates from the fact that "padding" within types
-/// now becomes a concrete type, and thus the memory layout of the type
-/// changes if padding slots are inserted. If the type had any re-maps,
-/// then the [TyMemoryRemap] will contain a `remap` field with the
-/// new memory to source field mapping.
-pub(crate) struct TyMemoryRemap<'m> {
-    /// The lowered type.
-    pub ty: AnyTypeEnum<'m>,
-
-    /// If the type was re-mapped, this is a reference
-    /// to the new memory map which should be used over the
-    /// one that is stored in the [LayoutShape] of a [Layout].
-    pub remap: Option<SmallVec<[u32; 4]>>,
-}
-
 /// Define a trait that provides additional methods on the [CodeGenCtx]
 /// for computing types as LLVM types, and various other related LLVM
 /// specific type utilities.
@@ -296,20 +279,7 @@ pub(crate) trait ExtendedTyBuilderMethods<'m> {
 
 impl<'m> ExtendedTyBuilderMethods<'m> for TyInfo {
     fn llvm_ty(&self, ctx: &CodeGenCtx<'_, 'm>) -> llvm::types::AnyTypeEnum<'m> {
-        let (abi, variant_index) = self.layout.map(|layout| {
-            let variant_index = match &layout.variants {
-                Variants::Single { index } => Some(*index),
-                _ => None,
-            };
-
-            (layout.abi, variant_index)
-        });
-
-        // Check the cache if we have already computed the lowered type
-        // for this ir-type.
-        if let Some(ty_remap) = ctx.ty_remaps.borrow().get(&(self.ty, variant_index)) {
-            return ty_remap.ty;
-        }
+        let abi = self.layout.map(|layout| layout.abi);
 
         match abi {
             AbiRepresentation::Scalar(scalar) => self.scalar_llvm_type_at(ctx, scalar),
@@ -386,9 +356,9 @@ impl<'m> ExtendedTyBuilderMethods<'m> for TyInfo {
                                 ctx.type_array(field_ty, elements)
                             }
                             LayoutShape::Aggregate { .. } => {
-                                let (ty, field_remapping) = match name {
+                                match name {
                                     Some(ref name) => {
-                                        let (fields, packed, new_field_remapping) =
+                                        let (fields, packed, _) =
                                             create_and_pad_struct_fields_from_layout(
                                                 ctx, *self, layout,
                                             );
@@ -404,24 +374,17 @@ impl<'m> ExtendedTyBuilderMethods<'m> for TyInfo {
                                             .collect::<Vec<_>>();
 
                                         ty.set_body(&fields, packed);
-                                        (ty.into(), new_field_remapping)
+                                        ty.into()
                                     }
                                     None => {
-                                        let (fields, packed, new_field_remapping) =
+                                        let (fields, packed, _) =
                                             create_and_pad_struct_fields_from_layout(
                                                 ctx, *self, layout,
                                             );
 
-                                        (ctx.type_struct(&fields, packed), new_field_remapping)
+                                        ctx.type_struct(&fields, packed)
                                     }
-                                };
-
-                                ctx.ty_remaps.borrow_mut().insert(
-                                    (self.ty, variant_index),
-                                    TyMemoryRemap { ty, remap: field_remapping },
-                                );
-
-                                ty
+                                }
                             }
                         }
                     })

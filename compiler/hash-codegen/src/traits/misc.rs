@@ -9,22 +9,28 @@ use hash_ir::ty::{self, InstanceId};
 use super::BackendTypes;
 
 pub trait MiscBuilderMethods<'b>: BackendTypes {
-    /// Get a function reference from an [ty::InstanceId].
-    fn get_fn(&self, instance: ty::InstanceId) -> Self::Function;
+    /// Get a function reference from an [ty::ReprTyId].
+    ///
+    /// ##Note: It is assumed that the passed type is a [ty::ReprTy::FnDef].
+    fn get_fn(&self, ty: ty::ReprTyId) -> Self::Function;
 
-    /// Get a function pointer from a [ty::InstanceId] whilst also
+    /// Get a function pointer from a [ty::ReprTyId] whilst also
     /// applying all of the specified attributes that can appear
     /// on a function definition.
-    fn get_fn_ptr(&self, instance: ty::InstanceId) -> Self::Value;
+    ///
+    /// ##Note: It is assumed that the passed type is a [ty::ReprTy::FnDef].
+    fn get_fn_ptr(&self, ty: ty::ReprTyId) -> Self::Value;
 
-    /// Get a function pointer from a [ty::InstanceId] whilst also
+    /// Get a function pointer from a [ty::ReprTyId] whilst also
     /// applying all of the specified attributes that can appear
     /// on a function definition.
-    fn get_fn_addr(&self, instance: ty::InstanceId) -> Self::Value;
+    ///
+    /// ##Note: It is assumed that the passed type is a [ty::ReprTy::FnDef].
+    fn get_fn_addr(&self, ty: ty::ReprTyId) -> Self::Value;
 
-    /// Declare the program entry point
+    /// Declare the program entry point.
     fn declare_entry_point(&self, ty: Self::Type) -> Option<Self::Function>;
 
-    /// Pre-define a function based on the instance.
+    /// Pre-define a function based on the [InstanceId].
     fn predefine_fn(&self, instance: InstanceId, symbol_name: &str, fn_abi: &FnAbi);
 }
