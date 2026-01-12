@@ -1,4 +1,5 @@
 use hash_codegen::traits::constants::ConstValueBuilderMethods;
+use hash_ir::ir::Const;
 
 use crate::ctx::Ctx;
 
@@ -85,11 +86,11 @@ impl<'b> ConstValueBuilderMethods<'b> for Ctx<'b> {
 
     fn const_scalar_value(
         &self,
-        _scalar: hash_ir::ir::Scalar,
-        _abi: hash_codegen::target::abi::Scalar,
-        _ty: Self::Type,
+        scalar: hash_ir::ir::Scalar,
+        _: hash_codegen::target::abi::Scalar,
+        ty: Self::Type,
     ) -> Self::Value {
-        todo!()
+        Const::scalar(scalar, ty)
     }
 
     fn const_data_from_alloc(&self, _alloc: hash_ir::ir::AllocId) -> Self::Value {
