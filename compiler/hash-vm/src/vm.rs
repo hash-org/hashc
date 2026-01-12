@@ -4,7 +4,7 @@ use std::cell::Cell;
 
 use crate::{
     bytecode::{
-        Instruction,
+        Instruction, Operand,
         register::{Register, RegisterSet},
     },
     error::RuntimeError,
@@ -841,17 +841,53 @@ impl Interpreter {
                 );
                 self.set_stack_pointer(sp - 16); // 8 for BP + 8 for IP
             }
-            Instruction::Write8 { reg, value } => {
-                self.registers.set_register8(reg, value);
+            Instruction::Write8 { op, value } => {
+                match op {
+                    Operand::Register(reg) => {
+                        self.registers.set_register8(reg, value);
+                    }
+                    Operand::Immediate(addr) => {
+                        // write to the memory address in the stack.
+                        self.memory.write8(addr, &value.to_be_bytes())?;
+                    }
+                    _ => unreachable!(),
+                }
             }
-            Instruction::Write16 { reg, value } => {
-                self.registers.set_register16(reg, value);
+            Instruction::Write16 { op, value } => {
+                match op {
+                    Operand::Register(reg) => {
+                        self.registers.set_register16(reg, value);
+                    }
+                    Operand::Immediate(addr) => {
+                        // write to the memory address in the stack.
+                        self.memory.write16(addr, &value.to_be_bytes())?;
+                    }
+                    _ => unreachable!(),
+                }
             }
-            Instruction::Write32 { reg, value } => {
-                self.registers.set_register32(reg, value);
+            Instruction::Write32 { op, value } => {
+                match op {
+                    Operand::Register(reg) => {
+                        self.registers.set_register32(reg, value);
+                    }
+                    Operand::Immediate(addr) => {
+                        // write to the memory address in the stack.
+                        self.memory.write32(addr, &value.to_be_bytes())?;
+                    }
+                    _ => unreachable!(),
+                }
             }
-            Instruction::Write64 { reg, value } => {
-                self.registers.set_register64(reg, value);
+            Instruction::Write64 { op, value } => {
+                match op {
+                    Operand::Register(reg) => {
+                        self.registers.set_register64(reg, value);
+                    }
+                    Operand::Immediate(addr) => {
+                        // write to the memory address in the stack.
+                        self.memory.write64(addr, &value.to_be_bytes())?;
+                    }
+                    _ => unreachable!(),
+                }
             }
             Instruction::Syscall { .. } => todo!(),
         };

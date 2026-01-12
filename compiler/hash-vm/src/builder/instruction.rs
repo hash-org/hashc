@@ -689,28 +689,58 @@ macro_rules! __inst_impl {
     // Write operations with immediate values
     ($vec:ident; write8 $r1:tt, # [$val:expr]; $($rest:tt)*) => {
         $vec.push($crate::bytecode::Instruction::Write8 {
-            reg: $crate::__parse_operand!($r1),
+            op: $crate::__parse_operand_value!($r1),
             value: $val as u8
         });
         $crate::__inst_impl!($vec; $($rest)*);
     };
     ($vec:ident; write16 $r1:tt, # [$val:expr]; $($rest:tt)*) => {
         $vec.push($crate::bytecode::Instruction::Write16 {
-            reg: $crate::__parse_operand!($r1),
+            op: $crate::__parse_operand_value!($r1),
             value: $val as u16
         });
         $crate::__inst_impl!($vec; $($rest)*);
     };
     ($vec:ident; write32 $r1:tt, # [$val:expr]; $($rest:tt)*) => {
         $vec.push($crate::bytecode::Instruction::Write32 {
-            reg: $crate::__parse_operand!($r1),
+            op: $crate::__parse_operand_value!($r1),
             value: $val as u32
         });
         $crate::__inst_impl!($vec; $($rest)*);
     };
     ($vec:ident; write64 $r1:tt, # [$val:expr]; $($rest:tt)*) => {
         $vec.push($crate::bytecode::Instruction::Write64 {
-            reg: $crate::__parse_operand!($r1),
+            op: $crate::__parse_operand_value!($r1),
+            value: $val as u64
+        });
+        $crate::__inst_impl!($vec; $($rest)*);
+    };
+
+    // Write operations with immediate address and value
+    ($vec:ident; write8 # [$addr:expr], # [$val:expr]; $($rest:tt)*) => {
+        $vec.push($crate::bytecode::Instruction::Write8 {
+            op: $crate::__parse_operand_value!(# [$addr]),
+            value: $val as u8
+        });
+        $crate::__inst_impl!($vec; $($rest)*);
+    };
+    ($vec:ident; write16 # [$addr:expr], # [$val:expr]; $($rest:tt)*) => {
+        $vec.push($crate::bytecode::Instruction::Write16 {
+            op: $crate::__parse_operand_value!(# [$addr]),
+            value: $val as u16
+        });
+        $crate::__inst_impl!($vec; $($rest)*);
+    };
+    ($vec:ident; write32 # [$addr:expr], # [$val:expr]; $($rest:tt)*) => {
+        $vec.push($crate::bytecode::Instruction::Write32 {
+            op: $crate::__parse_operand_value!(# [$addr]),
+            value: $val as u32
+        });
+        $crate::__inst_impl!($vec; $($rest)*);
+    };
+    ($vec:ident; write64 # [$addr:expr], # [$val:expr]; $($rest:tt)*) => {
+        $vec.push($crate::bytecode::Instruction::Write64 {
+            op: $crate::__parse_operand_value!(# [$addr]),
             value: $val as u64
         });
         $crate::__inst_impl!($vec; $($rest)*);
@@ -718,11 +748,11 @@ macro_rules! __inst_impl {
 
     // Control flow operations
     ($vec:ident; call r [$r1:expr]; $($rest:tt)*) => {
-        $vec.push($crate::bytecode::Instruction::Call { func: $crate::__parse_operand!(r [$r1]) });
+        $vec.push($crate::bytecode::Instruction::Call { func: $crate::__parse_operand_value!(r [$r1]) });
         $crate::__inst_impl!($vec; $($rest)*);
     };
     ($vec:ident; call [$r1:literal]; $($rest:tt)*) => {
-        $vec.push($crate::bytecode::Instruction::Call { func: $crate::__parse_operand!([$r1]) });
+        $vec.push($crate::bytecode::Instruction::Call { func: $crate::__parse_operand_value!([$r1]) });
         $crate::__inst_impl!($vec; $($rest)*);
     };
 
@@ -1082,15 +1112,15 @@ mod tests {
 
         assert_eq!(instructions.len(), 4);
 
-        if let Instruction::Write64 { reg, value } = instructions[0] {
-            assert_eq!(reg, Register::new(50));
+        if let Instruction::Write64 { op, value } = instructions[0] {
+            assert_eq!(op, Operand::Register(Register::new(50)));
             assert_eq!(value, 1234);
         } else {
             panic!("Expected Write64 instruction");
         }
 
-        if let Instruction::Write32 { reg, value } = instructions[1] {
-            assert_eq!(reg, Register::new(51));
+        if let Instruction::Write32 { op, value } = instructions[1] {
+            assert_eq!(op, Operand::Register(Register::new(51)));
             assert_eq!(value, 42);
         } else {
             panic!("Expected Write32 instruction");

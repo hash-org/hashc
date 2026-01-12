@@ -357,27 +357,27 @@ pub enum Instruction {
     },
     /// Write an 8bit literal value to a memory address.
     Write8 {
-        reg: Register,
+        op: Operand,
         value: u8,
     },
     /// Write a 16bit literal value to a memory address.
     Write16 {
-        reg: Register,
+        op: Operand,
         value: u16,
     },
     /// Write a 32bit literal value to a memory address.
     Write32 {
-        reg: Register,
+        op: Operand,
         value: u32,
     },
     /// Write a 64bit literal value to a memory address.
     Write64 {
-        reg: Register,
+        op: Operand,
         value: u64,
     },
     /// Call a function at a given address
     Call {
-        func: Register,
+        func: Operand,
     },
     /// Copy a value from source register to destination register.
     Mov {
@@ -495,10 +495,10 @@ impl fmt::Display for Instruction {
             Instruction::Shr16 { l1, l2 } => write!(f, "shr16 {}, {}", l1, l2),
             Instruction::Shr32 { l1, l2 } => write!(f, "shr32 {}, {}", l1, l2),
             Instruction::Shr64 { l1, l2 } => write!(f, "shr64 {}, {}", l1, l2),
-            Instruction::Write8 { reg, value } => write!(f, "write8 {}, {}", reg, value),
-            Instruction::Write16 { reg, value } => write!(f, "write16 {}, {}", reg, value),
-            Instruction::Write32 { reg, value } => write!(f, "write32 {}, {}", reg, value),
-            Instruction::Write64 { reg, value } => write!(f, "write64 {}, {}", reg, value),
+            Instruction::Write8 { op, value } => write!(f, "write8 {}, {}", op, value),
+            Instruction::Write16 { op, value } => write!(f, "write16 {}, {}", op, value),
+            Instruction::Write32 { op, value } => write!(f, "write32 {}, {}", op, value),
+            Instruction::Write64 { op, value } => write!(f, "write64 {}, {}", op, value),
             Instruction::Call { func } => write!(f, "call {}", func),
             Instruction::Mov { src, dest } => write!(f, "mov {}, {}", src, dest),
             Instruction::Syscall { id } => write!(f, "syscall {}", id),
