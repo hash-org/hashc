@@ -2,9 +2,9 @@
 
 maybe_add := (left: Option<i32>, right: Option<i32>) -> i32 => {
     match (left, right) {
-      (Option::Some(a), Option::Some(b)) => a + b,
-      (Option::Some(a), Option::None) => a,
-      (Option::None, Option::Some(a)) => a,
-      (Option::None, Option::None) => 0  
+      (Option.Some(a), Option.Some(b)) => a + b,
+      (Option.Some(a), Option.None) => a,
+      (Option.None, Option.Some(a)) => a,
+      (Option.None, Option.None) => 0  
     }
 }

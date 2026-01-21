@@ -1,5 +1,5 @@
 // stage=parse, warnings=ignore
 
 main := () => {
-    ((a.v)::c)<i32>;
+    ((a.v).c)<i32>;
 };

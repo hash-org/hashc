@@ -250,27 +250,24 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
         &self,
         node: AstNodeRef<'a, ast::AccessExpr>,
     ) -> SemanticResult<Option<AstPath<'a>>> {
-        match node.kind {
-            ast::AccessKind::Namespace => match node.property.body() {
-                ast::PropertyKind::NamedField(name) => {
-                    let mut root =
-                        self.expr_as_ast_path(node.body.subject.ast_ref())?.ok_or_else(|| {
-                            SemanticError::InvalidNamespaceSubject { location: node.span() }
-                        })?;
-                    root.push(AstPathComponent {
-                        name: *name,
-                        name_node_id: node.property.id(),
-                        args: Node::at(vec![], NodeOrigin::Given(node.id())),
-                        node_id: node.id(),
-                    });
-                    Ok(Some(root))
-                }
-                ast::PropertyKind::NumericField(_) => {
-                    // Should have been caught at semantics
-                    panic_on_span!(node.span(), "Namespace followed by numeric field found")
-                }
-            },
-            ast::AccessKind::Property => Ok(None),
+        match node.property.body() {
+            ast::PropertyKind::NamedField(name) => {
+                let mut root =
+                    self.expr_as_ast_path(node.body.subject.ast_ref())?.ok_or_else(|| {
+                        SemanticError::InvalidNamespaceSubject { location: node.span() }
+                    })?;
+                root.push(AstPathComponent {
+                    name: *name,
+                    name_node_id: node.property.id(),
+                    args: Node::at(vec![], NodeOrigin::Given(node.id())),
+                    node_id: node.id(),
+                });
+                Ok(Some(root))
+            }
+            ast::PropertyKind::NumericField(_) => {
+                // Should have been caught at semantics
+                panic_on_span!(node.span(), "Namespace followed by numeric field found")
+            }
         }
     }
 
@@ -426,9 +423,6 @@ impl<E: SemanticEnv> ResolutionPass<'_, E> {
                 self.make_term_from_resolved_ast_path(&resolved_path, node.id())
             }
             None => {
-                // Namespace handled above.
-                assert!(matches!(node.kind, ast::AccessKind::Property));
-
                 let subject = self.make_term_from_ast_expr(node.subject.ast_ref())?;
                 let field = match node.property.body() {
                     ast::PropertyKind::NamedField(name) => ParamIndex::Name(*name),

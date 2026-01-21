@@ -112,8 +112,8 @@ impl AstGen<'_> {
                 }
                 // An access pattern which accesses the `subject` with a particular `property`
                 // denotes with a name.
-                TokenKind::Access => {
-                    self.skip_fast(TokenKind::Access); // `::`
+                TokenKind::Dot => {
+                    self.skip_fast(TokenKind::Dot); // `.`
                     let property = self.parse_name()?;
                     self.node_with_joined_span(Pat::Access(AccessPat { subject, property }), span)
                 }
@@ -551,9 +551,11 @@ impl AstGen<'_> {
     }
 
     fn peek_pat(&self) -> bool {
-        macro_rules! peek_colon(
+        // This is a macro that is used to simplify the lookahead for the pattern
+        // boundary, which can either be a `:` or a `::` token.
+        macro_rules! peek_pat_boundary(
             () => {
-                matches!(self.peek_kind(), Some(TokenKind::Colon))
+                matches!(self.peek_kind(), Some(TokenKind::Colon | TokenKind::Access))
             }
         );
 
@@ -572,7 +574,7 @@ impl AstGen<'_> {
                             && kind.is_range_lit()
                         {
                             self.skip_fast(kind);
-                            peek_colon!()
+                            peek_pat_boundary!()
                         } else {
                             false
                         }
@@ -584,12 +586,12 @@ impl AstGen<'_> {
             // Other general literal patterns.
             Some(kind) if kind.is_lit() => {
                 self.skip_fast(kind);
-                peek_colon!()
+                peek_pat_boundary!()
             }
             // Module, Array, Tuple patterns.
             Some(TokenKind::Tree(_, _)) => {
                 self.skip_token();
-                peek_colon!()
+                peek_pat_boundary!()
             }
             // Identifier or constructor pattern.
             Some(ident @ TokenKind::Ident(_)) => {
@@ -603,8 +605,8 @@ impl AstGen<'_> {
                         TokenKind::Tree(Delimiter::Paren, _) => self.skip_token(),
                         // Handle the `access` pattern case. We're looking for the next
                         // three tokens to be `::Ident`
-                        TokenKind::Access => {
-                            self.skip_fast(TokenKind::Access);
+                        TokenKind::Dot => {
+                            self.skip_fast(TokenKind::Dot); // `.`
 
                             match self.peek_kind() {
                                 Some(ident @ TokenKind::Ident(_)) => {
@@ -617,7 +619,7 @@ impl AstGen<'_> {
                     }
                 }
 
-                peek_colon!()
+                peek_pat_boundary!()
             }
             // This is the case for a bind that has a visibility modifier at the beginning. In
             // this scenario, it can be followed by a `mut` modifier and then a identifier or

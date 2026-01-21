@@ -184,20 +184,8 @@ impl AstVisitor for AstTreePrinter {
             vec![
                 TreeNode::branch("subject", vec![subject]),
                 TreeNode::branch("property", vec![property]),
-                TreeNode::leaf(labelled("kind", node.kind, "\"")),
             ],
         ))
-    }
-
-    type AccessKindRet = TreeNode;
-    fn visit_access_kind(
-        &self,
-        node: ast::AstNodeRef<ast::AccessKind>,
-    ) -> Result<Self::AccessKindRet, Self::Error> {
-        match node.body() {
-            ast::AccessKind::Property => Ok(TreeNode::leaf("property")),
-            ast::AccessKind::Namespace => Ok(TreeNode::leaf("namespace")),
-        }
     }
 
     type RefExprRet = TreeNode;

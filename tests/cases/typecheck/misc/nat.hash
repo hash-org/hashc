@@ -9,8 +9,8 @@ Nat := enum(
 /// Add two natural numbers.
 add := (a: Nat, b: Nat) -> Nat => {
   match a {
-    Nat::Zero => b,
-    Nat::Succ(a) => Nat::Succ(add(a, b))
+    Nat.Zero => b,
+    Nat.Succ(a) => Nat.Succ(add(a, b))
   }
 }
 
@@ -18,21 +18,21 @@ add := (a: Nat, b: Nat) -> Nat => {
 succ_id := <
   a: Nat,
   b: Nat,
-  p: {Nat::Succ(a)} ~ {Nat::Succ(b)}
+  p: {Nat.Succ(a)} ~ {Nat.Succ(b)}
 > -> a ~ b => {
   match p {
-    Equal::Refl(_) => refl()
+    Equal.Refl(_) => refl()
   }
 }
 
 /// Nat induction.
 nat_induction := (
   P: <n: Nat> -> Type,
-  pzero: P<Nat::Zero>,
-  psucc: (m: Nat, p: P<m>) -> P<{Nat::Succ(m)}>,
+  pzero: P<Nat.Zero>,
+  psucc: (m: Nat, p: P<m>) -> P<{Nat.Succ(m)}>,
 ) => (n: Nat) -> P<n> => {
   match n {
-    Nat::Zero => pzero,
-    Nat::Succ(m) => psucc(m, nat_induction(P, pzero, psucc)(m))
+    Nat.Zero => pzero,
+    Nat.Succ(m) => psucc(m, nat_induction(P, pzero, psucc)(m))
   }
 }

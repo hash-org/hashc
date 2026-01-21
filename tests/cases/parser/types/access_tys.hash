@@ -1,4 +1,4 @@
 // run=pass, stage=parse
 
-t: animals::Dog = animals::Dog(name = "Viktor", age = 12);
-t: animals::Dog<str> = animals::Dog(name = "Viktor", age = 12);
+t: animals.Dog = animals.Dog(name = "Viktor", age = 12);
+t: animals.Dog<str> = animals.Dog(name = "Viktor", age = 12);

@@ -1,14 +1,14 @@
 // run=pass, stage=parse
 
 // De-structure the `dog` into `age` and `name`
-animals::Dog(name, age) := dog;
+animals.Dog(name, age) := dog;
 
 (a, b, c) := (2, 3, 4);
 
 // This wouldn't be allowed but would parse
-animals::ModuleVariable := 3;
-animals::ModuleVariable: i32 = 3;
+animals.ModuleVariable := 3;
+animals.ModuleVariable: i32 = 3;
 
 
 // Multiple constructors on the pattern
-animals::Dog()() := dog;
+animals.Dog()() := dog;
